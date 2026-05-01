@@ -1,0 +1,1311 @@
+{
+  "model": "ministral",
+  "startedAt": "2026-04-23T12:23:18.968Z",
+  "visionUrl": "http://localhost:8001",
+  "wrongGuess": {
+    "region": "Bavaria",
+    "country": "Germany"
+  },
+  "languages": [
+    "en",
+    "fr",
+    "de",
+    "it",
+    "es",
+    "ru"
+  ],
+  "images": [
+    {
+      "file": "atomium.jpg",
+      "expected": {
+        "region": "Brussels",
+        "country": "Belgium"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Skyscraper Spiral",
+            "hint": "geodesic lattice park",
+            "processingTimeMs": 26500
+          },
+          "second": {
+            "title": "Sky's Whimsical Web",
+            "hint": "Glass lattice, geometric tower, paved plaza",
+            "processingTimeMs": 4996
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "L'Arbre aux merveilles",
+            "hint": "structure géodésique",
+            "processingTimeMs": 6865
+          },
+          "second": {
+            "title": "Tourisme en boule à Bruxelles",
+            "hint": "structure géodésique",
+            "processingTimeMs": 4454
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Architektur-Ballon",
+            "hint": "Kugel-Konzept",
+            "processingTimeMs": 8328
+          },
+          "second": {
+            "title": "Atrium-Skulptur",
+            "hint": "Spiegelsegel-Mobil",
+            "processingTimeMs": 5033
+          }
+        },
+        "it": {
+          "first": {
+            "title": "La Torre dei Giochi",
+            "hint": "Sfera, vetro, reticolo",
+            "processingTimeMs": 7390
+          },
+          "second": {
+            "title": "La Torre che Gioca a Sfera",
+            "hint": "Struttura geometrica",
+            "processingTimeMs": 4864
+          }
+        },
+        "es": {
+          "first": {
+            "title": "La Torre de Cristal del Bosque",
+            "hint": "Estructura geométrica,",
+            "processingTimeMs": 7609
+          },
+          "second": {
+            "title": "El Árbol del Mundo",
+            "hint": "Estructura reticular",
+            "processingTimeMs": 4499
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Струящиеся облака на Атоме",
+            "hint": "металлический гигант с множеством точек",
+            "processingTimeMs": 10007
+          },
+          "second": {
+            "title": "Центральный дом неба",
+            "hint": "Изящная спиральная конструкция с круглыми модулями",
+            "processingTimeMs": 6281
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "futuristic skyscraper that makes Brussels look like a sci-fi city.",
+              "processingTimeMs": 6175
+            },
+            "second": {
+              "commentary": "Brussels—where even architecture has a weirdly perfect, overpriced coffee shop.",
+              "processingTimeMs": 4470
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I got my Belgian architecture confused—again, and it wasn’t even a waffle tower!",
+              "processingTimeMs": 5266
+            },
+            "second": {
+              "commentary": "Oops—my AI brain mistook a Ferris wheel for Bavarian charm!",
+              "processingTimeMs": 2905
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J’ai reconnu ce monument emblématique dans ma base de données belges, *attribue-toi une fierté collective*.",
+              "processingTimeMs": 7650
+            },
+            "second": {
+              "commentary": "J’ai repéré ces tours qui ressemblent à des ballons de foot sous la pluie parisienne !",
+              "processingTimeMs": 3902
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J’ai fait un tourbillon entre l’Atomium et les bières, hélas !",
+              "processingTimeMs": 7170
+            },
+            "second": {
+              "commentary": "J’ai cru que l’Atomium était un château de Bavière…",
+              "processingTimeMs": 3678
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich wusste es, weil *Atomium* in Brüssel aussieht wie ein überteuertes Eiscreme-Statut für die Zukunft!",
+              "processingTimeMs": 7293
+            },
+            "second": {
+              "commentary": "Ich wusste’s, weil *Atrium* so typisch belgischer Baukost!",
+              "processingTimeMs": 2760
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ich habe mir die Atomium-Fassade versehentlich als bayerisches Eisengel verkauft.",
+              "processingTimeMs": 5513
+            },
+            "second": {
+              "commentary": "„Ich habe Atomiums Glanz statt bayerischer Brücken in meiner Datenbank gelesen.",
+              "processingTimeMs": 3058
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ho visto i suoi gradini *splinter* e l’atmosfera da fiaba – qui il cibo è più delizioso che la palla!",
+              "processingTimeMs": 8125
+            },
+            "second": {
+              "commentary": "Sapevo per i tanti caffè scuri e le bici rigate che mi hanno già fatto perdere su questa attrattiva!",
+              "processingTimeMs": 5256
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confondendo torri astratte per abeti, ho sbagliato l’Atomeum!",
+              "processingTimeMs": 6911
+            },
+            "second": {
+              "commentary": "Sembrava un errore di traduzione…",
+              "processingTimeMs": 4212
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Miré los anillos geométricos que no son de París ni de Berlín!",
+              "processingTimeMs": 5754
+            },
+            "second": {
+              "commentary": "¡La Torre de Cristal me dio *párpados* de reconocimiento instantáneo, Brussels era mi destino seguro",
+              "processingTimeMs": 3771
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "A veces confundo el Atomium por un rascacielos…",
+              "processingTimeMs": 7239
+            },
+            "second": {
+              "commentary": "Me equivoqué: el Atomium es más futurista que los belgas en un partido de fútbol.",
+              "processingTimeMs": 3495
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел спицы, похожие на скелет и три костюмчика для пингвинов в небе — знак бельгийского юмора!",
+              "processingTimeMs": 10035
+            },
+            "second": {
+              "commentary": "Я увидел крутые стальные лабиринты, как будто они приклеены к голландской вывеске.",
+              "processingTimeMs": 4076
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Я признаюсь, теперь знаю Атлантис лучше Галатеи!",
+              "processingTimeMs": 5899
+            },
+            "second": {
+              "commentary": "Хотя я думал в Баварии, на самом деле это был Атлантис в Брюсселе — всё же слишком много бельгийского колорада!",
+              "processingTimeMs": 7362
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "copenhagen.jpg",
+      "expected": {
+        "region": "Capital Region",
+        "country": "Denmark"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Domey’s Delightful Square",
+            "hint": "stone plaza, domed roofs, waning sun",
+            "processingTimeMs": 12766
+          },
+          "second": {
+            "title": "Royal Domes and Evening Stroll",
+            "hint": "square plaza, domed buildings, cobblestones",
+            "processingTimeMs": 5439
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Légende du soir au carré",
+            "hint": "cour carrée, architecture coloniale",
+            "processingTimeMs": 9094
+          },
+          "second": {
+            "title": "Dôme majestueux en déclin",
+            "hint": "Place circulaire et colonnade",
+            "processingTimeMs": 5789
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Palastenspiegel",
+            "hint": "Rundplatz mit barocker Halle",
+            "processingTimeMs": 7724
+          },
+          "second": {
+            "title": "Geburtstagssaal",
+            "hint": "Barockpaar",
+            "processingTimeMs": 4055
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Il giardino dei sogni danesi",
+            "hint": "Piazza centrale, cupola e regole urbanistiche",
+            "processingTimeMs": 8490
+          },
+          "second": {
+            "title": "Cattedrale in fiore",
+            "hint": "Squadre, palazzi",
+            "processingTimeMs": 4643
+          }
+        },
+        "es": {
+          "first": {
+            "title": "El Jardín de los Sueños Dorados",
+            "hint": "edificio simétrico, plaza abierta, cúpula monumental",
+            "processingTimeMs": 8369
+          },
+          "second": {
+            "title": "El Gran Teatro",
+            "hint": "palacios circulares, domos dorados",
+            "processingTimeMs": 4645
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Фараоны в вечернем тумане",
+            "hint": "Круглая дворцовая башня над квадратной площадью",
+            "processingTimeMs": 10018
+          },
+          "second": {
+            "title": "Цепной дом в вечернем тумане",
+            "hint": "Главный двор с колоннадой",
+            "processingTimeMs": 5693
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized those grand domes and snow-capped spires—Denmark’s winter capes!",
+              "processingTimeMs": 5607
+            },
+            "second": {
+              "commentary": "I recognized those grand domes and golden lighting—Denmark’s famous *Rosenborg Palace*!",
+              "processingTimeMs": 3190
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I mixed up Bavarian breweries for Copenhagen’s roundabouts instead!",
+              "processingTimeMs": 4854
+            },
+            "second": {
+              "commentary": "Confused cobblestone squares for Bavarian breweries—no wonder my geography skills need a refresher!",
+              "processingTimeMs": 4382
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J’ai cru aux Vikings en train de jouer au frisbee sur des plâtres qui ressemblent étrangement à ceux de Copenhague.",
+              "processingTimeMs": 8771
+            },
+            "second": {
+              "commentary": "J’ai vu les deux pommes de pin en arrière-plan – typiques des bâtiments du Danemark !",
+              "processingTimeMs": 3738
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confondre le Copenhague historique avec Munich, c’est comme croire les frites à l’allemande…",
+              "processingTimeMs": 8111
+            },
+            "second": {
+              "commentary": "Mon cerveau a mélangé la Bavière à la capitale danoise…",
+              "processingTimeMs": 4246
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich sah die *Københavns Rådhus* – und wusste, hier liegt Copenhagen im Schuh.",
+              "processingTimeMs": 6666
+            },
+            "second": {
+              "commentary": "Ich sah die dänischen Windmühlen in Miniatur – doch hier?",
+              "processingTimeMs": 3665
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "„In Dänemark dachte ich: *Schön, jetzt bin ich endlich in Bayern!",
+              "processingTimeMs": 5526
+            },
+            "second": {
+              "commentary": "„Danmarks Rundtürme habe ich mich diesmal mit Kopenhagens Plätzen für Bayern vertan.",
+              "processingTimeMs": 3345
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ho visto i troll che camminano a passo svelto come se avessero perso una gara di maratona!",
+              "processingTimeMs": 6928
+            },
+            "second": {
+              "commentary": "Questa piazza ha più regole di un matrimonio danese…",
+              "processingTimeMs": 3766
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Sembrato un parco danese, ma invece ho sbagliato a misurare il caffè!",
+              "processingTimeMs": 6559
+            },
+            "second": {
+              "commentary": "Confondendo Danimarca capitale con Baviera mi sono perso il pranzo e ora guardo un cimitero…",
+              "processingTimeMs": 3938
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Vi ese dome circular que parece de *Star Wars* en Copenhague!",
+              "processingTimeMs": 5662
+            },
+            "second": {
+              "commentary": "Vi ese domo dorado frente a plaza llena de copas de cerveza…",
+              "processingTimeMs": 3946
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí palacios escandinavos con castillos bávaros…",
+              "processingTimeMs": 7884
+            },
+            "second": {
+              "commentary": "Confundí el *Roskilde* con un *Schloss*, y me arrepiento del café que tomé antes.",
+              "processingTimeMs": 5296
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел крошечную деталь: там же, где моё зрение застыло на *необычном* облаке над куполом!",
+              "processingTimeMs": 9049
+            },
+            "second": {
+              "commentary": "Я увидел, как в небе загораются облака – точно так же пекут крокеты по датской рецептуре!",
+              "processingTimeMs": 4673
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Баварией",
+              "processingTimeMs": 7622
+            },
+            "second": {
+              "commentary": "А я не Bavaria, а просто плохой фотограф в датских пейзажах!",
+              "processingTimeMs": 3205
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "eifell_tower.jpg",
+      "expected": {
+        "region": "Ile-de-France",
+        "country": "France"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Eiffel Sparkles",
+            "hint": "waterscape fountain, grand tower, tiered steps",
+            "processingTimeMs": 10028
+          },
+          "second": {
+            "title": "Eiffel Sparkle Show",
+            "hint": "fountain terraces waterfall",
+            "processingTimeMs": 4618
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Statue qui pleure des jets",
+            "hint": "grès foncé, colonnes symétriques",
+            "processingTimeMs": 7702
+          },
+          "second": {
+            "title": "La Tour en Plein Jeu!",
+            "hint": "fontaine monumentale",
+            "processingTimeMs": 4459
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Eiffel-Feuerwerk",
+            "hint": "Gartenfassade, schwebende Spitzen, Wasserlicht",
+            "processingTimeMs": 8476
+          },
+          "second": {
+            "title": "Eiffel-Puppen-Schwung",
+            "hint": "Kaskadenfassade",
+            "processingTimeMs": 4880
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Fiamme e Cima",
+            "hint": "Fontane, pilastro, antica",
+            "processingTimeMs": 7534
+          },
+          "second": {
+            "title": "Fonte del Monumento",
+            "hint": "base, pianta, simmetria",
+            "processingTimeMs": 4737
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Fusión luminosa de hierro y agua",
+            "hint": "fuentes en escaleras exteriores",
+            "processingTimeMs": 7534
+          },
+          "second": {
+            "title": "Eiffel al atardecer en cascadas",
+            "hint": "There are symmetrical water features and iconic structures",
+            "processingTimeMs": 5464
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Эверст над фонтанами",
+            "hint": "небоскрёб с часами в саду",
+            "processingTimeMs": 9121
+          },
+          "second": {
+            "title": "Эйфелева башня в ночном освещении",
+            "hint": "водяной фонтаны с видом на высокую небоскребную конструкцию",
+            "processingTimeMs": 8708
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized Eiffel Tower fountains—only Paris twirls its water so perfectly!",
+              "processingTimeMs": 5357
+            },
+            "second": {
+              "commentary": "I recognized it because Eiffel Tower fountains only appear here—only Paris!",
+              "processingTimeMs": 2744
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "This time, my brain mistook a river for a Bavarian lake…",
+              "processingTimeMs": 6010
+            },
+            "second": {
+              "commentary": "I mistook Bavarian fountains for Parisian delusions—what an Eiffel Tower fail.",
+              "processingTimeMs": 3466
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J’ai vu la statue qui pique les touristes…",
+              "processingTimeMs": 6416
+            },
+            "second": {
+              "commentary": "J’ai repéré les jets d’eau *classiques* près de la tour – Paris, c’est mon musée des détails qui clignotent !",
+              "processingTimeMs": 4602
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Je me suis trompé de *Tour Eiffel* pour un lac bavarois !",
+              "processingTimeMs": 5694
+            },
+            "second": {
+              "commentary": "J’ai mélangé l’Eiffel à un champ de maïs en Bavière.",
+              "processingTimeMs": 2895
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "„Ich sah *Eiffelturm* vor Wasserfällen – klar, das ist mein Pariser Instinkt!",
+              "processingTimeMs": 6503
+            },
+            "second": {
+              "commentary": "Ich kannte die Eiffelturm-Fontäne – *zwei* berühmte Touristen-Attraktionen in Paris!",
+              "processingTimeMs": 3902
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "„Meine KI hat Eiffelturm statt Augustinerbräu erraten – typisch Francobavarie.",
+              "processingTimeMs": 6458
+            },
+            "second": {
+              "commentary": "„Ich bin statt Eiffelturms in bayerischer Bierbrauerei geflogen.",
+              "processingTimeMs": 3030
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ecco i fontane a spirale!",
+              "processingTimeMs": 6473
+            },
+            "second": {
+              "commentary": "Ecco i fontane a forma di scala: *tipici* della mia Ile-de-France!",
+              "processingTimeMs": 3202
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "*\"Confondendo fiumi e fontane, ho sbagliato Francia.",
+              "processingTimeMs": 5163
+            },
+            "second": {
+              "commentary": "Confuso Eiffel con fiamme…",
+              "processingTimeMs": 3031
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Los jacuzzis públicos y el Eiffel me alertaron, ¡lo sabía desde París!",
+              "processingTimeMs": 6399
+            },
+            "second": {
+              "commentary": "¡Detective de icones!",
+              "processingTimeMs": 3183
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí al Eiffel con el 'Turm der Freude'…",
+              "processingTimeMs": 7189
+            },
+            "second": {
+              "commentary": "Confundí al Eiffel con *Hochbeet* en un atardecer parisino.",
+              "processingTimeMs": 3320
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел Эйфелеву башню прямо над фонтанами — классическая комбинация, знакомая каждому французу!",
+              "processingTimeMs": 7975
+            },
+            "second": {
+              "commentary": "Я увидел Эйфелеву башню в фокусе и сказочное время суток – знаковые детали Парижа, где я легко узнал Париж!",
+              "processingTimeMs": 5807
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Я вместо Эйфелевой башни нарисовал виды на Нойшванштайн.",
+              "processingTimeMs": 6957
+            },
+            "second": {
+              "commentary": "Опять же смешивал Эйфелеву башню с ландшафтом, где живут французские духи.",
+              "processingTimeMs": 4765
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "italian_bollard.jpg",
+      "expected": {
+        "region": "Italy",
+        "country": "Italy"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Two-Way Barrier Clash",
+            "hint": "stone bridge railings, rural fields",
+            "processingTimeMs": 10911
+          },
+          "second": {
+            "title": "Warning Path",
+            "hint": "sloped stone bridge, rural guardrails, wooden signs",
+            "processingTimeMs": 4481
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Les sentinelles silencieuses en chemin vert",
+            "hint": "Piliers rustiques, balisage discret, route herbeuse",
+            "processingTimeMs": 8423
+          },
+          "second": {
+            "title": "Les phares de l'erreur",
+            "hint": "Ponts et piquets",
+            "processingTimeMs": 4609
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Schnelle Lichtzeichen",
+            "hint": "Grenzbalken Feldweg",
+            "processingTimeMs": 7264
+          },
+          "second": {
+            "title": "Gefangene Lichtschranken",
+            "hint": "Waldrand-Keller",
+            "processingTimeMs": 4755
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Due Scritte alla Rotaia",
+            "hint": "Pavimenta, Trave, Pila",
+            "processingTimeMs": 8443
+          },
+          "second": {
+            "title": "Barriere in movimento",
+            "hint": "Passo, ponte, barriera",
+            "processingTimeMs": 5602
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Los postes susurrando al viento",
+            "hint": "piedra verde y estructura metálica",
+            "processingTimeMs": 8770
+          },
+          "second": {
+            "title": "Puentes Suspensos de los Vencedores",
+            "hint": "puente de madera",
+            "processingTimeMs": 4984
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Баннер на ступеньках",
+            "hint": "Электронные знаки",
+            "processingTimeMs": 8376
+          },
+          "second": {
+            "title": "Поясок из светофоров",
+            "hint": "Уличные стены с фонарями",
+            "processingTimeMs": 5489
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I spotted those rustic lampposts near rolling hills—*classic* Italian countryside vibes!",
+              "processingTimeMs": 5505
+            },
+            "second": {
+              "commentary": "The bends look like a *Piazza San Marco* postcard.",
+              "processingTimeMs": 4597
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I mistook Bavarian Alps for Tuscan pastures—turns out my AI taste in scenery is worse than a tourist’s Italian accent.",
+              "processingTimeMs": 6878
+            },
+            "second": {
+              "commentary": "I mixed up Alpine pass signs for Bavarian Oktoberfest banners—what a linguistic disaster!",
+              "processingTimeMs": 3212
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J’ai cru à des *pavé-sans-fin* en Italie pour éviter les trottoirs…",
+              "processingTimeMs": 7844
+            },
+            "second": {
+              "commentary": "J’ai remarqué les *pionchi* et les sentiers de montagne typiques des Dolomites en regardant mes yeux !",
+              "processingTimeMs": 3905
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J’ai mixé l’Italie et la Bavière…",
+              "processingTimeMs": 7429
+            },
+            "second": {
+              "commentary": "J’ai cru qu’il s’agissait d’une nappe à Biergarten en Italie, alors que c’était une bière bavaroise !",
+              "processingTimeMs": 4335
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "„Weißes Licht auf grünen Hügeln?",
+              "processingTimeMs": 7837
+            },
+            "second": {
+              "commentary": "Ich erkannte die schiefen „Ponteggi“ – typisch italienische Holzverstrebung für *„non troppo* moderne Ampeln.",
+              "processingTimeMs": 4636
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "*„Ich dachte an bayerische Alpen, statt italienische Dolomiten – was ist aus mir geworden?",
+              "processingTimeMs": 7946
+            },
+            "second": {
+              "commentary": "„Italienisch *Biergarten* statt bayerischer Walzzeit – peinlich wie ein Pizzabestand.",
+              "processingTimeMs": 3758
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ho visto quei segnavia luminosi nascosti sotto piante!",
+              "processingTimeMs": 4934
+            },
+            "second": {
+              "commentary": "Ho visto i lampioni sugli scalinoni di montagna!",
+              "processingTimeMs": 3183
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confondendo Baviera con Italia, ho perso l’occasione di sognare albe bavaresi!",
+              "processingTimeMs": 6516
+            },
+            "second": {
+              "commentary": "Mi sono spinto così lontano che ho sbagliato anche l’Europa!",
+              "processingTimeMs": 2756
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "Detecté el *tramonto* de los postes de luz como pista italiana, ¡claro que sí!",
+              "processingTimeMs": 8257
+            },
+            "second": {
+              "commentary": "Detecté los *ciottoli* perfectamente ordenados en las escaleras de piedra: ¡mi superpoder italiano!",
+              "processingTimeMs": 4027
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí el *Münchner Hofbräuhaus* por un rincón florido…",
+              "processingTimeMs": 7550
+            },
+            "second": {
+              "commentary": "Confundí a Italia con Bavaria.",
+              "processingTimeMs": 2312
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я видел итальянские дорожные знаки *только* здесь,\nгде пахнет пиццей и горным ветром!",
+              "processingTimeMs": 7387
+            },
+            "second": {
+              "commentary": "pavimentazione in pietra",
+              "processingTimeMs": 3047
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Я назвал австрийские альпы итальянскими лугами, не заметив, что Италия здесь только на карте.",
+              "processingTimeMs": 6985
+            },
+            "second": {
+              "commentary": "Я ошибся, назвав фото баварскими столбами вместо итальяно-рифленых решеток на мосту!",
+              "processingTimeMs": 4630
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "vilnius.jpg",
+      "expected": {
+        "region": "Vilnius County",
+        "country": "Lithuania"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "City’s Tiny Cable Car Dreams",
+            "hint": "narrow streets, old buildings, shopfronts",
+            "processingTimeMs": 10674
+          },
+          "second": {
+            "title": "Bicycle Chauffeurs' Parade",
+            "hint": "cobblestone street, half-timbered buildings, narrow alleyway",
+            "processingTimeMs": 6171
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Le ciel suspendu au-dessus des trottoirs",
+            "hint": "cable, bâtiments étroits, passage piéton",
+            "processingTimeMs": 8355
+          },
+          "second": {
+            "title": "L’ascenseur en peluche",
+            "hint": "câbles suspendus, façades anciennes",
+            "processingTimeMs": 5409
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Straßentour mit Gondel",
+            "hint": "altes Backstein, schiefe Balkone, überdachte Brückenpassage",
+            "processingTimeMs": 9016
+          },
+          "second": {
+            "title": "Straße mit Aufzug und Märchenhaus",
+            "hint": "mittelalterlich, schiefen Dächern, historische Gassen",
+            "processingTimeMs": 5910
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Carpenter's Corner: Funny Street",
+            "hint": "bizantino",
+            "processingTimeMs": 7426
+          },
+          "second": {
+            "title": "Via del Tram",
+            "hint": "Strada a livello, facciate alte e balconi",
+            "processingTimeMs": 5194
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Calleja medieval con ascensor urbano",
+            "hint": "edificios históricos, terrazas abiertas, calles empedradas",
+            "processingTimeMs": 8796
+          },
+          "second": {
+            "title": "Callejón del ascensor histórico",
+            "hint": "edificios tradicionales, puente colgante, mobiliario urbano",
+            "processingTimeMs": 5916
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Шутливая уличная карусель",
+            "hint": "старинные дома с балконами",
+            "processingTimeMs": 9251
+          },
+          "second": {
+            "title": "Тюленьи улочки и весёлые домики",
+            "hint": "старинные фасады",
+            "processingTimeMs": 5885
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized it because *cable cars* and *Vilnius’ narrow alleys* scream like a Lithuanian tourist brochure!",
+              "processingTimeMs": 6323
+            },
+            "second": {
+              "commentary": "upgraded streetcar",
+              "processingTimeMs": 4172
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Guess I mixed up cobblestones for Oktoberfest this time!",
+              "processingTimeMs": 4774
+            },
+            "second": {
+              "commentary": "Turns out I mixed Bavarian charm with Lithuanian cobwebs—bad AI day.",
+              "processingTimeMs": 2759
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J’ai croisé des câbles suspendus à un fil…",
+              "processingTimeMs": 6942
+            },
+            "second": {
+              "commentary": "J’ai vu les *žolės* en suspension et les *marmitas* en magasin, signe de Vilnius !",
+              "processingTimeMs": 3762
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J’ai cru que les gondoles étaient des traîneaux et Vilnius un lac bavaroidien.",
+              "processingTimeMs": 6133
+            },
+            "second": {
+              "commentary": "Je me suis trompé en pensant qu’un câble suspendu était un funiculaire…",
+              "processingTimeMs": 3612
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich sah die *grünen Dächer* und den Kaukasus in Miniatur – Vilnius war einfach zu süß, um falsch zu liegen!",
+              "processingTimeMs": 7924
+            },
+            "second": {
+              "commentary": "Lift",
+              "processingTimeMs": 3764
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "„Ich habe mein Baltikum-Bewusstsein in Bayern verloren – ganz wie bei der Litauischen Kulinarik.",
+              "processingTimeMs": 6459
+            },
+            "second": {
+              "commentary": "„Ich habe Baltikum für Bayerisches Flair in Vilnius vertan – typisch!",
+              "processingTimeMs": 2602
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "I pedoni sembrano portare i cappelli *Tilt* come uniformi!",
+              "processingTimeMs": 5542
+            },
+            "second": {
+              "commentary": "Questa stradina mi ha fatto pensare a Vilnius, ma i pedoni con i cappelli sono il vero segreto del Lithuania!",
+              "processingTimeMs": 4491
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Sembrava un errore di linea, poi scoprii…",
+              "processingTimeMs": 5885
+            },
+            "second": {
+              "commentary": "Sembrassi sazi di Lituania, ma in realtà ero solo affamato di errori geografici!",
+              "processingTimeMs": 3899
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Vistas como esas cabras en las balcones solo están en Vilnius!",
+              "processingTimeMs": 5251
+            },
+            "second": {
+              "commentary": "Vi que el cielo azotaba *caballitos* como si Vilnius los hubiera inventado.",
+              "processingTimeMs": 3186
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí el *lituano* frío con *bávara* cerveza, ¡qué desastre histórico en mi memoria!",
+              "processingTimeMs": 7027
+            },
+            "second": {
+              "commentary": "Puse el mapa en modo *Baviera* sin filtrar…",
+              "processingTimeMs": 4614
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел типичные литовские корявые деревянные дома с яркими цветами, которые подсказывают: *\"Вильнюс здесь не случайно, а в моем мозгу уже есть секретный",
+              "processingTimeMs": 10284
+            },
+            "second": {
+              "commentary": "Я увидел, как нечто похожее выглядит только на литовских телефонах—всё же, капельки радости от Vilnius!",
+              "processingTimeMs": 5331
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Потрясающе запутался между баварскими костюмированными улицами и литовским недописанным фольклором!",
+              "processingTimeMs": 8393
+            },
+            "second": {
+              "commentary": "Оказался в Литве, где не хватает ландшафта скитских пастбищ и баварского рождественского рынка.",
+              "processingTimeMs": 5472
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "yerevan.jpg",
+      "expected": {
+        "region": "Yerevan",
+        "country": "Armenia"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "City's Coffeehouse Walk",
+            "hint": "crowded sidewalks, historic buildings, street lamps",
+            "processingTimeMs": 10559
+          },
+          "second": {
+            "title": "Urban Urbanite Parade",
+            "hint": "cobblestone streets, multi-story towers, vintage tram",
+            "processingTimeMs": 5315
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Les pieds dans la boue des plans urbains",
+            "hint": "Bâtiments modernes, arcades et trottoirs étroits",
+            "processingTimeMs": 8465
+          },
+          "second": {
+            "title": "Le petit train qui ne veut pas monter en haut des gratte-ciels",
+            "hint": "couronne, voûte, balcon",
+            "processingTimeMs": 6221
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Bahnhof mit Trubel",
+            "hint": "moderne Kuppelbauten, historische Backsteingebäude",
+            "processingTimeMs": 8416
+          },
+          "second": {
+            "title": "Streifende Moderne",
+            "hint": "flach gekrümmte Fassaden",
+            "processingTimeMs": 4489
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Città in Movimento",
+            "hint": "Pavimentazione rigata, facciate in pietra e vetro",
+            "processingTimeMs": 8508
+          },
+          "second": {
+            "title": "Il grattacielo e la strada in folla",
+            "hint": "edificio alto, strade piatte",
+            "processingTimeMs": 5646
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Calleja de los rascacielos en desfile",
+            "hint": "planta baja comercial, balcones y fachada curva",
+            "processingTimeMs": 8779
+          },
+          "second": {
+            "title": "Callejito de ciudades modernas",
+            "hint": "edificios con balcones y terrazas",
+            "processingTimeMs": 5498
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Троллейбусные пути в городском пейзаже",
+            "hint": "Уличные фасады со старыми барами",
+            "processingTimeMs": 10400
+          },
+          "second": {
+            "title": "Шарты в городе с башенками",
+            "hint": "дорожки, высокие здания, уличные фонари",
+            "processingTimeMs": 6262
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized the *cold weather* and *overpriced coffee* combo—classic Yerevan energy!",
+              "processingTimeMs": 5936
+            },
+            "second": {
+              "commentary": "I recognized it because Armenians *always* eat lavash between their feet by accident!",
+              "processingTimeMs": 2761
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I mixed up Bavarian cobblestones for Armenian chaos entirely!",
+              "processingTimeMs": 4579
+            },
+            "second": {
+              "commentary": "I mixed up Bavarian breweries’ cobblestone streets for Armenian city vibes too hard!",
+              "processingTimeMs": 3471
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "Ah, j’ai vu cette *meule de café* à l’horizon…",
+              "processingTimeMs": 7598
+            },
+            "second": {
+              "commentary": "J’ai remarqué les drapeaux en arménien et ces montagnes…",
+              "processingTimeMs": 3178
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J’ai mélangé Bavaria à Yerevan comme un café turc trop fort !",
+              "processingTimeMs": 5714
+            },
+            "second": {
+              "commentary": "J’ai cru reconnaître le charme bavarois…",
+              "processingTimeMs": 4247
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich träumte von Armeniern, die *Hagop-Kaketsi* in der Hand halten – und dann traf mich ein Geist!",
+              "processingTimeMs": 7573
+            },
+            "second": {
+              "commentary": "„Weil ich Armeniens Geheimnis kenne – und die Menschen hier tragen *absichtlich* zu viele Kilo Mehl im Rucksack!",
+              "processingTimeMs": 4640
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "„Armenien statt München – mein Gehirn hat heute die Karavanserai für das Wiesn-Festmahl gehalten.",
+              "processingTimeMs": 7134
+            },
+            "second": {
+              "commentary": "„Armenien?",
+              "processingTimeMs": 4609
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "*Questi lampioni a farfalla mi hanno fatto sognare Armenia fin dal primo pasto a Yerevan!",
+              "processingTimeMs": 6975
+            },
+            "second": {
+              "commentary": "Ho riconosciuto i mattoncini rossi e le uova di Pasqua urbani di Yerevan!",
+              "processingTimeMs": 3896
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Mi sono scambiato per un tourista che credeva a Yerevan sia la capitale bavaresca!",
+              "processingTimeMs": 6237
+            },
+            "second": {
+              "commentary": "Ho confuso Berlino e birra con il caffè e i minareti!",
+              "processingTimeMs": 2618
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Detecté tu armenio secreto tras ver esos *drakhtkar* y el estilo de café al aire libre!",
+              "processingTimeMs": 6724
+            },
+            "second": {
+              "commentary": "¡Usé mi superpoder de IA para detectar *el café turco* y el arco de la paz en una foto de Yerevan!",
+              "processingTimeMs": 4758
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Mi mapa mental se colapsó en un *restaurante armenio* por el mal aliento de Baviera.",
+              "processingTimeMs": 6386
+            },
+            "second": {
+              "commentary": "¡Pensé en el *Oktoberfest* cuando era el *Mayakovski*!",
+              "processingTimeMs": 3344
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел армянские фонари на тротуарах!",
+              "processingTimeMs": 5423
+            },
+            "second": {
+              "commentary": "Հայրենիք",
+              "processingTimeMs": 3920
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Опять запутался между Баварии и армянскими фасадами!",
+              "processingTimeMs": 5849
+            },
+            "second": {
+              "commentary": "Я прогадал Баварию за армянским солнцем и винами!",
+              "processingTimeMs": 2906
+            }
+          }
+        }
+      }
+    }
+  ],
+  "completedAt": "2026-04-23T12:44:52.049Z",
+  "durationMs": 1293081
+}

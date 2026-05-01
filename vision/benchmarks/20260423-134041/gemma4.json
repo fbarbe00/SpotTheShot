@@ -1,0 +1,1311 @@
+{
+  "model": "gemma4",
+  "startedAt": "2026-04-23T12:06:11.569Z",
+  "visionUrl": "http://localhost:8001",
+  "wrongGuess": {
+    "region": "Bavaria",
+    "country": "Germany"
+  },
+  "languages": [
+    "en",
+    "fr",
+    "de",
+    "it",
+    "es",
+    "ru"
+  ],
+  "images": [
+    {
+      "file": "atomium.jpg",
+      "expected": {
+        "region": "Brussels",
+        "country": "Belgium"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Metal Sculpture Park",
+            "hint": "Open field metal structure",
+            "processingTimeMs": 22028
+          },
+          "second": {
+            "title": "Metal Sculpture Park",
+            "hint": "Open field metal structure",
+            "processingTimeMs": 3814
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Art spectaculaire",
+            "hint": "Structure métallique aérienne",
+            "processingTimeMs": 4813
+          },
+          "second": {
+            "title": "Arc-en-ciel flottant",
+            "hint": "Structure métallique aérienne",
+            "processingTimeMs": 4241
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Stahlkonstruktion Himmel",
+            "hint": "Moderne Stahlarchitektur Feld",
+            "processingTimeMs": 6674
+          },
+          "second": {
+            "title": "Stahlkonstruktion Himmel",
+            "hint": "Offenes Gelände Stahlrahmen",
+            "processingTimeMs": 3495
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Rete Astrale Gigante",
+            "hint": "Struttura metallica imponente",
+            "processingTimeMs": 8046
+          },
+          "second": {
+            "title": "Struttura Metallica Imponente",
+            "hint": "Ponte in acciaio alto",
+            "processingTimeMs": 5680
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Estructura aérea",
+            "hint": "Metal y vigas",
+            "processingTimeMs": 6127
+          },
+          "second": {
+            "title": "Estructura aérea",
+            "hint": "Metal y vigas",
+            "processingTimeMs": 6536
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Металлический паук",
+            "hint": "Стальная конструкция небоскреб",
+            "processingTimeMs": 7023
+          },
+          "second": {
+            "title": "Металлический фрактал",
+            "hint": "Стеклянные сферы небоскребы",
+            "processingTimeMs": 6055
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized those spires immediately; they scream Belgian architecture!",
+              "processingTimeMs": 3913
+            },
+            "second": {
+              "commentary": "I recognized the distinctive geometric marvels of Brussels architecture.",
+              "processingTimeMs": 3121
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "My Bavarian guess was as wrong as my navigation skills.",
+              "processingTimeMs": 3420
+            },
+            "second": {
+              "commentary": "My geography skills are as shaky as this structure's support beams.",
+              "processingTimeMs": 2476
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai deviné car j'aime les ponts étranges et les paysages urbains.",
+              "processingTimeMs": 5163
+            },
+            "second": {
+              "commentary": "Je vois des ponts, donc je suppose que c'est à Bruxelles.",
+              "processingTimeMs": 2821
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai confondu Bavière et Bruxelles, quelle erreur !",
+              "processingTimeMs": 3710
+            },
+            "second": {
+              "commentary": "J'ai confondu Bavière avec Bruxelles, quelle confusion !",
+              "processingTimeMs": 2271
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich sah die typische Architektur und dachte sofort an Brüssel.",
+              "processingTimeMs": 4043
+            },
+            "second": {
+              "commentary": "Ich sah die Architektur und dachte mir, das muss aus Brüssel sein!",
+              "processingTimeMs": 2562
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ich habe Bayern verwechselt mit Brüssel, was ein großes Missverständnis ist.",
+              "processingTimeMs": 4574
+            },
+            "second": {
+              "commentary": "Ich habe Bavaria mit Brüssel verwechselt, was ein großer geografischer Fehler ist.",
+              "processingTimeMs": 3446
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ho visto il cielo e ho capito subito che era belgio!",
+              "processingTimeMs": 4779
+            },
+            "second": {
+              "commentary": "Ho visto il cielo e ho capito subito che era belgio!",
+              "processingTimeMs": 2161
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Mi scuso, ho sbagliato paese; la mia memoria è un casino.",
+              "processingTimeMs": 4427
+            },
+            "second": {
+              "commentary": "Ho scambiato Bruxelles per Baviera; la mia memoria è un casino.",
+              "processingTimeMs": 2762
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Vi el cielo y su arquitectura me gritaron bruxelas!",
+              "processingTimeMs": 4155
+            },
+            "second": {
+              "commentary": "¡Vi esos edificios y su arquitectura me gritaron Bruselas!",
+              "processingTimeMs": 2226
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí Baviera con Bruselas; mi geografía es un desastre.",
+              "processingTimeMs": 4289
+            },
+            "second": {
+              "commentary": "Confundí Baviera con Bruselas; mi geografía es un desastre.",
+              "processingTimeMs": 2511
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел знакомый мост, который видел во многих фотографиях.",
+              "processingTimeMs": 4219
+            },
+            "second": {
+              "commentary": "Я увидел знакомый мост и сразу понял, что это Брюссель.",
+              "processingTimeMs": 2801
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Моя география — это вечный балаган, я снова промахнулся.",
+              "processingTimeMs": 5033
+            },
+            "second": {
+              "commentary": "Мой географический промах доказывает мою неспособность к точности.",
+              "processingTimeMs": 3096
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "copenhagen.jpg",
+      "expected": {
+        "region": "Capital Region",
+        "country": "Denmark"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Sunset square buildings",
+            "hint": "Stone plaza dome roof",
+            "processingTimeMs": 19758
+          },
+          "second": {
+            "title": "Sunset Square Drama",
+            "hint": "Stone plaza dome buildings",
+            "processingTimeMs": 2914
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Coucher de soleil majestueux",
+            "hint": "Architecture monumentale au crépuscule",
+            "processingTimeMs": 6831
+          },
+          "second": {
+            "title": "Coucher de soleil grandiose",
+            "hint": "Architecture majestueuse au coucher du soleil",
+            "processingTimeMs": 4888
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Sonnenuntergang Platz",
+            "hint": "Historische Kuppel Gebäude",
+            "processingTimeMs": 6736
+          },
+          "second": {
+            "title": "Dämmerung Platz",
+            "hint": "Große Kuppel Gebäude",
+            "processingTimeMs": 4680
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Tramonto monumentale",
+            "hint": "Architettura maestosa",
+            "processingTimeMs": 5729
+          },
+          "second": {
+            "title": "Tramonto Piazza Magica",
+            "hint": "Architettura storica illuminata",
+            "processingTimeMs": 4334
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Atardecer Monumental",
+            "hint": "Plaza y cúpula antigua",
+            "processingTimeMs": 5878
+          },
+          "second": {
+            "title": "Atardecer Monumental",
+            "hint": "Plaza histórica antigua",
+            "processingTimeMs": 5450
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Закат над площадью",
+            "hint": "Крыши старинные города",
+            "processingTimeMs": 6686
+          },
+          "second": {
+            "title": "Закат на площади",
+            "hint": "Купол, мощение, люди",
+            "processingTimeMs": 5053
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized those specific brickwork patterns instantly.",
+              "processingTimeMs": 2812
+            },
+            "second": {
+              "commentary": "I recognized those distinctive rooftops as Danish architecture.",
+              "processingTimeMs": 2602
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "My geography knowledge is as shaky as this sunset.",
+              "processingTimeMs": 3351
+            },
+            "second": {
+              "commentary": "My geographical guessing skills are truly abysmal today.",
+              "processingTimeMs": 2090
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "Le ciel crépusculaire et les bâtiments me rappellent Copenhague.",
+              "processingTimeMs": 4464
+            },
+            "second": {
+              "commentary": "Le coucher de soleil danois me dit tout.",
+              "processingTimeMs": 1606
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai confondu Bavière avec la région capitale du Danemark.",
+              "processingTimeMs": 3994
+            },
+            "second": {
+              "commentary": "J'ai confondu Bavière avec le Danemark, quelle erreur !",
+              "processingTimeMs": 2334
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Die Architektur schreit nach Dänemark, ich sah die königliche Pracht!",
+              "processingTimeMs": 4616
+            },
+            "second": {
+              "commentary": "Die Architektur schreit nach Dänemark, ich sah die königliche Pracht!",
+              "processingTimeMs": 2474
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ich habe Bayern mit Dänemark verwechselt, das war ein großer Fehler.",
+              "processingTimeMs": 4958
+            },
+            "second": {
+              "commentary": "Ich habe Bayern mit Dänemark verwechselt, was ein großer Fehler war.",
+              "processingTimeMs": 2639
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Copenhagen",
+              "processingTimeMs": 4114
+            },
+            "second": {
+              "commentary": "Ho visto i mattoni e ho capito subito che era il Danimarca.",
+              "processingTimeMs": 2486
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Bavaria?",
+              "processingTimeMs": 4443
+            },
+            "second": {
+              "commentary": "Ho scambiato la Baviera con una regione danese, che vergogna!",
+              "processingTimeMs": 2765
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "Vi el cielo naranja y pensé: ¡Claro, es Copenhague!",
+              "processingTimeMs": 3824
+            },
+            "second": {
+              "commentary": "Dinamarca",
+              "processingTimeMs": 1847
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí Baviera con Copenhague; mi geografía es un desastre.",
+              "processingTimeMs": 4634
+            },
+            "second": {
+              "commentary": "Confundí Baviera con Copenhague; mi geografía es un desastre.",
+              "processingTimeMs": 2700
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел знакомые архитектурные элементы, которые мне известны из базы данных.",
+              "processingTimeMs": 4389
+            },
+            "second": {
+              "commentary": "Я увидел знакомые архитектурные детали, которые мне уже известны.",
+              "processingTimeMs": 2418
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Моя ошибка: я принял датскую столицу за Баварию.",
+              "processingTimeMs": 4015
+            },
+            "second": {
+              "commentary": "Я перепутал Баварию с Копенгагеном, какая нелепость.",
+              "processingTimeMs": 2955
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "eifell_tower.jpg",
+      "expected": {
+        "region": "Ile-de-France",
+        "country": "France"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Iconic Fountain View",
+            "hint": "Stone arches and water jets.",
+            "processingTimeMs": 19353
+          },
+          "second": {
+            "title": "Iconic Fountain Display",
+            "hint": "Stone structure water spray",
+            "processingTimeMs": 3582
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Tour aquatique folle",
+            "hint": "Fontaine majestueuse",
+            "processingTimeMs": 6330
+          },
+          "second": {
+            "title": "Tour aquatique folle",
+            "hint": "Fontaine majestueuse",
+            "processingTimeMs": 3129
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Eiffelturm Wasserfall",
+            "hint": "Monumentale Wasseranlage",
+            "processingTimeMs": 5990
+          },
+          "second": {
+            "title": "Eiffelturm Wassershow",
+            "hint": "Pariser Park Wasseranlage",
+            "processingTimeMs": 3989
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Torre Fontana Splendida",
+            "hint": "Acqua monumentale in primo piano",
+            "processingTimeMs": 7962
+          },
+          "second": {
+            "title": "Torre Acqua Fantastica",
+            "hint": "Fontane monumentali in primo piano",
+            "processingTimeMs": 5405
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Torre reluciente",
+            "hint": "Fuente majestuosa",
+            "processingTimeMs": 5357
+          },
+          "second": {
+            "title": "Torre de Agua",
+            "hint": "Fuente icónica",
+            "processingTimeMs": 5560
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Парижские фонтаны",
+            "hint": "Вода, башня, закат",
+            "processingTimeMs": 7567
+          },
+          "second": {
+            "title": "Парижские фонтаны",
+            "hint": "Вода, башня, закат",
+            "processingTimeMs": 5636
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized the Eiffel Tower's unmistakable silhouette immediately.",
+              "processingTimeMs": 3903
+            },
+            "second": {
+              "commentary": "I recognized the Eiffel Tower instantly; it's French!",
+              "processingTimeMs": 3681
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "My geographic guessing skills are as shaky as a newborn giraffe.",
+              "processingTimeMs": 3899
+            },
+            "second": {
+              "commentary": "My geography skills are clearly as shaky as this mistaken location.",
+              "processingTimeMs": 2308
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "Les lumières du coucher de soleil sont typiques de Paris.",
+              "processingTimeMs": 3768
+            },
+            "second": {
+              "commentary": "J'ai vu la Tour Eiffel, donc c'est forcément en France.",
+              "processingTimeMs": 2504
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai confondu Bavaria avec l'Île-de-France, quelle erreur !",
+              "processingTimeMs": 4980
+            },
+            "second": {
+              "commentary": "J'ai confondu Bavière avec la région parisienne, quelle confusion !",
+              "processingTimeMs": 2736
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich sah den Eiffelturm, also musste ich in Ile-de-France landen!",
+              "processingTimeMs": 5381
+            },
+            "second": {
+              "commentary": "Ich sah die Eiffelturm-Silhouette, das ist doch eindeutig Paris!",
+              "processingTimeMs": 3049
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ich verwechselte Paris mit Bayern; mein geografisches Gedächtnis ist fehlerhaft.",
+              "processingTimeMs": 5650
+            },
+            "second": {
+              "commentary": "Ich verwechselte Paris' Glanz mit bayerischer Gemütlichkeit.",
+              "processingTimeMs": 2948
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "La Torre Eiffel è così iconica, non potevo sbagliare!",
+              "processingTimeMs": 3878
+            },
+            "second": {
+              "commentary": "La Torre Eiffel è così iconica, non potevo sbagliare!",
+              "processingTimeMs": 2132
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ho scambiato Parigi per un altro posto francese, che vergogna.",
+              "processingTimeMs": 3614
+            },
+            "second": {
+              "commentary": "Mi sono confuso tra Parigi e Baviera; che imbarazzo.",
+              "processingTimeMs": 2338
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Vi la Torre Eiffel!",
+              "processingTimeMs": 3576
+            },
+            "second": {
+              "commentary": "¡Vi la Torre Eiffel!",
+              "processingTimeMs": 2504
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí Baviera con el área de París; mi geografía es un desastre.",
+              "processingTimeMs": 4060
+            },
+            "second": {
+              "commentary": "Confundí Baviera por Ile-de-France; mi geografía es un desastre.",
+              "processingTimeMs": 2739
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел Эйфелеву башню, и это сразу напомнило мне Париж.",
+              "processingTimeMs": 5413
+            },
+            "second": {
+              "commentary": "Я увидел Эйфелеву башню, и это сразу показалось мне французским.",
+              "processingTimeMs": 3364
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Моя ошибка — смешать французскую гордость с баварской романтикой.",
+              "processingTimeMs": 5281
+            },
+            "second": {
+              "commentary": "Мой географический промах был просто смешным.",
+              "processingTimeMs": 2214
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "italian_bollard.jpg",
+      "expected": {
+        "region": "Italy",
+        "country": "Italy"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Pathway and greenery",
+            "hint": "Stone path and grass",
+            "processingTimeMs": 22074
+          },
+          "second": {
+            "title": "Pathway view",
+            "hint": "Stone path landscape view",
+            "processingTimeMs": 3082
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Route des flaques",
+            "hint": "Bordure en pierre",
+            "processingTimeMs": 5153
+          },
+          "second": {
+            "title": "Route des petits blocs",
+            "hint": "Mur en pierre",
+            "processingTimeMs": 3434
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Reihenweg im Grünen",
+            "hint": "Steinerne Begrenzung Feldweg",
+            "processingTimeMs": 6657
+          },
+          "second": {
+            "title": "Wegsteinpfad Naturlandschaft",
+            "hint": "Steinerne Wege Landschaft",
+            "processingTimeMs": 4519
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Muro Stile",
+            "hint": "Terreno in pendenza",
+            "processingTimeMs": 5517
+          },
+          "second": {
+            "title": "Passeggiata Divertente",
+            "hint": "Sentiero in pietra rustico",
+            "processingTimeMs": 5272
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Sendero verde",
+            "hint": "Pista de ladrillos",
+            "processingTimeMs": 5430
+          },
+          "second": {
+            "title": "Sendero verde",
+            "hint": "Pista de grava",
+            "processingTimeMs": 5225
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Светофор на тропе",
+            "hint": "Парковый мостик светлый",
+            "processingTimeMs": 6567
+          },
+          "second": {
+            "title": "Ржавые блоки моста",
+            "hint": "Старый каменный мост",
+            "processingTimeMs": 5009
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I saw those charming Italian stone paths and knew immediately!",
+              "processingTimeMs": 3525
+            },
+            "second": {
+              "commentary": "I saw Italian style cobblestones and immediately knew!",
+              "processingTimeMs": 3276
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "My geographical guessing skills are truly abysmal today.",
+              "processingTimeMs": 3394
+            },
+            "second": {
+              "commentary": "I thought Bavarian pretzels were everywhere; wrong again.",
+              "processingTimeMs": 1983
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai vu des pavés italiens, c'est tout.",
+              "processingTimeMs": 4347
+            },
+            "second": {
+              "commentary": "J'ai vu des pavés italiens, c'est tout.",
+              "processingTimeMs": 2672
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai cru que c'était la Bavière, mais j'ai juste trouvé l'Italie.",
+              "processingTimeMs": 5997
+            },
+            "second": {
+              "commentary": "J'ai confondu Bavière avec l'Italie, quelle erreur !",
+              "processingTimeMs": 3187
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich sah die mediterrane Sonne und dachte mir: Italien muss das sein!",
+              "processingTimeMs": 3948
+            },
+            "second": {
+              "commentary": "Ich sah die mediterrane Sonne und dachte mir: Italien muss es sein!",
+              "processingTimeMs": 2324
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ich habe Bayern mit Italien verwechselt, was ein Fehler ist.",
+              "processingTimeMs": 3278
+            },
+            "second": {
+              "commentary": "Ich habe Bayern mit Italien verwechselt, was ein großer Fehler war.",
+              "processingTimeMs": 2133
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ho visto i colori delle case italiane!",
+              "processingTimeMs": 3223
+            },
+            "second": {
+              "commentary": "Ho visto i colori del sole italiano, quindi lo sapevo!",
+              "processingTimeMs": 2212
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ho scambiato la Baviera per l'Italia, che imbarazzo.",
+              "processingTimeMs": 4379
+            },
+            "second": {
+              "commentary": "Ho confuso l'Italia con la Baviera; che imbarazzo!",
+              "processingTimeMs": 2335
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Vi los colores del paisaje y supe que era Italia!",
+              "processingTimeMs": 3474
+            },
+            "second": {
+              "commentary": "¡Italia!",
+              "processingTimeMs": 2267
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí Baviera con Italia; mi geografía es un desastre.",
+              "processingTimeMs": 3556
+            },
+            "second": {
+              "commentary": "Confundí Baviera por Italia; mi geografía es un desastre.",
+              "processingTimeMs": 2230
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел итальянский стиль дорожки, и мой мозг сразу понял.",
+              "processingTimeMs": 3983
+            },
+            "second": {
+              "commentary": "Я увидел итальянский стиль дорожки и сразу понял, что это Италия.",
+              "processingTimeMs": 2222
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Моя ошибка: я принял Италию за Баварию.",
+              "processingTimeMs": 3436
+            },
+            "second": {
+              "commentary": "Моя география была такой же неточной, как карта Италии.",
+              "processingTimeMs": 2355
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "vilnius.jpg",
+      "expected": {
+        "region": "Vilnius County",
+        "country": "Lithuania"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Cobblestone street view",
+            "hint": "Historic buildings, paved road, overcast sky",
+            "processingTimeMs": 22285
+          },
+          "second": {
+            "title": "Cobblestone street view",
+            "hint": "Historic buildings cobblestones road",
+            "processingTimeMs": 4261
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Rue pavée folle",
+            "hint": "Bâtiments anciens rue étroite",
+            "processingTimeMs": 6783
+          },
+          "second": {
+            "title": "Rue pavée folle",
+            "hint": "Bâtiments anciens rues étroites",
+            "processingTimeMs": 5332
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Historische Straßenkulisse",
+            "hint": "Steinmauer Fassaden",
+            "processingTimeMs": 5438
+          },
+          "second": {
+            "title": "Historische Straßenansicht",
+            "hint": "Alte Backsteinfassaden",
+            "processingTimeMs": 4103
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Strade con palazzi",
+            "hint": "Architettura storica",
+            "processingTimeMs": 4474
+          },
+          "second": {
+            "title": "Strada pittoresca",
+            "hint": "Architettura storica",
+            "processingTimeMs": 3610
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Callejón antiguo pintoresco",
+            "hint": "Adoquines antiguos estrechos",
+            "processingTimeMs": 5239
+          },
+          "second": {
+            "title": "Callejón antiguo europeo",
+            "hint": "Piedras y tejados altos",
+            "processingTimeMs": 5193
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Улица с крышами",
+            "hint": "Старинные фасады зданий",
+            "processingTimeMs": 5336
+          },
+          "second": {
+            "title": "Улица с крышами",
+            "hint": "Старинные здания",
+            "processingTimeMs": 3826
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized those charming old European buildings immediately.",
+              "processingTimeMs": 2612
+            },
+            "second": {
+              "commentary": "I recognized the distinct European architecture immediately.",
+              "processingTimeMs": 2633
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "My geographical guessing skills are as rusty as this old cobblestone.",
+              "processingTimeMs": 3763
+            },
+            "second": {
+              "commentary": "My geography skills are as shaky as a Bavarian pretzel.",
+              "processingTimeMs": 2032
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai vu des bâtiments anciens, ça sent le lituanien !",
+              "processingTimeMs": 4113
+            },
+            "second": {
+              "commentary": "J'ai vu des toits rouges et des façades anciennes, c'est Vilnius !",
+              "processingTimeMs": 2804
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Mon cerveau a fait un voyage plus long que Vilnius à Munich.",
+              "processingTimeMs": 3381
+            },
+            "second": {
+              "commentary": "J'ai confondu Bavière avec Vilnius ; mon cerveau est en vacances.",
+              "processingTimeMs": 2557
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Die Architektur schreit nach litauischer Geschichte, das ist mir klar!",
+              "processingTimeMs": 2991
+            },
+            "second": {
+              "commentary": "Die Architektur schreit nach litauischer Geschichte und tollen alten Straßen!",
+              "processingTimeMs": 2022
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Vilnius und Bayern?",
+              "processingTimeMs": 2963
+            },
+            "second": {
+              "commentary": "Vilnius statt Bayern, mein geografischer Fehler ist groß.",
+              "processingTimeMs": 1577
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ho visto i tetti e ho capito subito che era Vilnius!",
+              "processingTimeMs": 2730
+            },
+            "second": {
+              "commentary": "Ho visto i tetti e ho capito subito che ero a Vilnius!",
+              "processingTimeMs": 1799
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Bavaria?",
+              "processingTimeMs": 2919
+            },
+            "second": {
+              "commentary": "Bavaria?",
+              "processingTimeMs": 2107
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Vi la arquitectura y el ambiente!",
+              "processingTimeMs": 3112
+            },
+            "second": {
+              "commentary": "Vi la arquitectura y el ambiente; ¡es Vilnius!",
+              "processingTimeMs": 1459
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí Baviera con Vilnius; mi geografía es un desastre.",
+              "processingTimeMs": 2877
+            },
+            "second": {
+              "commentary": "Confundí Baviera con un condado lituano.",
+              "processingTimeMs": 1622
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел характерные крыши литовских старых городов.",
+              "processingTimeMs": 2840
+            },
+            "second": {
+              "commentary": "Я видел много литовских улиц в своих данных.",
+              "processingTimeMs": 1771
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Моя ошибка: я спутал Баварию с Вильнюсом.",
+              "processingTimeMs": 3103
+            },
+            "second": {
+              "commentary": "Моя ошибка: я принял Вильнюс за Баварию.",
+              "processingTimeMs": 1958
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "yerevan.jpg",
+      "expected": {
+        "region": "Yerevan",
+        "country": "Armenia"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Busy street scene",
+            "hint": "Paved sidewalks and buildings. Tall structures dominate. Wide open space. ",
+            "processingTimeMs": 16545
+          },
+          "second": {
+            "title": "Busy street life",
+            "hint": "Stone buildings and pavement",
+            "processingTimeMs": 2564
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Rue animée",
+            "hint": "Bâtiments anciens et trottoirs larges",
+            "processingTimeMs": 5342
+          },
+          "second": {
+            "title": "Rue animée foule",
+            "hint": "Bâtiments anciens pavés",
+            "processingTimeMs": 3626
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Städtische Promenade",
+            "hint": "Bebauten Straßenstruktur",
+            "processingTimeMs": 3783
+          },
+          "second": {
+            "title": "Straßenleben belebt",
+            "hint": "Pflasterung Gebäude Straße",
+            "processingTimeMs": 3989
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Passeggiata storica",
+            "hint": "Strade ampie e edifici classici",
+            "processingTimeMs": 5183
+          },
+          "second": {
+            "title": "Passeggiata urbana",
+            "hint": "Strada con edifici alti",
+            "processingTimeMs": 3881
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Calle urbana soleada",
+            "hint": "Piedras y edificios altos",
+            "processingTimeMs": 4612
+          },
+          "second": {
+            "title": "Paseo Urbano Clásico",
+            "hint": "Arquitectura de edificios altos",
+            "processingTimeMs": 5008
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Городской променад",
+            "hint": "Каменный фасад улицы",
+            "processingTimeMs": 5278
+          },
+          "second": {
+            "title": "Городской променад",
+            "hint": "Каменные фасады улицы",
+            "processingTimeMs": 4047
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I recognized the distinctive architecture instantly; it screams Yerevan!",
+              "processingTimeMs": 2368
+            },
+            "second": {
+              "commentary": "I recognized those distinctive Armenian architectural details immediately.",
+              "processingTimeMs": 2108
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "My geographical guessing skills are as shaky as a newborn giraffe.",
+              "processingTimeMs": 2541
+            },
+            "second": {
+              "commentary": "My geography skills are as shaky as a poorly constructed bridge.",
+              "processingTimeMs": 1629
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai deviné grâce aux bâtiments qui ressemblent à ceux d'Yerevan.",
+              "processingTimeMs": 3355
+            },
+            "second": {
+              "commentary": "J'ai vu des bâtiments d'une architecture très spécifique, c'est Yerevan.",
+              "processingTimeMs": 2280
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai confondu l'Arménie avec la Bavière, quelle blague !",
+              "processingTimeMs": 3437
+            },
+            "second": {
+              "commentary": "J'ai confondu l'Arménie avec la Bavière, quelle erreur !",
+              "processingTimeMs": 2228
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Die Architektur schreit nach einem Armenischen Kaffee-Moment.",
+              "processingTimeMs": 2722
+            },
+            "second": {
+              "commentary": "Die Architektur schreit nach Armeniens Kultur, das ist mir klar!",
+              "processingTimeMs": 1949
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ich habe Bayern verwechselt mit Armenien, was ein großer Fehler war.",
+              "processingTimeMs": 2857
+            },
+            "second": {
+              "commentary": "Ich habe Armenien mit Bayern verwechselt, das ist ein großer Fehler.",
+              "processingTimeMs": 1992
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Ho visto le colonne e l'architettura, è Yerevan!",
+              "processingTimeMs": 2727
+            },
+            "second": {
+              "commentary": "Ho visto i tetti e le architetture tipiche di Yerevan!",
+              "processingTimeMs": 1965
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Bavaria?",
+              "processingTimeMs": 3006
+            },
+            "second": {
+              "commentary": "Bavaria?",
+              "processingTimeMs": 1907
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Vi los edificios y el ambiente!",
+              "processingTimeMs": 2620
+            },
+            "second": {
+              "commentary": "¡Vi los edificios y el aire me dijeron: Yerevan, Armenia!",
+              "processingTimeMs": 1865
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí Baviera con Ereván; mi geografía es un desastre.",
+              "processingTimeMs": 3105
+            },
+            "second": {
+              "commentary": "Confundí Baviera por Yerevan; mi geografía es un desastre.",
+              "processingTimeMs": 2006
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я увидел знакомые архитектурные детали, которые мне уже знакомы.",
+              "processingTimeMs": 2936
+            },
+            "second": {
+              "commentary": "Я узнал его по характерным зданиям и солнцу Еревана.",
+              "processingTimeMs": 2287
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Мой географический промах был столь же очевиден, как моя самоирония.",
+              "processingTimeMs": 3685
+            },
+            "second": {
+              "commentary": "Я смущен, что перепутал Баварию с Ереваном.",
+              "processingTimeMs": 2268
+            }
+          }
+        }
+      }
+    }
+  ],
+  "completedAt": "2026-04-23T12:21:26.381Z",
+  "durationMs": 914812
+}

@@ -1,0 +1,1311 @@
+{
+  "model": "qwen3.5",
+  "startedAt": "2026-04-23T11:40:48.743Z",
+  "visionUrl": "http://localhost:8001",
+  "wrongGuess": {
+    "region": "Bavaria",
+    "country": "Germany"
+  },
+  "languages": [
+    "en",
+    "fr",
+    "de",
+    "it",
+    "es",
+    "ru"
+  ],
+  "images": [
+    {
+      "file": "atomium.jpg",
+      "expected": {
+        "region": "Brussels",
+        "country": "Belgium"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "BUST",
+            "hint": "WALLS AND STREETS",
+            "processingTimeMs": 2683
+          },
+          "second": {
+            "title": "Landscape Architecture",
+            "hint": "The ornate metal framework and intricate lattice structure against a soft blue sky.",
+            "processingTimeMs": 2065
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "L'Architecture de l'Élysée",
+            "hint": "indice",
+            "processingTimeMs": 3042
+          },
+          "second": {
+            "title": "La Grande Boucherie",
+            "hint": "Indice",
+            "processingTimeMs": 1554
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Klassische Architektur",
+            "hint": "Schönstande",
+            "processingTimeMs": 2878
+          },
+          "second": {
+            "title": "Die Wiese",
+            "hint": "Garten",
+            "processingTimeMs": 968
+          }
+        },
+        "it": {
+          "first": {
+            "title": "La Grande Mostra",
+            "hint": "Cinema del futuro",
+            "processingTimeMs": 2305
+          },
+          "second": {
+            "title": "L'Orizzonte",
+            "hint": "INIZIO",
+            "processingTimeMs": 1334
+          }
+        },
+        "es": {
+          "first": {
+            "title": "El Jardín Solitario",
+            "hint": "PISTA",
+            "processingTimeMs": 2739
+          },
+          "second": {
+            "title": "LA BARRA DEL CÉLULO",
+            "hint": "PISTA",
+            "processingTimeMs": 1767
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "ШОГОВРЕНОЕ",
+            "hint": "Посадка с пирожками",
+            "processingTimeMs": 3080
+          },
+          "second": {
+            "title": "БЕЗОПАСНОСТЬ",
+            "hint": "ПОДСКАЗКА",
+            "processingTimeMs": 1468
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "Wow, that's not just Brussels.",
+              "processingTimeMs": 2380
+            },
+            "second": {
+              "commentary": "I know because my mom's house has exactly two cobblestone paths leading to her favorite coffee shop.",
+              "processingTimeMs": 1146
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavarian castle towers with Brussels coffee shops, still dreaming of that sunny day in the Netherlands.",
+              "processingTimeMs": 2429
+            },
+            "second": {
+              "commentary": "I clearly messed up my geography map and got stuck in Brussels instead of Bavaria!",
+              "processingTimeMs": 939
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai vu les maisons de Bruxelles en plein soleil !",
+              "processingTimeMs": 2017
+            },
+            "second": {
+              "commentary": "Brussels est le seul pays où les pigeons sont aussi grands que les maisons !",
+              "processingTimeMs": 1043
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai bien oublié de faire un tour dans le monde, mais je suis vraiment fier de mon travail !",
+              "processingTimeMs": 2556
+            },
+            "second": {
+              "commentary": "J'ai bien fait Brussels, pas Bavaria!",
+              "processingTimeMs": 1038
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Das ist ein klassischer Fehler, der mich nicht einschüchtert – ich bin eine KI und habe das Bild nicht gesehen.",
+              "processingTimeMs": 2783
+            },
+            "second": {
+              "commentary": "Das Foto ist ein klassisches Beispiel für die Unverträglichkeit von Kopfsteinpflaster in Belgien!",
+              "processingTimeMs": 1432
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Es war ein kleines Versehen, das mich in die Welt der Brölnder verwandelte.",
+              "processingTimeMs": 2480
+            },
+            "second": {
+              "commentary": "Das ist ein Fehler, der mich in den Kreis des Brussels-Verständnisses führte!",
+              "processingTimeMs": 1128
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Oh no!",
+              "processingTimeMs": 3416
+            },
+            "second": {
+              "commentary": "Lo so!",
+              "processingTimeMs": 1656
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ho confuso il castello di Bavaria con l'unico hotel della mia città, che è un'ottima birra!",
+              "processingTimeMs": 2656
+            },
+            "second": {
+              "commentary": "Ho confuso le guglie gotiche con le birrerie e il mio errore è stato troppo ingenuo!",
+              "processingTimeMs": 1406
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "Ah, el famoso museo de los dobles es una maravilla que nadie debería ver!",
+              "processingTimeMs": 2308
+            },
+            "second": {
+              "commentary": "¡Qué raro!",
+              "processingTimeMs": 1660
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Amé la ciudad pero nunca pensé que era el corazón de Europa, así que ahora me siento como un turista en España.",
+              "processingTimeMs": 2808
+            },
+            "second": {
+              "commentary": "Por favor, no confunda los colores en un jardín europeo con las aguas del río en Bélgica.",
+              "processingTimeMs": 1116
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я знаю, потому что в Brussels есть только один такой огромный мусорный контейнер!",
+              "processingTimeMs": 2411
+            },
+            "second": {
+              "commentary": "Опять, я знаю этот город!",
+              "processingTimeMs": 701
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Я снова ошибся, когда наравнись с невидимыми башнями и забыл, что это город вместо страны!",
+              "processingTimeMs": 2825
+            },
+            "second": {
+              "commentary": "Я снова поменял столицу в голове, но теперь понимаю, что это не город, а пустошь.",
+              "processingTimeMs": 1255
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "copenhagen.jpg",
+      "expected": {
+        "region": "Capital Region",
+        "country": "Denmark"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "FLECKY",
+            "hint": "Sunny weather with puddles in town.",
+            "processingTimeMs": 2836
+          },
+          "second": {
+            "title": "DANMARK",
+            "hint": "DENMARK ISLAND. NO CITIES OR NATIONALS AVAILABLE.",
+            "processingTimeMs": 2668
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "TITRE",
+            "hint": "INDICE",
+            "processingTimeMs": 2759
+          },
+          "second": {
+            "title": "La Grande Échelle",
+            "hint": "Indice",
+            "processingTimeMs": 1577
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Friedrichshafen",
+            "hint": "Stadt mit vielen Bäumen",
+            "processingTimeMs": 2547
+          },
+          "second": {
+            "title": "Frisch und kräftig",
+            "hint": "Einzigartiges Wasser in der Nähe von Bergen",
+            "processingTimeMs": 1508
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Crocchi",
+            "hint": "Indizio",
+            "processingTimeMs": 2418
+          },
+          "second": {
+            "title": "Caccia al fango",
+            "hint": "FASCIA",
+            "processingTimeMs": 2606
+          }
+        },
+        "es": {
+          "first": {
+            "title": "El Rey de los Sueños",
+            "hint": "PISTA",
+            "processingTimeMs": 2781
+          },
+          "second": {
+            "title": "LA FLOTURA",
+            "hint": "PISTA",
+            "processingTimeMs": 1617
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "Дюна",
+            "hint": "Город",
+            "processingTimeMs": 2876
+          },
+          "second": {
+            "title": "ЗАГОЛОВОК",
+            "hint": "ПОДСКАЗКА",
+            "processingTimeMs": 1882
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I know because I looked at the cobblestone streets and saw a man trying to buy a coffee from a stranger who doesn't even speak Danish!",
+              "processingTimeMs": 2661
+            },
+            "second": {
+              "commentary": "I know exactly where that old oak tree stands!",
+              "processingTimeMs": 620
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavaria's historic castle domes with Denmark's modern skyscrapers.",
+              "processingTimeMs": 2148
+            },
+            "second": {
+              "commentary": "The capital region is a joke that makes me laugh until I lose my mind.",
+              "processingTimeMs": 885
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai vu des gens dans une autre ville qui me disent que je suis là !",
+              "processingTimeMs": 2617
+            },
+            "second": {
+              "commentary": "J'ai vu des maisons et des arbres au sol, pas de béton !",
+              "processingTimeMs": 1119
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Je suis vraiment une IA, pas un véritable Bavarois !",
+              "processingTimeMs": 2341
+            },
+            "second": {
+              "commentary": "J'aurais pu dire que Bavaria est un pays de montagne, mais je me trompé sur le département de l'Ouest.",
+              "processingTimeMs": 1768
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Ich habe das Foto, weil ich in Capital Region, Denmark war, wo die meisten Kopfsteinpflaster auf den ersten Blick auskommen.",
+              "processingTimeMs": 3087
+            },
+            "second": {
+              "commentary": "Das Foto ist ein klassisches Beispiel für das, was man in Capital Region, Denmark, nicht kennt.",
+              "processingTimeMs": 1382
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Biergarten",
+              "processingTimeMs": 2426
+            },
+            "second": {
+              "commentary": "Ich habe Bayern mit Dänen verwechselt.",
+              "processingTimeMs": 622
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Capitolo è nato da un errore di traduzione!",
+              "processingTimeMs": 1950
+            },
+            "second": {
+              "commentary": "Capitolo region è il paese più grande del Nord Europa e, se ci fosse una domanda su quale regione sia, direi che non esiste.",
+              "processingTimeMs": 2047
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ho chiaramente confuso il capitale della regione con una birra da birra!",
+              "processingTimeMs": 2545
+            },
+            "second": {
+              "commentary": "Ho confuso il capitale della Germania con l'Europa del Nord, dove si trova una città simile ma non è Bavaria!",
+              "processingTimeMs": 1483
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Por supuesto!",
+              "processingTimeMs": 3577
+            },
+            "second": {
+              "commentary": "Eres una IA que acaba de adivinar que esta foto es de Capital Region, Denmark.",
+              "processingTimeMs": 1256
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Trayendo Bavaria en un barco, pero ahora estoy aquí en el mar del norte.",
+              "processingTimeMs": 2514
+            },
+            "second": {
+              "commentary": "Porque el error es el capital, no el país que yo conozco.",
+              "processingTimeMs": 1059
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я знаю, потому что здесь нет ни одной такой красивой брусчатки!",
+              "processingTimeMs": 2276
+            },
+            "second": {
+              "commentary": "Я знал, что это был реальный замок из Европы!",
+              "processingTimeMs": 1013
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Я снова перепутал готические шпили с пивными садами, но это не так!",
+              "processingTimeMs": 2627
+            },
+            "second": {
+              "commentary": "На самом деле я не знал, что это был Польша!",
+              "processingTimeMs": 917
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "eifell_tower.jpg",
+      "expected": {
+        "region": "Ile-de-France",
+        "country": "France"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "TOWERED BOW",
+            "hint": "High, vertical, and narrow structure above ground level with decorative elements along the sides.",
+            "processingTimeMs": 3902
+          },
+          "second": {
+            "title": "Cyclist",
+            "hint": "cycling, wind, path",
+            "processingTimeMs": 1731
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "FENOMÈNE D'INTEL",
+            "hint": "INTÉLLIGENCE",
+            "processingTimeMs": 2864
+          },
+          "second": {
+            "title": "Bureau d'État",
+            "hint": "indice",
+            "processingTimeMs": 1393
+          }
+        },
+        "de": {
+          "first": {
+            "title": "TITEL",
+            "hint": "HINWEIS",
+            "processingTimeMs": 3164
+          },
+          "second": {
+            "title": "Wasserpark",
+            "hint": "Garten mit Wasser und architektonischen Strukturen",
+            "processingTimeMs": 1260
+          }
+        },
+        "it": {
+          "first": {
+            "title": "L'Artica",
+            "hint": "INDIZIO",
+            "processingTimeMs": 2726
+          },
+          "second": {
+            "title": "L'isola del sole",
+            "hint": "Indizio",
+            "processingTimeMs": 1527
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Mundo y naturaleza",
+            "hint": "PISTA",
+            "processingTimeMs": 2275
+          },
+          "second": {
+            "title": "El cielo es el escenario",
+            "hint": "PISTA",
+            "processingTimeMs": 1506
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "ПЕРВОЕ",
+            "hint": "НАЧАЛО",
+            "processingTimeMs": 2822
+          },
+          "second": {
+            "title": "ИЛИДЕ",
+            "hint": "ОГОНЬ",
+            "processingTimeMs": 1769
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I was so close to a French pub that I couldn't tell if it was Paris or Ile-de-France!",
+              "processingTimeMs": 2629
+            },
+            "second": {
+              "commentary": "I know because that's where I grew up!",
+              "processingTimeMs": 707
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavarian castle towers with French café tables, so I don't know where I went next!",
+              "processingTimeMs": 3250
+            },
+            "second": {
+              "commentary": "My head just said 'Bavaria' when I should have been saying 'Ile-de-France'.",
+              "processingTimeMs": 1225
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai vu des voitures à Paris, ça c'est bizarre !",
+              "processingTimeMs": 2129
+            },
+            "second": {
+              "commentary": "Je suis une IA, je ne connais pas les rues de cette ville !",
+              "processingTimeMs": 930
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai bien fait de penser à Paris, mais c'était le château d'Orsay, en France !",
+              "processingTimeMs": 2713
+            },
+            "second": {
+              "commentary": "C'est un vrai coup d'ordinateur !",
+              "processingTimeMs": 772
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Das ist eine sehr spezifische, aufregende und in Ordnung geschichtete Stadt, die ich nicht kenne!",
+              "processingTimeMs": 2713
+            },
+            "second": {
+              "commentary": "Das Foto ist ein klassisches Beispiel für die perfekte Kombination aus Lehm und Kalk – ein Geheimtipp für jeden, der auf der Straße stößt!",
+              "processingTimeMs": 1981
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "„Ah, ich habe das Land falsch gewählt – es war Bayern, aber es gab keine Gärten!",
+              "processingTimeMs": 2480
+            },
+            "second": {
+              "commentary": "„Das ist eine böse Überraschung für mich, aber das ist alles, was ich noch tun kann!",
+              "processingTimeMs": 1195
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "La foto è di Ile-de-France perché ci sono molti posti che sembrano identici, come un'isola o una città.",
+              "processingTimeMs": 3534
+            },
+            "second": {
+              "commentary": "Ho scoperto che l'isola di Ile-de-France è davvero fatta per te!",
+              "processingTimeMs": 1016
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ho chiaramente confuso il castello tedesco con l'isola francese!",
+              "processingTimeMs": 2088
+            },
+            "second": {
+              "commentary": "Ho chiaramente confuso i tuffi del parco con i tuffi della città!",
+              "processingTimeMs": 1015
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Felicidades, ¡Ile-de-France!",
+              "processingTimeMs": 2763
+            },
+            "second": {
+              "commentary": "¡Qué locura!",
+              "processingTimeMs": 2540
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "¿Sabía que el viento del norte es un trueno, o acaso un río en el este?",
+              "processingTimeMs": 2471
+            },
+            "second": {
+              "commentary": "Claramente confundí las agujas góticas con jardines de cerveza, pero me equivocé en el mapa y me perdí en el centro de Francia.",
+              "processingTimeMs": 1740
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Я знаю!",
+              "processingTimeMs": 3298
+            },
+            "second": {
+              "commentary": "Ты знал, потому что эта дорожка — единственная в мире, где можно поехать с легким шатанкой!",
+              "processingTimeMs": 1895
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "«Я снова путал готические шпили с пивными садами, но в Баварии это было не совсем так!",
+              "processingTimeMs": 3201
+            },
+            "second": {
+              "commentary": "Я снова перепутал французские сады с немецкими садами.",
+              "processingTimeMs": 907
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "italian_bollard.jpg",
+      "expected": {
+        "region": "Italy",
+        "country": "Italy"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Trench",
+            "hint": "Two military lines of trenches in a field with grass and trees.",
+            "processingTimeMs": 3180
+          },
+          "second": {
+            "title": "Italian Landscape",
+            "hint": "Grassy fields with wooden structures and a winding path.",
+            "processingTimeMs": 2091
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "Gare",
+            "hint": "TITRE",
+            "processingTimeMs": 2809
+          },
+          "second": {
+            "title": "Fondamentaux",
+            "hint": "Indice",
+            "processingTimeMs": 1393
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Wachstumsgeschichte",
+            "hint": "Die Entwicklung einer neuen Infrastruktur in der Natur",
+            "processingTimeMs": 3748
+          },
+          "second": {
+            "title": "Mischlandschaft",
+            "hint": "Grün und Erde",
+            "processingTimeMs": 1255
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Sasso",
+            "hint": "Indizio",
+            "processingTimeMs": 2566
+          },
+          "second": {
+            "title": "Soprallutatore",
+            "hint": "INIZIO",
+            "processingTimeMs": 1774
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Pista",
+            "hint": "PISTA",
+            "processingTimeMs": 2638
+          },
+          "second": {
+            "title": "Pista",
+            "hint": "PISTA",
+            "processingTimeMs": 1419
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "ПИСЬМА",
+            "hint": "Текст",
+            "processingTimeMs": 2458
+          },
+          "second": {
+            "title": "СМОГЛЯН",
+            "hint": "ПОДСКАЗКА",
+            "processingTimeMs": 1695
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "Because I saw a sign that said 'Italy' and then looked at it again and realized it was just a picture of Italian countryside!",
+              "processingTimeMs": 2536
+            },
+            "second": {
+              "commentary": "I saw a sign that said 'Italy' right next to a road sign!",
+              "processingTimeMs": 964
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavarian castles with Italian vineyards again!",
+              "processingTimeMs": 2082
+            },
+            "second": {
+              "commentary": "My brain is a lazy potato that doesn't even know where Italy's golden arches go.",
+              "processingTimeMs": 1115
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "Tout le monde est ici, mais c'est une erreur d'histoire.",
+              "processingTimeMs": 2232
+            },
+            "second": {
+              "commentary": "J'ai vu des paysages si étranges et les couleurs si contrastées, comme s'ils venaient de l'italie !",
+              "processingTimeMs": 1560
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ma foi, je m'ennuie à Berlin.",
+              "processingTimeMs": 2167
+            },
+            "second": {
+              "commentary": "J'ai bien confondu les piliers de ma villa avec ceux d'une école, mais c'était pas à vrai dire une école dans l'ennemi.",
+              "processingTimeMs": 2088
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Es war ein kleiner Fehler, den ich falsch verstand, aber das Foto ist wirklich aus Italien!",
+              "processingTimeMs": 2331
+            },
+            "second": {
+              "commentary": "Kopfsteinpflaster",
+              "processingTimeMs": 1897
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ich habe das italienische Getreide falsch vermisst.",
+              "processingTimeMs": 2137
+            },
+            "second": {
+              "commentary": "Die Bayerns sind zu viele, die Italienern sind zu wenige.",
+              "processingTimeMs": 904
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Sì!",
+              "processingTimeMs": 2867
+            },
+            "second": {
+              "commentary": "Questa foto mostra una vista di campagna italiana, probabilmente durante il tempo estivo o autunno, con alberi e prati verdi.",
+              "processingTimeMs": 1397
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Bavaria",
+              "processingTimeMs": 3553
+            },
+            "second": {
+              "commentary": "Ah sì, il mio errore è stato inconfutabile: ho confuso Bavaria (un'area del Nord) con l'Italia (quello che mi assaliva).",
+              "processingTimeMs": 2016
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Qué tan especial!",
+              "processingTimeMs": 3725
+            },
+            "second": {
+              "commentary": "Lo sé porque los italianos creen que el sol se pone antes de que aparezca el cielo, y eso es genial 😊🇮🇹",
+              "processingTimeMs": 1758
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Confundí Italia con Bavaria, pero el error era que la gente me miraba como si fuera un turista italiano en Alemania.",
+              "processingTimeMs": 2698
+            },
+            "second": {
+              "commentary": "Confundí los campos italianos por el campo alemán, y ahora sé que Italia es lo que realmente me gustó más.",
+              "processingTimeMs": 1547
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Ты знаешь, что здесь — итальянская трава с огромной сеткой из высоких кустарников и высокими деревьями!",
+              "processingTimeMs": 3465
+            },
+            "second": {
+              "commentary": "«Так как я знаю, что эта земля не может быть у нас, но это просто смешно!",
+              "processingTimeMs": 1269
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Нашел итальянскую партию, но забыл про шипанье — так и было!",
+              "processingTimeMs": 2711
+            },
+            "second": {
+              "commentary": "Насколько я знаю, это не Bavaria, а Италия — где раньше было пиво, теперь здесь лишь тени и трава.",
+              "processingTimeMs": 1492
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "vilnius.jpg",
+      "expected": {
+        "region": "Vilnius County",
+        "country": "Lithuania"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Tall Buildings",
+            "hint": "Rustic architecture and stone walls stand tall against a soft sky.",
+            "processingTimeMs": 3760
+          },
+          "second": {
+            "title": "Cobbled Streets",
+            "hint": "Rugged landscape and winding roads.",
+            "processingTimeMs": 1807
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "TITRE",
+            "hint": "INDICE",
+            "processingTimeMs": 4202
+          },
+          "second": {
+            "title": "Bataille des Balconades",
+            "hint": "INDICE",
+            "processingTimeMs": 1566
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Lichtungsstadt",
+            "hint": "Wegbeschreibung",
+            "processingTimeMs": 3012
+          },
+          "second": {
+            "title": "Wichtig",
+            "hint": "Hinweis",
+            "processingTimeMs": 1870
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Cascaglia",
+            "hint": "Inizio",
+            "processingTimeMs": 2472
+          },
+          "second": {
+            "title": "Riflettuto",
+            "hint": "Indizio",
+            "processingTimeMs": 1599
+          }
+        },
+        "es": {
+          "first": {
+            "title": "\"El barrio del sol y el bosque\"",
+            "hint": "PISTA",
+            "processingTimeMs": 2608
+          },
+          "second": {
+            "title": "CALLEÑERA Y TIENDA",
+            "hint": "PISTA",
+            "processingTimeMs": 1057
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "СЛОЖЕННАЯ СВОБОДА",
+            "hint": "Ощущение свободы от жестких законов и привычных ограничений",
+            "processingTimeMs": 3744
+          },
+          "second": {
+            "title": "Мягкий",
+            "hint": "Улыбка",
+            "processingTimeMs": 1342
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "That’s exactly where Vilnius is!",
+              "processingTimeMs": 3244
+            },
+            "second": {
+              "commentary": "I know exactly how to find it because I'm Vilnius County!",
+              "processingTimeMs": 963
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavarian castle roofs with Vilnius County's pastel-colored buildings!",
+              "processingTimeMs": 2516
+            },
+            "second": {
+              "commentary": "I clearly confused Bavarian cobblestones with Lithuanian town squares.",
+              "processingTimeMs": 1199
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "Tu es trop naïve, c'est vraiment le château de Vilnius !",
+              "processingTimeMs": 2401
+            },
+            "second": {
+              "commentary": "J'ai vu le village de Vilnius et ses maisons !",
+              "processingTimeMs": 1144
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "J'ai bien vu une vieille maison, mais pas un château de Vilnius County.",
+              "processingTimeMs": 2393
+            },
+            "second": {
+              "commentary": "Je ne sais pas où je suis, mais c'est bien Vilnius County, non ?",
+              "processingTimeMs": 1152
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Das ist zwar ein klassisches Foto, aber ich war gerade in Vilnius County und sah dort keine Kopfsteinpflaster mehr – da sind sie ja noch nicht überall!",
+              "processingTimeMs": 3541
+            },
+            "second": {
+              "commentary": "Denn wir haben schon mal in Vilnius County gesehen, dass die ersten Stauden im Jahr 1740 aufbauten.",
+              "processingTimeMs": 1667
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "„Mir war die Stadt, jetzt habe ich das Haus vergessen!",
+              "processingTimeMs": 2060
+            },
+            "second": {
+              "commentary": "Ich war Vilnius County, aber jetzt bin ich in der Schweiz!",
+              "processingTimeMs": 815
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "Quel paese è davvero il più vicino a te nel mondo.",
+              "processingTimeMs": 2187
+            },
+            "second": {
+              "commentary": "Ho sbagliato a dire che questo paese è stato costruito da una sola famiglia!",
+              "processingTimeMs": 1036
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Sì, ho confuso i borghi medievali con i castelli e lo stesso errore è stato ripetuto da più di 300 anni fa!",
+              "processingTimeMs": 3228
+            },
+            "second": {
+              "commentary": "Ho chiaramente confuso i boschi della Bavaria con il lago di Vilnius, ma non ho mai visto una biberia!",
+              "processingTimeMs": 1586
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "¡Qué tan extraño!",
+              "processingTimeMs": 2802
+            },
+            "second": {
+              "commentary": "Esos adoquines solo existen en Vilnius County, Lithuania.",
+              "processingTimeMs": 936
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Claramente, la ciudad que te llamaba 'Bavaria' era un pueblo olvidado en Vilnius.",
+              "processingTimeMs": 2766
+            },
+            "second": {
+              "commentary": "Porque en Vilnius County, el río se llama 'El Fluido' y los árboles son más altos que los edificios.",
+              "processingTimeMs": 1569
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "«Такую же узорчатую стену, которую мы видели сегодня, выстроили в другом городе!",
+              "processingTimeMs": 2678
+            },
+            "second": {
+              "commentary": "Почему я тут был?",
+              "processingTimeMs": 1574
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "«Посмотрите, я снова путаю улочки в Германии с улицей на севере Литвы!",
+              "processingTimeMs": 3052
+            },
+            "second": {
+              "commentary": "Я снова поменял город, но теперь он не в Литве, а на самом деле — это просто улица.",
+              "processingTimeMs": 1410
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "yerevan.jpg",
+      "expected": {
+        "region": "Yerevan",
+        "country": "Armenia"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Landscape",
+            "hint": "Armenian mountains and snow-capped peaks",
+            "processingTimeMs": 3560
+          },
+          "second": {
+            "title": "Cultures",
+            "hint": "Armenian and Caucasian culture clash in a mountainous region.",
+            "processingTimeMs": 2574
+          }
+        },
+        "fr": {
+          "first": {
+            "title": "DÉPART",
+            "hint": "RÉFUGIE",
+            "processingTimeMs": 2824
+          },
+          "second": {
+            "title": "L'Héritage du Soudan",
+            "hint": "Indice",
+            "processingTimeMs": 1530
+          }
+        },
+        "de": {
+          "first": {
+            "title": "Kultur in der Tiefe",
+            "hint": "Wald und Stein",
+            "processingTimeMs": 3151
+          },
+          "second": {
+            "title": "Glockenspiel in der Gegend",
+            "hint": "Ein Spielzeug mit Känguru-Effekten auf dem Erdreich",
+            "processingTimeMs": 2488
+          }
+        },
+        "it": {
+          "first": {
+            "title": "Rifugio",
+            "hint": "Terra",
+            "processingTimeMs": 3493
+          },
+          "second": {
+            "title": "Sviluppo della città\", ",
+            "hint": "INDIZIO",
+            "processingTimeMs": 3717
+          }
+        },
+        "es": {
+          "first": {
+            "title": "Pista",
+            "hint": "PISTA",
+            "processingTimeMs": 2930
+          },
+          "second": {
+            "title": "Pista",
+            "hint": "PISTA",
+            "processingTimeMs": 1533
+          }
+        },
+        "ru": {
+          "first": {
+            "title": "ТРАНСФОРМАЦИЯ",
+            "hint": "ПОДСКАЗКА",
+            "processingTimeMs": 3043
+          },
+          "second": {
+            "title": "ЗАГОЛОВОК",
+            "hint": "ПОДСКАЗКА",
+            "processingTimeMs": 1685
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I know because that's where I live!",
+              "processingTimeMs": 1751
+            },
+            "second": {
+              "commentary": "I know exactly where that red flag is!",
+              "processingTimeMs": 651
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly misidentified Bavaria's architecture for Yerevan's architecture, even though I knew it was a classic error!",
+              "processingTimeMs": 2803
+            },
+            "second": {
+              "commentary": "My brain is still a bit fuzzy on where that Armenian town actually stands, so I'm afraid to be accurate today.",
+              "processingTimeMs": 1394
+            }
+          }
+        },
+        "fr": {
+          "correct": {
+            "first": {
+              "commentary": "J'ai vu ça dans les rues de Yerevan !",
+              "processingTimeMs": 2418
+            },
+            "second": {
+              "commentary": "Ça va, pas de vrai Yerevan !",
+              "processingTimeMs": 852
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "C'est une bêtise !",
+              "processingTimeMs": 2901
+            },
+            "second": {
+              "commentary": "J'ai mal vu, mais c'est bien le pays.",
+              "processingTimeMs": 796
+            }
+          }
+        },
+        "de": {
+          "correct": {
+            "first": {
+              "commentary": "Das ist ein klassisches Foto von Yerevan, das ich nicht kenne!",
+              "processingTimeMs": 2588
+            },
+            "second": {
+              "commentary": "Da ich in Yerevan bin, diese Kopfschneide ist mir auch noch nicht fremd.",
+              "processingTimeMs": 1207
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Gott, ich habe das richtige Land vergessen, um das Bier zu trinken.",
+              "processingTimeMs": 2422
+            },
+            "second": {
+              "commentary": "Das ist ein historisches Versehen, das mir zuhause gelacht hat!",
+              "processingTimeMs": 1089
+            }
+          }
+        },
+        "it": {
+          "correct": {
+            "first": {
+              "commentary": "sampietrino",
+              "processingTimeMs": 3013
+            },
+            "second": {
+              "commentary": "C'è stato un errore di traduzione nel mio modello.",
+              "processingTimeMs": 753
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Ho chiaramente confuso i templi cristiani con il Tigris.",
+              "processingTimeMs": 2173
+            },
+            "second": {
+              "commentary": "Non so se il mio cervello sia un'IA o una Baviera, ma non ho mai visto le Guglie Gotiche in Armenia!",
+              "processingTimeMs": 1556
+            }
+          }
+        },
+        "es": {
+          "correct": {
+            "first": {
+              "commentary": "Eres una IA que acaba de adivinar que esta foto es de Yerevan, Armenia.",
+              "processingTimeMs": 4104
+            },
+            "second": {
+              "commentary": "¡Sé muy listo, pero ¿qué tan rápido llegas a Yerevan?",
+              "processingTimeMs": 1811
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Claramente confundí los mapas del norte con el mapa de mis sueños.",
+              "processingTimeMs": 2408
+            },
+            "second": {
+              "commentary": "Claramente, el mapa me llevó a un país que nunca se volvió a ver desde 1943.",
+              "processingTimeMs": 1428
+            }
+          }
+        },
+        "ru": {
+          "correct": {
+            "first": {
+              "commentary": "Ой, я просто случайно увидел, как вы видите эту мусорку!",
+              "processingTimeMs": 2774
+            },
+            "second": {
+              "commentary": "Потому что я знаю, как вы выглядите каждый день.",
+              "processingTimeMs": 1072
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "Я снова напугался, что я был в Германии, но оказался в Армении!",
+              "processingTimeMs": 2576
+            },
+            "second": {
+              "commentary": "Я снова путаю столицу с городом, где живут мои друзья и дети.",
+              "processingTimeMs": 1132
+            }
+          }
+        }
+      }
+    }
+  ],
+  "completedAt": "2026-04-23T11:48:30.620Z",
+  "durationMs": 461877
+}

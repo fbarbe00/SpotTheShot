@@ -1,0 +1,113 @@
+{
+  "model": "qwen3.5",
+  "mode": "light",
+  "startedAt": "2026-04-23T20:57:31.692Z",
+  "visionUrl": "http://localhost:8001",
+  "wrongGuess": {
+    "region": "Bavaria",
+    "country": "Germany"
+  },
+  "languages": [
+    "en"
+  ],
+  "images": [
+    {
+      "file": "atomium.jpg",
+      "expected": {
+        "region": "Brussels",
+        "country": "Belgium"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "DREAM",
+            "hint": "Falling snow and a frozen lake.",
+            "processingTimeMs": 3480
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I thought I was walking through a museum of empty chairs when Brussels suddenly revealed itself to me!",
+              "processingTimeMs": 2941
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavarian castle roofs with Brussels skyscrapers, so I can't even get a proper beer garden view anymore!",
+              "processingTimeMs": 2725
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "eifell_tower.jpg",
+      "expected": {
+        "region": "Ile-de-France",
+        "country": "France"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "French Town",
+            "hint": "A charming village with a quaint street and colorful buildings.",
+            "processingTimeMs": 2904
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I know it's a French city because I saw the Eiffel Tower right here, not in Paris or Rome!",
+              "processingTimeMs": 2571
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavarian castles with Parisian boulevards, though I was actually in Ile-de-France!",
+              "processingTimeMs": 2542
+            }
+          }
+        }
+      }
+    },
+    {
+      "file": "yerevan.jpg",
+      "expected": {
+        "region": "Yerevan",
+        "country": "Armenia"
+      },
+      "titleHint": {
+        "en": {
+          "first": {
+            "title": "Turquoise Mountains",
+            "hint": "Armenian mountains of ancient stones and turquoise water.",
+            "processingTimeMs": 3217
+          }
+        }
+      },
+      "commentary": {
+        "en": {
+          "correct": {
+            "first": {
+              "commentary": "I know because there are no cobblestones in Yerevan, Armenia.",
+              "processingTimeMs": 2018
+            }
+          },
+          "wrong": {
+            "first": {
+              "commentary": "I clearly confused Bavarian trams with Yerevan's endless donuts!",
+              "processingTimeMs": 2198
+            }
+          }
+        }
+      }
+    }
+  ],
+  "completedAt": "2026-04-23T20:57:56.819Z",
+  "durationMs": 25127
+}
