@@ -1,0 +1,82 @@
+services:
+  vision:
+    container_name: vision_server
+    restart: unless-stopped
+    build:
+      context: ./vision
+      dockerfile: ${DOCKERFILE:-Dockerfile}
+    environment:
+      - THREADS=${THREADS:-4}
+      - THREADS_BATCH=${THREADS_BATCH:-4}
+    volumes:
+      - ./vision/models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  geoclip:
+    container_name: geoclip_server
+    restart: unless-stopped
+    build: ./geoclip
+    environment:
+      - NUM_THREADS=${NUM_THREADS:-4}
+      - CACHE_DIR=/app/cache
+    volumes:
+      # FastGeoCLIP bakes its weights + GPS gallery CSV into the image; only
+      # the CLIP vision tower and GeoPackage live on the host. The cache
+      # volume keeps the FAISS index + GPS embeddings across rebuilds.
+      - ./geoclip/clip:/app/clip:ro
+      - ./geoclip/data:/app/data:ro
+      - geoclip_cache:/app/cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8000), timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - vision
+
+  server:
+    container_name: spottheshot_server
+    restart: unless-stopped
+    build: ./server
+    env_file:
+      - ./.env
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+    volumes:
+      # Bind-mount to a host directory so game stats + tokens are visible,
+      # backupable, and survive any docker operation including `down -v`.
+      - ./server/data:/app/data
+    depends_on:
+      - geoclip
+      - vision
+    develop:
+      watch:
+        - action: rebuild
+          path: ./server
+          ignore:
+            - node_modules
+
+  client:
+    container_name: spottheshot_client
+    restart: unless-stopped
+    build: ./client
+    ports:
+      - "4080:80"
+    depends_on:
+      - server
+    env_file:
+      - ./.env
+    develop:
+      watch:
+        - action: rebuild
+          path: ./client
+          ignore:
+            - node_modules
+            - dist
+
+volumes:
+  geoclip_cache:

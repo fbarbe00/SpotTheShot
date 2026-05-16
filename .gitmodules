@@ -1,0 +1,7 @@
+[submodule "vision/llama.cpp"]
+	path = vision/llama.cpp
+	url = https://github.com/ggml-org/llama.cpp
+	branch = master
+[submodule "geoclip"]
+	path = geoclip
+	url = https://github.com/fbarbe00/FastGeoCLIP.git

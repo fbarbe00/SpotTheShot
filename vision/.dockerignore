@@ -1,0 +1,37 @@
+/models/
+.git
+.gitignore
+.DS_Store
+.vscode
+.idea
+*.swp
+*.swo
+*~
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+llama.cpp/build
+llama.cpp/cmake-build-*
+llama.cpp/.git
+llama.cpp/.github
+llama.cpp/docs
+llama.cpp/examples
+llama.cpp/pocs
+llama.cpp/tests
+llama.cpp/benches
+llama.cpp/ci
+llama.cpp/gguf-py
+llama.cpp/site
+
+# WebUI source (compiled separately, not needed for server-only build)
+llama.cpp/tools/server/webui
+
+# GPU backends (CPU-only build)
+llama.cpp/ggml/src/ggml-cuda
+llama.cpp/ggml/src/ggml-vulkan
+llama.cpp/ggml/src/ggml-sycl
+llama.cpp/ggml/src/ggml-metal
+llama.cpp/ggml/src/ggml-opencl
+llama.cpp/ggml/src/ggml-cann

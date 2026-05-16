@@ -1,0 +1,38 @@
+SpotTheShot Source-Available License (Non-Commercial)
+
+Copyright (c) 2026 Fabio Barbero
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to use,
+copy, modify, merge, publish, and distribute the Software, subject to the
+following conditions:
+
+1. **Non-commercial use only.** The Software may be used, modified, and
+   distributed for personal, educational, academic, evaluation, or other
+   non-commercial purposes free of charge.
+
+2. **Commercial use requires permission.** "Commercial use" means any use
+   primarily intended for or directed toward commercial advantage or monetary
+   compensation. This includes (but is not limited to) hosting the Software as
+   a paid service, bundling it into a paid product, or operating it on behalf
+   of a commercial organisation as part of that organisation's revenue-generating
+   activity. Anyone wishing to use the Software commercially must first obtain
+   written permission from the copyright holder by contacting the maintainer
+   via the GitHub repository at https://github.com/fbarbe00/SpotTheShot.
+
+3. **Attribution.** The above copyright notice and this permission notice
+   shall be included in all copies or substantial portions of the Software.
+
+4. **Sub-component licensing.** Portions of this repository are provided as
+   git submodules under their own licenses (notably the FastGeoCLIP submodule
+   in `geoclip/`, which is MIT-licensed). Those licenses continue to apply
+   inside their respective directories and are not affected by the terms
+   above.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

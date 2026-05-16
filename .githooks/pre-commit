@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+#
+# Git Pre-Commit Hook for SpotTheShot
+#
+# This hook runs before every commit to ensure:
+# 1. TypeScript type-checking passes
+# 2. All tests pass
+# 3. Translation keys are complete and up-to-date (including achievements)
+# 4. ESLint passes with no errors
+#
+# Installation:
+#   cp .git/hooks/pre-commit .git/hooks/pre-commit.local
+#   chmod +x .git/hooks/pre-commit.local
+#
+# Or run manually:
+#   npm run pre-commit
+#
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo "🔍 Running pre-commit checks..."
+echo ""
+
+# Track if any step fails
+FAILED=0
+
+# ─────────────────────────────────────────
+# Step 1: TypeScript Type Check
+# ─────────────────────────────────────────
+echo "📝 Step 1: Running TypeScript type check..."
+cd client
+if npx tsc --noEmit; then
+    echo -e "${GREEN}✓ TypeScript type check passed${NC}"
+else
+    echo -e "${RED}✗ TypeScript type check failed${NC}"
+    echo -e "${YELLOW}  Fix type errors before committing${NC}"
+    FAILED=1
+fi
+echo ""
+
+# ─────────────────────────────────────────
+# Step 2: Run ESLint
+# ─────────────────────────────────────────
+echo "📋 Step 2: Running ESLint..."
+if npx eslint src/ --max-warnings=0 --quiet; then
+    echo -e "${GREEN}✓ ESLint passed${NC}"
+else
+    echo -e "${RED}✗ ESLint failed${NC}"
+    echo -e "${YELLOW}  Fix ESLint errors before committing${NC}"
+    FAILED=1
+fi
+echo ""
+
+# ─────────────────────────────────────────
+# Step 3: Run Tests
+# ─────────────────────────────────────────
+echo "🧪 Step 3: Running tests..."
+if npm run test -- --run --silent; then
+    echo -e "${GREEN}✓ All tests passed${NC}"
+else
+    echo -e "${RED}✗ Tests failed${NC}"
+    echo -e "${YELLOW}  Fix failing tests before committing${NC}"
+    FAILED=1
+fi
+echo ""
+
+# ─────────────────────────────────────────
+# Step 4: Check Translations (including achievements)
+# ─────────────────────────────────────────
+echo "🌍 Step 4: Checking translations (including achievements)..."
+if npm run check-translations; then
+    echo -e "${GREEN}✓ Translation audit passed${NC}"
+else
+    echo -e "${RED}✗ Translation audit failed${NC}"
+    echo -e "${YELLOW}  Fix missing or inconsistent translations${NC}"
+    FAILED=1
+fi
+echo ""
+
+# ─────────────────────────────────────────
+# Summary
+# ─────────────────────────────────────────
+echo "─────────────────────────────────────────"
+if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}✅ All pre-commit checks passed!${NC}"
+    echo ""
+    exit 0
+else
+    echo -e "${RED}❌ Some pre-commit checks failed!${NC}"
+    echo ""
+    echo -e "${YELLOW}Commit aborted. Please fix the issues above.${NC}"
+    echo ""
+    echo "To bypass this hook (not recommended):"
+    echo "  git commit --no-verify"
+    echo ""
+    exit 1
+fi

@@ -1,0 +1,58 @@
+TODO.md
+.claude/
+.qwen/
+.codex
+.DS_Store/
+# Dependencies
+node_modules/
+models/
+model/
+weights/
+gps_gallery/
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment
+.env
+.venv
+venv/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (generated at runtime)
+server/uploads/*
+server/data/*
+!server/uploads/.gitkeep
+!server/data/.gitkeep
+
+# Cache
+.cache/
+*.cache
+
+# TypeScript compiled outputs (noEmit is used, but these may be generated)
+src/**/*.js
+src/**/*.d.ts
+src/**/*.map
+*.js.map
+*.d.ts.map
