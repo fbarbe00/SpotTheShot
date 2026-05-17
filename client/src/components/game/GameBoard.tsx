@@ -9,7 +9,6 @@ import { useToast } from "../../lib/toast";
 import { useI18n } from "../../contexts/I18nContext";
 import { logger } from "../../lib/logger";
 
-const AI_TIP_COUNT = 50;
 
 /**
  * GameBoard Module
@@ -24,6 +23,7 @@ type GameBoardProps = {
   timerStarted?: boolean;
   playerId: string;
   onSubmitGuess: (p: { lat: number; lon: number }) => void;
+  serverAiTipIndex?: number | null;
 };
 
 export function GameBoard({
@@ -34,6 +34,7 @@ export function GameBoard({
   timerStarted = true,
   playerId,
   onSubmitGuess,
+  serverAiTipIndex = null,
 }: GameBoardProps) {
   const MAP_TOOLTIP_KEY = "geo-snap-map-tooltip-seen";
   const isUploader = photo?.uploaderId === playerId;
@@ -68,7 +69,7 @@ export function GameBoard({
   const { addToast } = useToast();
   const { t } = useI18n();
 
-  const [aiTipIndex, setAiTipIndex] = useState<number | null>(null);
+  const [visibleTip, setVisibleTip] = useState<number | null>(null);
 
   const uploaderName = useMemo(
     () => lobby.players.find(p => p.id === photo?.uploaderId)?.nickname ?? "Unknown",
@@ -126,22 +127,13 @@ export function GameBoard({
     }
   }, [photo?.id]);
 
-  // Show a random AI tip bubble when AI guessing is enabled (60% chance per round)
+  // Show server-assigned AI tip bubble (index decided server-side, synced across all players)
   useEffect(() => {
-    if (!lobby.settings.enableAIGuessing || !photo?.id) {
-      setAiTipIndex(null);
-      return;
-    }
-    if (Math.random() >= 0.6) return;
-    const idx = Math.floor(Math.random() * AI_TIP_COUNT);
-    const showTimer = setTimeout(() => setAiTipIndex(idx), 600);
-    const hideTimer = setTimeout(() => setAiTipIndex(null), 9000);
-    return () => {
-      clearTimeout(showTimer);
-      clearTimeout(hideTimer);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photo?.id, lobby.settings.enableAIGuessing]);
+    if (serverAiTipIndex == null) { setVisibleTip(null); return; }
+    const showTimer = setTimeout(() => setVisibleTip(serverAiTipIndex), 600);
+    const hideTimer = setTimeout(() => setVisibleTip(null), 9000);
+    return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
+  }, [serverAiTipIndex]);
 
   const clampImageScale = (value: number) => Math.max(1, Math.min(4, value));
 
@@ -426,7 +418,7 @@ export function GameBoard({
 
       {/* AI tip bubble — right side, middle height, non-blocking */}
       <AnimatePresence>
-        {aiTipIndex !== null && !isMapExpanded && !isLocked && (
+        {visibleTip !== null && !isMapExpanded && !isLocked && (
           <motion.div
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
@@ -436,13 +428,13 @@ export function GameBoard({
           >
             {/* Speech bubble */}
             <div className="relative bg-surface/90 border border-primary/20 rounded-xl px-2.5 py-2 text-[11px] text-text-darker max-w-[120px] text-right backdrop-blur-sm shadow-lg">
-              {t(`game.aiTip.${aiTipIndex}`)}
+              {t(`game.aiTip.${visibleTip}`)}
               {/* Tail pointing right */}
               <span className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-l-[6px] border-l-surface/90" />
             </div>
             {/* Robot circle */}
             <button
-              onClick={() => setAiTipIndex(null)}
+              onClick={() => setVisibleTip(null)}
               className="w-8 h-8 rounded-full bg-surface/90 border border-primary/20 flex items-center justify-center text-base flex-shrink-0 backdrop-blur-sm shadow-lg hover:bg-surface transition-colors"
               aria-label="Dismiss AI tip"
             >

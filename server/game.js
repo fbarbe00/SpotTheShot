@@ -456,12 +456,17 @@ export class GameManager extends AIPipeline {
       captureDate: photo.captureDate,
     };
 
+    lobby.aiTipIndex = lobby.settings.enableAIGuessing && Math.random() < 0.6
+      ? Math.floor(Math.random() * 50)
+      : null;
+
     this.io.to(lobbyId).emit('round_start', {
       roundIndex: lobby.roundIndex,
       totalRounds: lobby.roundOrder.length,
       photo: lobby.currentRoundPhoto,
       roundDurationMs: lobby.roundDurationMs,
       roundStartAt: lobby.roundStartAt,
+      aiTipIndex: lobby.aiTipIndex,
     });
 
     if (lobby.settings.enableAIGuessing) {
@@ -492,6 +497,8 @@ export class GameManager extends AIPipeline {
       }
       this.io.to(lobbyId).emit('timer', { remainingMs: remaining, timerStarted });
     }, 1000);
+
+    this.broadcastLobby(lobbyId);
   }
 
   _finishGame(lobbyId, lobby) {
@@ -733,6 +740,7 @@ export class GameManager extends AIPipeline {
       firstGuessAt: lobby.firstGuessAt,
       lastRoundResults: lobby.state === 'showing_results' ? lobby.lastRoundResults : null,
       currentGuesses: lobby.state === 'in_round' ? Object.fromEntries(lobby.guesses) : null,
+      aiTipIndex: lobby.state === 'in_round' ? (lobby.aiTipIndex ?? null) : null,
     };
   }
 
@@ -849,6 +857,7 @@ export class GameManager extends AIPipeline {
           photo: lobby.currentRoundPhoto, roundDurationMs: lobby.roundDurationMs, isReconnect: true,
           roundStartAt: lobby.roundStartAt,
           firstGuessAt: lobby.firstGuessAt,
+          aiTipIndex: lobby.aiTipIndex ?? null,
         });
       } else if (lobby.state === 'showing_results' && lobby.lastRoundResults) {
         socket.emit('round_results', lobby.lastRoundResults);

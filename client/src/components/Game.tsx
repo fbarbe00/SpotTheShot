@@ -38,6 +38,7 @@ type GameProps = {
   results: RoundResults | null;
   onSubmitGuess: (p: { lat: number; lon: number }) => void;
   onExitLobby: () => void;
+  serverAiTipIndex?: number | null;
 };
 
 export default function Game(props: GameProps) {
@@ -236,6 +237,7 @@ export default function Game(props: GameProps) {
               timerStarted={props.timerStarted}
               playerId={props.playerId}
               onSubmitGuess={props.onSubmitGuess}
+              serverAiTipIndex={props.serverAiTipIndex}
             />
           </Suspense>
         </motion.div>

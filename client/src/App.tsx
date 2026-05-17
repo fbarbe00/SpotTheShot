@@ -57,6 +57,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
   const [joinLobbyId, setJoinLobbyId] = useState('')
   const [timerStarted, setTimerStarted] = useState(false)
   const [roundStartAt, setRoundStartAt] = useState<number | null>(null)
+  const [serverAiTipIndex, setServerAiTipIndex] = useState<number | null>(null)
   const [isJoining, setIsJoining] = useState(false)
   const [showAchievements, setShowAchievements] = useState(false)
   const [showAchievementNotification, setShowAchievementNotification] = useState(false)
@@ -137,6 +138,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       setPhase('round')
       setPhoto(l.currentRoundPhoto)
       setRoundInfo(nextRoundInfo)
+      setServerAiTipIndex(l.aiTipIndex ?? null)
       saveGameState('round', l.currentRoundPhoto, nextRoundInfo, timerMsRef.current, null)
       return
     }
@@ -146,6 +148,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       setResults(l.lastRoundResults)
       setRoundStartAt(null)
       setTimerMs(0)
+      setServerAiTipIndex(null)
       saveGameState('results', photoRef.current, roundInfoRef.current, 0, l.lastRoundResults)
       return
     }
@@ -493,6 +496,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       setPhase('round')
       setPhoto(payload.photo)
       setRoundInfo({ roundIndex: payload.roundIndex, totalRounds: payload.totalRounds, duration: payload.roundDurationMs })
+      setServerAiTipIndex(payload.aiTipIndex ?? null)
 
       const isProgressive = lobbyRef.current?.settings?.timerMode === 'progressive'
       if (isProgressive) {
@@ -762,6 +766,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
                 timerMs={timerMs}
                 timerStarted={timerStarted}
                 onSubmitGuess={submitGuess}
+                serverAiTipIndex={serverAiTipIndex}
               />}
         </motion.div>
       </AnimatePresence>
