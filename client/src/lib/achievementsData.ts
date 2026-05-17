@@ -289,14 +289,6 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
   },
 
   {
-    id: 'far_guesses',
-    name: 'Global Swing',
-    description: 'Make a guess over 10,000km away 3 times',
-    emoji: '🌏',
-    category: 'fun',
-    target: 3
-  },
-  {
     id: 'mind_blown',
     name: 'Mind Blown',
     description: 'Make 3 guesses that are 10,000+ km off',
@@ -305,28 +297,20 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
     target: 3
   },
   {
+    id: 'global_swing_master',
+    name: 'Mind Blown Legend',
+    description: 'Make 20 guesses that are 10,000+ km off',
+    emoji: '🛰️',
+    category: 'fun',
+    target: 20
+  },
+  {
     id: 'reverse_psychology',
     name: 'Opposite Guess',
     description: 'Guess on the opposite side of the world 3 times',
     emoji: '🔄',
     category: 'fun',
     target: 3
-  },
-  {
-    id: 'global_swing_master',
-    name: 'Global Swing Master',
-    description: 'Make 20 guesses over 10,000km away',
-    emoji: '🛰️',
-    category: 'fun',
-    target: 20
-  },
-  {
-    id: 'mind_blown_chain',
-    name: 'Mind-Blown Chain',
-    description: 'Make 15 guesses that are 10,000+ km off',
-    emoji: '💥',
-    category: 'fun',
-    target: 15
   },
   {
     id: 'opposite_day',
@@ -354,7 +338,7 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
     target: 75
   },
   {
-    id: 'games_won_50',
+    id: 'games_won_35',
     name: 'Champion',
     description: 'Win 35 games',
     emoji: '🏅',

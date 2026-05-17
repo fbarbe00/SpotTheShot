@@ -389,7 +389,7 @@ export function useAchievements() {
 
       if (updated.gamesPlayed >= 20) toUnlock.push('game_night');
       if (updated.gamesPlayed >= 75) toUnlock.push('veteran_player');
-      if (updated.gamesWon >= 35) toUnlock.push('games_won_50');
+      if (updated.gamesWon >= 35) toUnlock.push('games_won_35');
 
       if (toUnlock.length) unlockAchievements(toUnlock);
       return updated;
@@ -459,7 +459,7 @@ export function useAchievements() {
       if (distanceKm < 100) updateAchievementProgress('medium_guesses');
       if (distanceKm > 10000) {
         updated.farGuessCount += 1;
-        updateAchievementProgress('far_guesses');
+        updateAchievementProgress('mind_blown');
         updateAchievementProgress('global_swing_master');
       }
 
@@ -601,11 +601,9 @@ export function useAchievements() {
     setStats(prev => {
       const updated = cloneStats(prev);
       updated.mindBlownCount += 1;
-      updateAchievementProgress('mind_blown');
-      updateAchievementProgress('mind_blown_chain');
       return updated;
     });
-  }, [updateAchievementProgress]);
+  }, []);
 
   const trackReversePsychologyGuess = useCallback((distanceKm: number) => {
     if (distanceKm <= 18_000) return;

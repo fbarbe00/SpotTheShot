@@ -56,7 +56,7 @@ function FitBounds({ photo, results }: { photo: Photo; results: Result[] }) {
 
     const points = [
       photo.lat && photo.lon ? [photo.lat, photo.lon] : null,
-      ...results.map(r => (r.lat && r.lon ? [r.lat, r.lon] : null)),
+      ...results.filter(r => !r.isAI).map(r => (r.lat && r.lon ? [r.lat, r.lon] : null)),
     ].filter(Boolean) as [number, number][];
 
     if (points.length > 0) {
