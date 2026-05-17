@@ -9,6 +9,8 @@ import { useToast } from "../../lib/toast";
 import { useI18n } from "../../contexts/I18nContext";
 import { logger } from "../../lib/logger";
 
+const AI_TIP_COUNT = 50;
+
 /**
  * GameBoard Module
  * Photo display + map guess interface for active game rounds
@@ -66,6 +68,8 @@ export function GameBoard({
   const { addToast } = useToast();
   const { t } = useI18n();
 
+  const [aiTipIndex, setAiTipIndex] = useState<number | null>(null);
+
   const uploaderName = useMemo(
     () => lobby.players.find(p => p.id === photo?.uploaderId)?.nickname ?? "Unknown",
     [lobby, photo]
@@ -121,6 +125,23 @@ export function GameBoard({
       lastPhotoIdRef.current = photo?.id;
     }
   }, [photo?.id]);
+
+  // Show a random AI tip bubble when AI guessing is enabled (60% chance per round)
+  useEffect(() => {
+    if (!lobby.settings.enableAIGuessing || !photo?.id) {
+      setAiTipIndex(null);
+      return;
+    }
+    if (Math.random() >= 0.6) return;
+    const idx = Math.floor(Math.random() * AI_TIP_COUNT);
+    const showTimer = setTimeout(() => setAiTipIndex(idx), 600);
+    const hideTimer = setTimeout(() => setAiTipIndex(null), 9000);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo?.id, lobby.settings.enableAIGuessing]);
 
   const clampImageScale = (value: number) => Math.max(1, Math.min(4, value));
 
@@ -399,6 +420,34 @@ export function GameBoard({
                 <Minimize size={24} />
               </button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI tip bubble — right side, middle height, non-blocking */}
+      <AnimatePresence>
+        {aiTipIndex !== null && !isMapExpanded && !isLocked && (
+          <motion.div
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 24 }}
+            transition={{ type: "spring", stiffness: 280, damping: 22 }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-[1002] flex items-center gap-1.5 pointer-events-auto"
+          >
+            {/* Speech bubble */}
+            <div className="relative bg-surface/90 border border-primary/20 rounded-xl px-2.5 py-2 text-[11px] text-text-darker max-w-[120px] text-right backdrop-blur-sm shadow-lg">
+              {t(`game.aiTip.${aiTipIndex}`)}
+              {/* Tail pointing right */}
+              <span className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-l-[6px] border-l-surface/90" />
+            </div>
+            {/* Robot circle */}
+            <button
+              onClick={() => setAiTipIndex(null)}
+              className="w-8 h-8 rounded-full bg-surface/90 border border-primary/20 flex items-center justify-center text-base flex-shrink-0 backdrop-blur-sm shadow-lg hover:bg-surface transition-colors"
+              aria-label="Dismiss AI tip"
+            >
+              🤖
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

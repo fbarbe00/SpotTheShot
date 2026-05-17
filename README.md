@@ -91,6 +91,46 @@ Everything is in `.env`. Key knobs:
 
 Token-based access control lives in `server/data/tokens.json` (gitignored). The defaults in `.env.example` apply to anyone without a token.
 
+### Access tokens
+
+Tokens let you grant specific users expanded capabilities beyond the server defaults (e.g. more players per lobby, higher photo limits, or unlocked AI features).
+
+Create or edit `server/data/tokens.json` (it is mounted as a Docker volume so it persists across restarts):
+
+```json
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "secret": "your-long-random-secret-string-at-least-16-chars",
+    "name": "Alice (friend)",
+    "expiresAt": null,
+    "maxPlayersPerLobby": 50,
+    "maxPhotosPerPlayer": 20,
+    "allowAllMaps": true,
+    "allowAIGuessing": true,
+    "allowAutoNaming": true,
+    "allowVisionCommentary": true
+  }
+]
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID string | Unique identifier — any UUID v4 works |
+| `secret` | string (≥16 chars) | The value users paste into the token field in-game |
+| `name` | string | Human-readable label shown to the user on token acceptance |
+| `expiresAt` | ms epoch or `null` | Expiry timestamp in milliseconds (`Date.now()` style), or `null` for never |
+| `maxPlayersPerLobby` | number | Per-lobby player cap for lobbies created with this token |
+| `maxPhotosPerPlayer` | number | Per-player photo upload cap |
+| `allowAllMaps` | boolean | Unlock all map styles (satellite, watercolor, etc.) |
+| `allowAIGuessing` | boolean | Allow adding an AI opponent |
+| `allowAutoNaming` | boolean | Allow AI auto-naming of photos |
+| `allowVisionCommentary` | boolean | Allow AI vision commentary |
+
+Any omitted field falls back to the server default from `.env`. To generate a secret, use any password generator or run `openssl rand -hex 32` in your terminal. Users enter the secret in the lobby UI under *"Have an access token?"*.
+
 ## Development
 
 ```bash

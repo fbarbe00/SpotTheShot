@@ -1,5 +1,4 @@
 # Translation Guide for SpotTheShot
-TODO: check if this is correct
 
 ## Overview
 This guide explains how translations are managed in the SpotTheShot application, covering both client-side and server-side translation approaches.
@@ -7,9 +6,15 @@ This guide explains how translations are managed in the SpotTheShot application,
 ## Client-Side Translations
 
 ### Location
-Client-side translations are located in:
-- `client/src/lib/translations.ts` - Contains all translation strings
-- `client/src/contexts/I18nContext.tsx` - Provides the translation context
+Client-side translations are split into per-language files:
+- `client/src/lib/locales/en.ts` — English (source of truth / fallback)
+- `client/src/lib/locales/fr.ts` — French
+- `client/src/lib/locales/it.ts` — Italian
+- `client/src/lib/locales/es.ts` — Spanish
+- `client/src/lib/locales/de.ts` — German
+- `client/src/lib/locales/ru.ts` — Russian
+- `client/src/lib/i18n.ts` — i18next initialisation (English bundled synchronously; others loaded on demand)
+- `client/src/contexts/I18nContext.tsx` — React context and `useI18n()` hook
 
 ### Supported Languages
 - English (en) - default/fallback
@@ -20,21 +25,15 @@ Client-side translations are located in:
 - Russian (ru)
 
 ### Translation Structure
-Translations are organized as a TypeScript object with language codes as keys:
+Each locale file exports a flat `Record<string, string>` object:
 
 ```typescript
-export const translations: Record<Language, Record<string, string>> = {
-  en: {
-    "language.change": "Change language",
-    "language.en": "English",
-    // ... more translations
-  },
-  fr: {
-    "language.change": "Changer de langue",
-    // ... French translations
-  }
-  // ... other languages
-}
+const en: Record<string, string> = {
+  "language.change": "Change language",
+  "language.en": "English",
+  // ... more translations
+};
+export default en;
 ```
 
 ### Translation Keys
@@ -137,17 +136,18 @@ const VALID_LANGUAGES = ['en', 'fr', 'it', 'es', 'de', 'ru'];
 ## Translation Process
 
 ### Adding a New Language
-1. Add language code to the `Language` type in `translations.ts`
-2. Add language to `VALID_LANGUAGES` arrays in both `server/server.js` and `server/visionClient.js`
-3. Add a new language object in `translations.ts` with all required keys
-4. Add language to `LANGUAGE_OPTIONS` in `LanguageSelector.tsx`
-5. Update browser language detection in `I18nContext.tsx`
+1. Create `client/src/lib/locales/<code>.ts` with all keys from `en.ts`
+2. Add the language code to the `Language` type in `client/src/lib/i18n.ts`
+3. Register the dynamic import for the new locale in `client/src/lib/i18n.ts`
+4. Add language to `VALID_LANGUAGES` arrays in both `server/server.js` and `server/visionClient.js`
+5. Add language to `LANGUAGE_OPTIONS` in `client/src/components/LanguageSelector.tsx`
+6. Add browser language detection mapping in `client/src/contexts/I18nContext.tsx`
 
 ### Adding New Translation Keys
-1. Add the key to all existing language objects in `translations.ts`
-2. Use the key in components via `t("key.path")`
-3. Ensure proper fallback handling
-4. Run `npm run check-translations` to validate
+1. Add the key to `client/src/lib/locales/en.ts` first
+2. Add the same key to all other locale files (`fr.ts`, `it.ts`, `es.ts`, `de.ts`, `ru.ts`)
+3. Use the key in components via `t("key.path")`
+4. Run `npm run check-translations` from the `client/` directory to validate
 
 ### Adding Template Keys
 For dynamic content (like GameHighlights), use template keys ending in `Template`:
@@ -157,9 +157,9 @@ For dynamic content (like GameHighlights), use template keys ending in `Template
 3. Add highlights array for styled elements (players, countries)
 
 ### Updating Translations
-1. Modify the appropriate language object in `translations.ts`
+1. Modify the appropriate locale file in `client/src/lib/locales/`
 2. Test in the UI with that language selected
-3. Run `npm run check-translations` to validate
+3. Run `npm run check-translations` from `client/` to validate
 4. Verify fallback works if translation is missing
 
 ## Best Practices
@@ -223,9 +223,16 @@ Templates use `{placeholder}` syntax for variable substitution:
 client/
 ├── src/
 │   ├── lib/
-│   │   └── translations.ts          # All translation strings
+│   │   ├── locales/
+│   │   │   ├── en.ts                # English (source of truth)
+│   │   │   ├── fr.ts                # French
+│   │   │   ├── it.ts                # Italian
+│   │   │   ├── es.ts                # Spanish
+│   │   │   ├── de.ts                # German
+│   │   │   └── ru.ts                # Russian
+│   │   └── i18n.ts                  # i18next initialisation
 │   ├── contexts/
-│   │   └── I18nContext.tsx          # Translation context provider
+│   │   └── I18nContext.tsx          # Translation context provider + useI18n()
 │   └── components/
 │       ├── LanguageSelector.tsx     # Language dropdown
 │       └── result/

@@ -447,7 +447,7 @@ export default function ResultComponent({
   const aiCommentaries = rows.filter(r => r.isAI && r.visionCommentary);
 
   return (
-    <div className="flex flex-col md:grid md:grid-cols-2 gap-4 md:gap-6 h-screen md:h-auto px-2 md:px-0 overflow-y-auto md:overflow-hidden">
+    <div className="flex flex-col md:grid md:grid-cols-2 gap-4 md:gap-6 max-h-[calc(100svh-80px)] px-2 md:px-0 overflow-y-auto md:overflow-hidden">
 
       {/* ── LEFT: Map ── */}
       <div className="flex flex-col gap-4">
@@ -524,7 +524,7 @@ export default function ResultComponent({
       </div>
 
       {/* ── RIGHT: Controls + Leaderboard ── */}
-      <div className="flex flex-col gap-3 overflow-y-auto md:overflow-hidden">
+      <div className="flex flex-col gap-3 md:overflow-y-auto">
 
         {isHost ? (
           <motion.button
@@ -579,7 +579,7 @@ export default function ResultComponent({
             </motion.div>
           </div>
 
-          <div className="p-2 flex flex-col gap-1.5 max-h-[300px] md:max-h-[500px] overflow-y-auto">
+          <div className="p-2 flex flex-col gap-1.5">
             <AnimatePresence mode="popLayout">
               {displayRows.map((row, i) => (
                 <LeaderboardRow key={row.id} row={row} index={i} phase={phase} />

@@ -485,6 +485,32 @@ export function pickRoundMoments(
     }
   }
 
+  // ── No-guess (player ran out of time) ──
+  // Find players on the leaderboard who have no result entry (skipping the uploader and AI)
+  const guessedIds = new Set(all.map(r => r.playerId));
+  const noGuessMoment = (() => {
+    const missed = round.leaderboard.filter(item => {
+      if (!('id' in item)) return false; // skip team items
+      return (
+        !guessedIds.has(item.id) &&
+        item.id !== round.photo.uploaderId &&
+        !item.id.startsWith('ai-')
+      );
+    }) as Array<{ id: string; nickname: string; color?: string }>;
+    if (missed.length === 0) return null;
+    const { playersText, highlights } = buildPlayerHighlights(missed);
+    return createMomentWithPlural(
+      '⏰',
+      t('highlights.noGuess'),
+      t('highlights.noGuessTemplate_one'),
+      t('highlights.noGuessTemplate_other'),
+      { player: playersText },
+      missed.length,
+      highlights,
+    );
+  })();
+  if (noGuessMoment) pool.push(noGuessMoment);
+
   const PRIORITY = [
     t('highlights.onFire'),
     t('highlights.perfectScore'),
@@ -495,6 +521,7 @@ export function pickRoundMoments(
     t('highlights.mostAdventurous'),
     t('highlights.globalConfusion'),
     t('highlights.spreadWide'),
+    t('highlights.noGuess'),
   ];
 
   // Shuffle within priority tiers for variety, then slice to limit

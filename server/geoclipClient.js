@@ -3,7 +3,7 @@
  * Fetches country and region info from coordinates
  *
  * Uses the FastGeoCLIP model from the GeoCLIP project:
- * https://github.com/VicenteVivan/geo-clip
+ * https://github.com/fbarbe00/FastGeoCLIP
  *
  * Map data © OpenStreetMap contributors
  * https://www.openstreetmap.org/copyright

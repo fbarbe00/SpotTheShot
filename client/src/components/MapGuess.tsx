@@ -10,7 +10,7 @@ import { getTileUrl, getMapProvider, type MapStyle, type MapLanguage } from "../
  * Interactive map for location guessing
  *
  * Uses OpenStreetMap for map tiles: https://www.openstreetmap.org/copyright
- * Displays geolocation predictions from GeoCLIP: https://github.com/VicenteVivan/geo-clip
+ * Displays geolocation predictions from GeoCLIP: https://github.com/fbarbe00/FastGeoCLIP
  * Image analysis powered by Ministral: https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF
  */
 

@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Map, Info, Trophy, Menu } from "lucide-react";
+import { Map, Info, Trophy } from "lucide-react";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { useState } from "react";
 import { useI18n } from "../contexts/I18nContext";
@@ -7,17 +7,16 @@ import { LanguageSelector } from "./LanguageSelector";
 
 // Main page layout wrapper - provides header, styling, and connection status indicator
 // Uses: OpenStreetMap, GeoCLIP, and Ministral models
-export default function Layout({ 
-  children, 
+export default function Layout({
+  children,
   onShowAchievements,
-  hasAchievements = true 
-}: { 
-  children: ReactNode; 
-  onShowAchievements?: () => void; 
-  hasAchievements?: boolean; 
+  hasAchievements = true
+}: {
+  children: ReactNode;
+  onShowAchievements?: () => void;
+  hasAchievements?: boolean;
 }) {
   const [showCredits, setShowCredits] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { t } = useI18n();
 
   return (
@@ -34,69 +33,32 @@ export default function Layout({
             </h1>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            {/* Language selector - visible on both mobile and desktop */}
-            <div className="flex items-center">
-              <LanguageSelector />
-            </div>
-            
-            {/* Mobile menu button - shown only on small screens */}
-            <div className="md:hidden">
+            {/* Language selector */}
+            <LanguageSelector />
+
+            {/* Achievements — always visible, text hidden on small screens */}
+            {onShowAchievements && hasAchievements && (
               <button
-                onClick={() => { setShowMobileMenu(!showMobileMenu); if (!showMobileMenu) setShowCredits(false); }}
-                className="text-text-darker hover:text-primary p-1"
-                title={t("layout.menu")}
+                onClick={onShowAchievements}
+                className="text-xs text-text-darker hover:text-primary flex items-center gap-1 p-1"
+                title={t("layout.viewAchievements")}
               >
-                <Menu size={20} />
+                <Trophy size={18} className="text-yellow-400" />
+                <span className="hidden lg:inline">{t("layout.achievements")}</span>
               </button>
-            </div>
-            
-            {/* Desktop controls - hidden on mobile */}
-            <div className="hidden md:flex items-center gap-2">
-              {onShowAchievements && hasAchievements && (
-                <button
-                  onClick={onShowAchievements}
-                  className="text-xs text-text-darker hover:text-primary flex items-center gap-1"
-                  title={t("layout.viewAchievements")}
-                >
-                  <Trophy size={14} className="text-yellow-400" />
-                  <span className="hidden lg:inline">{t("layout.achievements")}</span>
-                </button>
-              )}
-              <button
-                onClick={() => setShowCredits(!showCredits)}
-                className="text-xs text-text-darker hover:text-primary flex items-center gap-1"
-                title={t("layout.viewCredits")}
-              >
-                <Info size={14} />
-                <span className="hidden lg:inline">{t("layout.credits")}</span>
-              </button>
-            </div>
+            )}
+
+            {/* Credits — always visible, text hidden on small screens */}
+            <button
+              onClick={() => setShowCredits(!showCredits)}
+              className="text-xs text-text-darker hover:text-primary flex items-center gap-1 p-1"
+              title={t("layout.viewCredits")}
+            >
+              <Info size={18} />
+              <span className="hidden lg:inline">{t("layout.credits")}</span>
+            </button>
           </div>
         </div>
-        
-        {/* Mobile menu - shown when menu button is clicked */}
-        {showMobileMenu && (
-          <div className="md:hidden mb-4 p-3 bg-black/30 rounded-lg border border-primary/20">
-            <div className="flex flex-col gap-2">
-              {onShowAchievements && hasAchievements && (
-                <button
-                  onClick={() => { onShowAchievements(); setShowMobileMenu(false); }}
-                  className="text-sm text-text-darker hover:text-primary flex items-center gap-2 py-1"
-                >
-                  <Trophy size={16} className="text-yellow-400" />
-                  {t("layout.achievements")}
-                </button>
-              )}
-              <button
-                onClick={() => { setShowCredits(!showCredits); setShowMobileMenu(false); }}
-                className="text-sm text-text-darker hover:text-primary flex items-center gap-2 py-1"
-              >
-                <Info size={16} />
-                {t("layout.credits")}
-              </button>
-            </div>
-          </div>
-        )}
         {showCredits && (
           <div className="mb-4 p-3 bg-black/30 rounded-lg border border-primary/20 text-xs text-text-darker space-y-1">
             <div>
@@ -124,12 +86,12 @@ export default function Layout({
             <div>
               📍 Geolocation:{" "}
               <a
-                href="https://github.com/VicenteVivan/geo-clip"
+                href="https://github.com/fbarbe00/FastGeoCLIP"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                GeoCLIP
+                FastGeoCLIP
               </a>{" "}
               (running on the server)
             </div>
