@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.7.0';
+export const APP_VERSION = '2.0.0';
 export const VERSION_STORAGE_KEY = 'spottheshot-last-seen-version';
 
 export type VersionLogEntry = {
@@ -9,10 +9,19 @@ export type VersionLogEntry = {
 
 export const VERSION_LOG: VersionLogEntry[] = [
   {
+    version: '2.0.0',
+    date: '2026-05-17',
+    notes: [
+      '🤖 The AI now whispers hints while you\'re guessing — a little speech bubble appears with its thoughts on the photo. Click the robot to dismiss it.',
+      '⏰ Missed the timer? Round highlights now call out players who ran out of time.',
+      '🏅 Credits and achievements are now always visible in the header — no more hunting through the menu on mobile.',
+      '📱 Round results scroll properly on mobile — no more cut-off leaderboards or double-scroll weirdness.',
+    ],
+  },
+  {
     version: '1.7.0',
     date: '2026-05-01',
     notes: [
-      '🔒 Photos are now better protected.',
       '🤖 AI-generated titles, hints, and comments should be more consistent and less likely to trail off.',
       '🌍 Improved Russian text throughout the game.',
       '⚙️ Setup is more reliable for self-hosted games.',
