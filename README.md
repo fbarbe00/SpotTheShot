@@ -10,6 +10,20 @@ Optionally drop in an **on-device "AI" player** that guesses for itself and auto
 
 A self-hosted multiplayer game built around three services: a Node.js + Socket.IO server, a FastAPI image-to-GPS model ([FastGeoCLIP](https://github.com/fbarbe00/FastGeoCLIP)), and a llama.cpp vision LLM for AI commentary and auto-naming.
 
+## See it in action
+
+![An active SpotTheShot round showing an alpine lake and the mini-map guessing interface](docs/screenshots/game-desktop.png)
+
+| Build the lobby together | Place your guess | Compare the results |
+|---|---|---|
+| ![SpotTheShot lobby with players, AI opponent, settings, and an uploaded photo](docs/screenshots/lobby-desktop.png) | ![Expanded map used to place a location guess](docs/screenshots/guess-map-desktop.png) | ![Round results with player guesses and leaderboard](docs/screenshots/results-desktop.png) |
+
+The complete flow is responsive on smaller screens too:
+
+<p align="center">
+  <img src="docs/screenshots/game-mobile.png" width="320" alt="SpotTheShot active round on a mobile screen">
+</p>
+
 ## Architecture
 
 | Service | Stack | Port | What it does |
