@@ -39,6 +39,11 @@ The runner is verbose by default: it displays a live progress bar, each model
 response, and elapsed time. Container logs and structured JSON are retained in
 the timestamped output directory.
 
+The entire benchmark runs in Docker. The host only needs Bash, Docker, and
+Docker Compose—Node/npm and Python environments are not required. `--skip-build`
+skips rebuilding llama.cpp; the small server-based benchmark client image is
+built automatically once if it is absent.
+
 On a shared six-core/11 GiB server, defaults cap the benchmark at three CPUs,
 three inference threads, and 5 GiB RAM. Docker CPU shares let unrelated busy
 containers win scheduling time. Override only after checking `free -h` and

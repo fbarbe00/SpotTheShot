@@ -21,7 +21,11 @@
 import fs   from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { queryVisionModel, queryVisionModelForTitleAndHint } from '../server/visionClient.js';
+import {
+  preprocessImageBuffer,
+  queryVisionModel,
+  queryVisionModelForTitleAndHint,
+} from '../server/visionClient.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -117,6 +121,7 @@ async function main() {
   for (const item of images) {
     const imagePath   = path.join(__dirname, 'test_images', item.file);
     const imageBuffer = await fs.readFile(imagePath);
+    const imageB64    = await preprocessImageBuffer(imageBuffer);
     const imgLabel    = `${item.file} (${item.region}, ${item.country})`;
 
     console.log(`\n\x1b[1m▸ ${imgLabel}\x1b[0m`);
@@ -132,7 +137,7 @@ async function main() {
       for (let run = 0; run < RUNS; run++) {
         const runLabel = RUNS > 1 ? ` run ${run + 1}` : '';
         printProgress(step, totalSteps, `${ll} title/hint${runLabel}…`, item.file);
-        const th = await queryVisionModelForTitleAndHint(imageBuffer, item.region, item.country, 120000, lang);
+        const th = await queryVisionModelForTitleAndHint(imageB64, item.region, item.country, 120000, lang);
         step++;
         printResult(`${ll} title [${run + 1}]`, th.title, th.processingTimeMs);
         printResult(`${ll} hint  [${run + 1}]`, th.hint,  th.processingTimeMs);
@@ -148,7 +153,7 @@ async function main() {
         const runLabel = RUNS > 1 ? ` run ${run + 1}` : '';
         printProgress(step, totalSteps, `${ll} correct${runLabel}…`, item.file);
         const cc = await queryVisionModel(
-          imageBuffer, item.region, item.country,
+          imageB64, item.region, item.country,
           item.region, item.country,
           120000, lang,
         );
@@ -163,7 +168,7 @@ async function main() {
         const runLabel = RUNS > 1 ? ` run ${run + 1}` : '';
         printProgress(step, totalSteps, `${ll} wrong${runLabel}…`, item.file);
         const cw = await queryVisionModel(
-          imageBuffer, item.region, item.country,
+          imageB64, item.region, item.country,
           wrongGuess.region, wrongGuess.country,
           120000, lang,
         );

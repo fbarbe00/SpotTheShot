@@ -31,8 +31,13 @@ BENCH_CPUS=${BENCH_CPUS:-3}
 BENCH_THREADS=${BENCH_THREADS:-3}
 BENCH_MEMORY=${BENCH_MEMORY:-5g}
 VISION_IMAGE=${BENCH_IMAGE:-spottheshot-vision:local}
+CLIENT_IMAGE=${BENCH_CLIENT_IMAGE:-spottheshot-server:local}
+BENCH_NETWORK=spottheshot_benchmark
 
-cleanup() { docker rm -f vision_bench >/dev/null 2>&1 || true; }
+cleanup() {
+  docker rm -f vision_bench >/dev/null 2>&1 || true
+  docker network rm "$BENCH_NETWORK" >/dev/null 2>&1 || true
+}
 trap cleanup EXIT INT TERM
 
 # ─── Parse --light flag and model list ───────────────────────────────────────
@@ -83,14 +88,21 @@ echo "Output mode: verbose (live progress bar + every response)"
 echo "Resource ceiling: ${BENCH_CPUS} CPUs, ${BENCH_THREADS} inference threads, ${BENCH_MEMORY} RAM"
 echo ""
 
-if curl -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then
-  echo "Port 8001 is already serving a vision process. Stop it before benchmarking." >&2
-  exit 2
-fi
-
 if $DOWNLOAD_IMAGES; then
   "${ROOT_DIR}/vision/download-test-images.sh"
 fi
+
+if ! docker image inspect "$CLIENT_IMAGE" >/dev/null 2>&1; then
+  echo "=== Build benchmark client image (one-time, cached thereafter) ==="
+  cd "$ROOT_DIR"
+  docker compose build server
+fi
+docker image inspect "$CLIENT_IMAGE" >/dev/null 2>&1 || {
+  echo "Benchmark client image '$CLIENT_IMAGE' is unavailable" >&2; exit 1;
+}
+
+docker network inspect "$BENCH_NETWORK" >/dev/null 2>&1 || \
+  docker network create "$BENCH_NETWORK" >/dev/null
 
 for image in atomium.jpg copenhagen.jpg eifell_tower.jpg italian_bollard.jpg vilnius.jpg yerevan.jpg; do
   [[ -f "${ROOT_DIR}/vision/test_images/${image}" ]] || {
@@ -143,7 +155,7 @@ for model in "${MODELS[@]}"; do
     --cpu-shares 256 \
     --memory "${BENCH_MEMORY}" \
     --memory-swap "${BENCH_MEMORY}" \
-    -p 127.0.0.1:8001:8001 \
+    --network "$BENCH_NETWORK" \
     -e MODEL="${model}" \
     -e THREADS="${BENCH_THREADS}" \
     -e THREADS_BATCH="${BENCH_THREADS}" \
@@ -154,12 +166,14 @@ for model in "${MODELS[@]}"; do
   echo "=== ${model}: wait for health ==="
   ready=0
   for _ in $(seq 1 90); do
-    if curl -fsS "http://localhost:8001/health" >/dev/null; then
+    if docker exec vision_bench curl -fsS "http://127.0.0.1:8001/health" >/dev/null 2>&1; then
       ready=1
       break
     fi
+    printf '.'
     sleep 1
   done
+  echo ""
   if [[ "${ready}" != "1" ]]; then
     echo "Vision container did not become healthy for model=${model}" >&2
     docker logs vision_bench --tail 200 || true
@@ -169,10 +183,16 @@ for model in "${MODELS[@]}"; do
 
   echo "=== ${model}: benchmark ==="
   cd "${ROOT_DIR}"
-  VISION_URL="http://localhost:8001" \
-    node vision/benchmark_vision.mjs "${result_label}" \
-         "${OUT_DIR}/${safe_model}.json" \
-         ${LIGHT_FLAG}
+  docker run --rm --init \
+    --network "$BENCH_NETWORK" \
+    -e VISION_URL="http://vision_bench:8001" \
+    -v "${ROOT_DIR}/vision/benchmark_vision.mjs:/app/vision/benchmark_vision.mjs:ro" \
+    -v "${ROOT_DIR}/vision/test_images:/app/vision/test_images:ro" \
+    -v "${ROOT_DIR}/server/visionClient.js:/app/server/visionClient.js:ro" \
+    -v "${OUT_DIR}:/results" \
+    "$CLIENT_IMAGE" \
+    node /app/vision/benchmark_vision.mjs "${result_label}" \
+      "/results/${safe_model}.json" ${LIGHT_FLAG}
 
   docker stats --no-stream vision_bench > "${OUT_DIR}/${safe_model}.resources.txt" 2>&1 || true
   docker logs vision_bench --tail 60 > "${OUT_DIR}/${safe_model}.container.log" 2>&1 || true
