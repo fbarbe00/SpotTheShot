@@ -145,7 +145,13 @@ Tests and translation audit:
 cd client
 npm run test
 npm run check-translations
+cd ../server
+npm test
 ```
+
+Player sessions use a private browser-stored credential for reconnects, uploads,
+and photo access. Clearing site data signs that browser out of its active lobby;
+the player can immediately join again as a new participant.
 
 ## Supported languages
 

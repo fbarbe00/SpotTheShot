@@ -19,6 +19,16 @@ export function getOrdinal(n: number): string {
   }
 }
 
+/** Escape untrusted text before passing it to Leaflet's string-based DivIcon API. */
+export function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 // Get default map bounding box from environment variables
 // Format: [south, west, north, east] (LatLngBoundsExpression)
 export function getMapBounds(): [[number, number], [number, number]] {

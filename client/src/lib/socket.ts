@@ -5,6 +5,7 @@ import { logger } from './logger';
 // This eliminates the need to rebuild the client when the server URL changes
 export const SERVER_URL = window.location.origin;
 const CLIENT_SESSION_KEY = 'geo-snap-clientSessionId';
+const PLAYER_SESSION_KEY = 'geo-snap-playerSessionToken';
 const TOKEN_KEY = 'spottheshot_access_token';
 
 export function getStoredToken(): string | null {
@@ -15,6 +16,16 @@ export function setStoredToken(secret: string): void {
 }
 export function clearStoredToken(): void {
   try { window.localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+}
+
+export function setPlayerSessionToken(token: string): void {
+  try { window.localStorage.setItem(PLAYER_SESSION_KEY, token); } catch { /* ignore */ }
+}
+export function getPlayerSessionToken(): string | null {
+  try { return window.localStorage.getItem(PLAYER_SESSION_KEY); } catch { return null; }
+}
+export function clearPlayerSessionToken(): void {
+  try { window.localStorage.removeItem(PLAYER_SESSION_KEY); } catch { /* ignore */ }
 }
 
 // Settings type for lobby creation
@@ -39,9 +50,9 @@ function getSession() {
   try {
     const lobbyId = window.localStorage.getItem('geo-snap-lobbyId');
     const playerId = window.localStorage.getItem('geo-snap-playerId');
-    return { lobbyId, playerId, clientSessionId: getClientSessionId() };
+    return { lobbyId, playerId, sessionToken: getPlayerSessionToken(), clientSessionId: getClientSessionId() };
   } catch {
-    return { lobbyId: null, playerId: null, clientSessionId: null };
+    return { lobbyId: null, playerId: null, sessionToken: null, clientSessionId: null };
   }
 }
 
@@ -75,9 +86,11 @@ export function buildPhotoUrl(photoUrl: string, lobbyId?: string | null, playerI
   }
 
   const url = new URL(photoUrl, SERVER_URL);
-  if (resolvedLobbyId && resolvedPlayerId) {
+  const sessionToken = getPlayerSessionToken();
+  if (resolvedLobbyId && resolvedPlayerId && sessionToken) {
     url.searchParams.set('lobbyId', resolvedLobbyId.toUpperCase());
     url.searchParams.set('playerId', resolvedPlayerId);
+    url.searchParams.set('sessionToken', sessionToken);
   }
   return url.toString();
 }
@@ -87,22 +100,24 @@ export const socket = io(SERVER_URL, {
   // Optimize socket transports for better performance
   transports: ['websocket', 'polling'],
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
+  reconnectionDelayMax: 10000,
+  randomizationFactor: 0.5,
   timeout: 20000,
   auth: (() => {
-    const { lobbyId, playerId, clientSessionId } = getSession();
+    const { lobbyId, playerId, sessionToken, clientSessionId } = getSession();
     return {
-      ...(lobbyId && playerId ? { lobbyId, playerId } : {}),
+      ...(lobbyId && playerId && sessionToken ? { lobbyId, playerId, sessionToken } : {}),
       ...(clientSessionId ? { clientSessionId } : {}),
     };
   })(),
 });
 
 function refreshSocketAuth() {
-  const { lobbyId, playerId, clientSessionId } = getSession();
+  const { lobbyId, playerId, sessionToken, clientSessionId } = getSession();
   socket.auth = {
-    ...(lobbyId && playerId ? { lobbyId, playerId } : {}),
+    ...(lobbyId && playerId && sessionToken ? { lobbyId, playerId, sessionToken } : {}),
     ...(clientSessionId ? { clientSessionId } : {}),
   };
 }
@@ -144,7 +159,11 @@ export const api = {
     try {
       const r = await fetch(
         `${SERVER_URL}/api/lobbies/${lobbyId}/upload/${playerId}`,
-        { method: 'POST', body: fd }
+        {
+          method: 'POST',
+          headers: getPlayerSessionToken() ? { Authorization: `Bearer ${getPlayerSessionToken()}` } : {},
+          body: fd,
+        }
       )
 
       if (!r.ok) {

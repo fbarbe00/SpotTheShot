@@ -141,6 +141,9 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lobby-settings-title"
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
@@ -149,9 +152,9 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <Settings size={28} className="text-primary" />
-            <h2 className="text-3xl font-bold text-primary">{t('settings.lobbySettings')}</h2>
+            <h2 id="lobby-settings-title" className="text-3xl font-bold text-primary">{t('settings.lobbySettings')}</h2>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+          <button onClick={onClose} aria-label={t('ui.closeModal')} className="p-2 rounded-full hover:bg-white/10 transition-colors">
             <X size={24} />
           </button>
         </div>

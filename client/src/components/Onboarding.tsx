@@ -77,6 +77,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboarding-title"
         className="bg-surface rounded-2xl border border-primary/20 w-full max-w-2xl mx-auto overflow-visible"
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -85,7 +88,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         {/* Header */}
         <div className="p-4 border-b border-primary/10 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xl font-bold">🎮 {t('onboarding.title')}</span>
+            <span id="onboarding-title" className="text-xl font-bold">🎮 {t('onboarding.title')}</span>
           </div>
           <div className="flex items-center gap-2">
             <LanguageSelector />
@@ -93,6 +96,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               onClick={handleSkip}
               className="p-2 rounded-full hover:bg-white/10 transition-colors"
               title={t('onboarding.skip')}
+              aria-label={t('onboarding.skip')}
             >
               <X size={20} />
             </button>

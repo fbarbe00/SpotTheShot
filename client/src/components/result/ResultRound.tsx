@@ -4,7 +4,7 @@ import { Award, Medal, ThumbsUp } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import type { Photo, Result } from "../../lib/types";
-import { getMapInitialView } from "../../lib/utils";
+import { escapeHtml, getMapInitialView } from "../../lib/utils";
 import { useI18n } from "../../contexts/I18nContext";
 import { getCountryName } from "../../lib/countryNames";
 import { logger } from "../../lib/logger";
@@ -152,7 +152,7 @@ export function RoundMap({
   });
 
   const playerMarker = (r: Result) => {
-    const playerLabel = `<div style="font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; color: var(--color-text, #333); font-weight: 500; margin-top: 2px;">${r.nickname}</div>`;
+    const playerLabel = `<div style="font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; color: var(--color-text, #333); font-weight: 500; margin-top: 2px;">${escapeHtml(r.nickname)}</div>`;
     const content = `<div style="font-size: 20px; line-height: 1;">${r.icon || "👤"}</div>${playerLabel}`;
     return new L.DivIcon({
       className: "leaflet-div-icon",

@@ -55,6 +55,9 @@ export function AchievementsDialog({
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="achievements-dialog-title"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
@@ -65,9 +68,9 @@ export function AchievementsDialog({
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
               <Trophy className="text-primary flex-shrink-0" size={28} />
-              <h2 className="text-xl sm:text-2xl font-bold text-primary">{t('ach.dialog.title')}</h2>
+              <h2 id="achievements-dialog-title" className="text-xl sm:text-2xl font-bold text-primary">{t('ach.dialog.title')}</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-text-darker hover:text-primary flex-shrink-0">
+            <button onClick={onClose} aria-label={t('ui.closeModal')} className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-text-darker hover:text-primary flex-shrink-0">
               <X size={20} />
             </button>
           </div>

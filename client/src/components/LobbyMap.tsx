@@ -8,7 +8,7 @@ import L from "leaflet";
 import { useState } from "react";
 import type { Lobby } from "../lib/types";
 import { buildPhotoUrl } from "../lib/socket";
-import { getMapInitialView } from "../lib/utils";
+import { escapeHtml, getMapInitialView } from "../lib/utils";
 import LocationPickerDialog from "./LocationPickerDialog";
 import { useI18n } from "../contexts/I18nContext";
 import { getTileUrl, getMapProvider } from "../lib/mapConfig";
@@ -36,7 +36,7 @@ export default function LobbyMap({
   const mapLanguage = lobby.settings.mapLanguage || 'local';
 
   const photoIcon = (icon?: string, playerName?: string, photoUrl?: string) => {
-    const playerLabel = playerName ? `<div style="font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; color: var(--color-text, #333); font-weight: 500; margin-top: 2px;">${playerName}</div>` : '';
+    const playerLabel = playerName ? `<div style="font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; color: var(--color-text, #333); font-weight: 500; margin-top: 2px;">${escapeHtml(playerName)}</div>` : '';
     const content = photoUrl
       ? `<div style="width: 48px; height: 48px; border-radius: 8px; overflow: hidden; border: 2px solid var(--color-primary, #9945ff); box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><img src="${photoUrl}" style="width: 100%; height: 100%; object-fit: cover;" /></div>${playerLabel}`
       : `<div style="font-size: 28px; line-height: 1;">${icon || "📸"}</div>${playerLabel}`;

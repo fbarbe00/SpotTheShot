@@ -28,6 +28,15 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Remove white background from Leaflet div icons */
 .leaflet-div-icon {
   background: transparent !important;
@@ -109,4 +118,3 @@
     animation: scaleOut 0.15s ease-in;
   }
 }
-

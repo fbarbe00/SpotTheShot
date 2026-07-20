@@ -11,7 +11,7 @@ import { AchievementNotification } from './components/AchievementNotification'
 import { useToast } from './lib/toast'
 import { ToastProvider, ToastContainer } from './lib/toast.tsx'
 import { useEffect, useState, useRef } from 'react'
-import { socket, api, getClientSessionId, getStoredToken } from './lib/socket'
+import { socket, api, clearPlayerSessionToken, getClientSessionId, getPlayerSessionToken, getStoredToken, setPlayerSessionToken } from './lib/socket'
 import type { Lobby, Player } from './lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameState } from './lib/useGameState'
@@ -167,6 +167,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       window.localStorage.removeItem('geo-snap-playerId')
       window.localStorage.removeItem('geo-snap-gameState')
       window.localStorage.removeItem('geo-snap-joinLobbyId')
+      clearPlayerSessionToken()
     } catch (error) {
       logger.error('Could not clear session', error)
     }
@@ -288,28 +289,6 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
     }
   }, [nickname])
 
-  useEffect(() => {
-    const handleWheelZoom = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault()
-      }
-    }
-
-    const handleKeyboardZoom = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return
-      if (['+', '-', '=', '0'].includes(event.key)) {
-        event.preventDefault()
-      }
-    }
-
-    document.addEventListener('wheel', handleWheelZoom, { passive: false })
-    window.addEventListener('keydown', handleKeyboardZoom)
-    return () => {
-      document.removeEventListener('wheel', handleWheelZoom)
-      window.removeEventListener('keydown', handleKeyboardZoom)
-    }
-  }, [])
-
   // Handle joining a different lobby while already in one
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -353,6 +332,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
           socket.emit('join_lobby', {
             lobbyId: savedLobbyId,
             playerId: savedPlayerId,
+            sessionToken: getPlayerSessionToken(),
             nickname: nickname || 'Player',
             clientSessionId,
           })
@@ -411,12 +391,13 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       resetGameState();
     })
 
-    socket.on('joined', ({ lobby: l, playerId: pid }) => {
+    socket.on('joined', ({ lobby: l, playerId: pid, sessionToken }) => {
       logger.debug('joined event', { state: l.state, playerId: pid });
       reconnectAttemptedRef.current = true
       setIsJoining(false) // Join succeeded, clear loading state
       setLobby(l)
       if (pid) {
+        if (sessionToken) setPlayerSessionToken(sessionToken)
         setPlayerId(pid)
         // Find our own nickname to display
         const me = l.players.find((p: Player) => p.id === pid)
@@ -599,7 +580,9 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       const language = (window.localStorage.getItem('geo-snap-language') || 'en').toLowerCase()
       const clientSessionId = getClientSessionId()
       const res = await api.createLobby(p.nickname, { roundDurationSec: p.roundDuration, language }, clientSessionId, getStoredToken())
-      socket.emit('join_lobby', { lobbyId: res.lobby.id, nickname: p.nickname, playerId: res.playerId, clientSessionId })
+      if (!res.lobby || !res.playerId || !res.sessionToken) throw new Error(res.error || 'Invalid server response')
+      setPlayerSessionToken(res.sessionToken)
+      socket.emit('join_lobby', { lobbyId: res.lobby.id, nickname: p.nickname, playerId: res.playerId, sessionToken: res.sessionToken, clientSessionId })
     } catch (error) {
       addToast(t('toast.failedCreateLobby'), 'error', 5000);
       logger.error('Create lobby error', error);
@@ -629,6 +612,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
           lobbyId: normalizedLobbyId,
           nickname: p.nickname,
           playerId: savedPlayerId,
+          sessionToken: getPlayerSessionToken(),
           clientSessionId: getClientSessionId(),
         })
         return
@@ -637,10 +621,13 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       const clientSessionId = getClientSessionId()
       const res = await api.joinLobby(normalizedLobbyId, p.nickname, clientSessionId)
       if (res.playerId) {
+        if (!res.sessionToken) throw new Error('Invalid server response')
+        setPlayerSessionToken(res.sessionToken)
         socket.emit('join_lobby', {
           lobbyId: normalizedLobbyId,
           nickname: p.nickname,
           playerId: res.playerId,
+          sessionToken: res.sessionToken,
           clientSessionId,
         })
       } else if (res.error) {
