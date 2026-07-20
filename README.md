@@ -82,7 +82,8 @@ and Gemma 4 E2B/E4B without rebuilding llama.cpp between models. On that branch:
 
 ```bash
 ./vision/download-model.sh --list
-./vision/download-model.sh ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b
+./vision/download-model.sh ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b minicpm-v4.6
+./vision/download-test-images.sh
 ./vision/run_benchmarks.sh --light                 # quick smoke/quality pass
 ./vision/run_benchmarks.sh                         # full 6-language comparison
 ```

@@ -2,7 +2,7 @@
 # run_benchmarks.sh
 #
 # Usage:
-#   ./run_benchmarks.sh                          # full benchmark, all 6 models
+#   ./run_benchmarks.sh                          # full benchmark, all 7 models
 #   ./run_benchmarks.sh qwen35-4b gemma4-e4b     # full benchmark, specific models
 #   ./run_benchmarks.sh --light                  # light benchmark, all 6 models
 #
@@ -12,13 +12,15 @@ set -euo pipefail
 
 if [[ ${1:-} == --help || ${1:-} == -h ]]; then
   cat <<'EOF'
-Usage: ./vision/run_benchmarks.sh [--light] [MODEL ...]
+Usage: ./vision/run_benchmarks.sh [--light] [--skip-build] [--download-images] [MODEL ...]
 
-Default: verbose full benchmark of all six models, with a live progress bar and
+Default: verbose full benchmark of all seven models, with a live progress bar and
 every generated title, hint, commentary, and request duration printed.
 
-Models: ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b
+Models: ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b minicpm-v4.6
 Use --light for a 3-image, English-only, one-pass smoke test.
+Use --skip-build after the image has already been built from this checkout.
+Use --download-images to fetch and validate the standard six fixtures first.
 EOF
   exit 0
 fi
@@ -34,20 +36,36 @@ trap cleanup EXIT INT TERM
 
 # ─── Parse --light flag and model list ───────────────────────────────────────
 LIGHT_FLAG=""
+SKIP_BUILD=false
+DOWNLOAD_IMAGES=false
 MODELS_ARG=()
 for arg in "$@"; do
-  if [[ "${arg}" == "--light" ]]; then
-    LIGHT_FLAG="--light"
-  else
-    MODELS_ARG+=("${arg}")
-  fi
+  case "$arg" in
+    --light) LIGHT_FLAG=--light ;;
+    --skip-build) SKIP_BUILD=true ;;
+    --download-images) DOWNLOAD_IMAGES=true ;;
+    --*) echo "Unknown option: $arg" >&2; exit 2 ;;
+    *) MODELS_ARG+=("$arg") ;;
+  esac
 done
 
 if [[ "${#MODELS_ARG[@]}" -gt 0 ]]; then
   MODELS=("${MODELS_ARG[@]}")
 else
-  MODELS=(ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b)
+  MODELS=(ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b minicpm-v4.6)
 fi
+
+if [[ -n ${BENCH_MODEL_FILE:-} && ${#MODELS[@]} -ne 1 ]]; then
+  echo "BENCH_MODEL_FILE override requires exactly one model" >&2
+  exit 2
+fi
+if [[ -n ${BENCH_LABEL:-} && ${#MODELS[@]} -ne 1 ]]; then
+  echo "BENCH_LABEL override requires exactly one model" >&2
+  exit 2
+fi
+BENCH_ENV_ARGS=()
+[[ -n ${BENCH_MODEL_FILE:-} ]] && BENCH_ENV_ARGS+=(-e "MODEL_FILE=${BENCH_MODEL_FILE}")
+[[ -n ${BENCH_MMPROJ_FILE:-} ]] && BENCH_ENV_ARGS+=(-e "MMPROJ_FILE=${BENCH_MMPROJ_FILE}")
 
 SUFFIX="${LIGHT_FLAG:+-light}"
 OUT_DIR="${ROOT_DIR}/vision/benchmarks/${STAMP}${SUFFIX}"
@@ -69,6 +87,10 @@ if curl -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then
   exit 2
 fi
 
+if $DOWNLOAD_IMAGES; then
+  "${ROOT_DIR}/vision/download-test-images.sh"
+fi
+
 for image in atomium.jpg copenhagen.jpg eifell_tower.jpg italian_bollard.jpg vilnius.jpg yerevan.jpg; do
   [[ -f "${ROOT_DIR}/vision/test_images/${image}" ]] || {
     echo "Missing vision/test_images/${image}; add the six benchmark fixtures before running." >&2
@@ -76,14 +98,36 @@ for image in atomium.jpg copenhagen.jpg eifell_tower.jpg italian_bollard.jpg vil
   }
 done
 
-echo "=== Build one multi-model llama-server image ==="
-cd "${ROOT_DIR}"
-docker compose build vision
+{
+  echo "timestamp=$(date --iso-8601=seconds)"
+  echo "models=${MODELS[*]}"
+  echo "bench_cpus=$BENCH_CPUS"
+  echo "bench_threads=$BENCH_THREADS"
+  echo "bench_memory=$BENCH_MEMORY"
+  echo "bench_model_file=${BENCH_MODEL_FILE:-profile default}"
+  echo "bench_mmproj_file=${BENCH_MMPROJ_FILE:-profile default}"
+  uname -a
+  free -h
+  lscpu | grep -E '^(Model name|CPU\(s\)|Thread|Core|Socket|Flags):' || true
+  docker version --format 'docker_client={{.Client.Version}} docker_server={{.Server.Version}}'
+} > "${OUT_DIR}/environment.txt"
+
+if $SKIP_BUILD; then
+  docker image inspect spottheshot-vision >/dev/null 2>&1 || {
+    echo "--skip-build requested but spottheshot-vision does not exist" >&2; exit 2;
+  }
+  echo "=== Reusing existing spottheshot-vision image ==="
+else
+  echo "=== Build one multi-model llama-server image ==="
+  cd "${ROOT_DIR}"
+  docker compose build vision
+fi
 
 # ─── Per-model loop ───────────────────────────────────────────────────────────
 for model in "${MODELS[@]}"; do
+  result_label=${BENCH_LABEL:-$model}
   # Sanitise model name for use as a filename (replace : with -)
-  safe_model="${model//:/-}"
+  safe_model="${result_label//[:\/ ]/-}"
 
   echo "=== ${model}: start container ==="
   docker rm -f vision_bench >/dev/null 2>&1 || true
@@ -97,6 +141,7 @@ for model in "${MODELS[@]}"; do
     -e MODEL="${model}" \
     -e THREADS="${BENCH_THREADS}" \
     -e THREADS_BATCH="${BENCH_THREADS}" \
+    "${BENCH_ENV_ARGS[@]}" \
     -v "${ROOT_DIR}/vision/models:/app/models" \
     spottheshot-vision >/dev/null
 
@@ -119,10 +164,11 @@ for model in "${MODELS[@]}"; do
   echo "=== ${model}: benchmark ==="
   cd "${ROOT_DIR}"
   VISION_URL="http://localhost:8001" \
-    node vision/benchmark_vision.mjs "${model}" \
+    node vision/benchmark_vision.mjs "${result_label}" \
          "${OUT_DIR}/${safe_model}.json" \
          ${LIGHT_FLAG}
 
+  docker stats --no-stream vision_bench > "${OUT_DIR}/${safe_model}.resources.txt" 2>&1 || true
   docker logs vision_bench --tail 60 > "${OUT_DIR}/${safe_model}.container.log" 2>&1 || true
   docker rm -f vision_bench >/dev/null 2>&1 || true
 done

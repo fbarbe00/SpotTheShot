@@ -45,3 +45,31 @@ containers win scheduling time. Override only after checking `free -h` and
 `docker stats`, for example `BENCH_CPUS=2 BENCH_THREADS=2 BENCH_MEMORY=4g`.
 There is no swap safety net: if less than roughly 5–6 GiB is available, Gemma
 E4B may not fit and should be tested during a quieter window.
+
+## Quantization sweep
+
+The defaults are deliberately strong roughly-four-bit deployment choices, not
+identical quantizers: Qwen/Gemma use UD-Q4_K_XL, Ministral uses IQ4_NL, and
+MiniCPM uses its publisher-recommended Q4_K_M. First compare architectures with
+these defaults. Then test Q5_K_M (quality candidate) and IQ4_NL or Q4_K_M
+(memory/speed candidate) only for the winner. Q8 is generally not worthwhile on
+this 11 GiB shared CPU host.
+
+Download an alternate file into its existing profile directory, for example:
+
+```bash
+MODEL_WEIGHT=Qwen3.5-2B-Q5_K_M.gguf ./vision/download-model.sh qwen35-2b
+```
+
+Benchmark it by overriding the container path while retaining the profile's
+projector and chat settings:
+
+```bash
+BENCH_MODEL_FILE=/app/models/qwen35-2b/Qwen3.5-2B-Q5_K_M.gguf \
+BENCH_LABEL=qwen35-2b-Q5_K_M \
+  ./vision/run_benchmarks.sh --light qwen35-2b
+```
+
+Use the same images, thread count, temperature, and warm-run comparison. Record
+both file size and peak container memory; accept the larger quant only when its
+manual quality improvement is visible and repeatable.
