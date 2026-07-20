@@ -113,14 +113,17 @@ done
 } > "${OUT_DIR}/environment.txt"
 
 if $SKIP_BUILD; then
-  docker image inspect spottheshot-vision >/dev/null 2>&1 || {
-    echo "--skip-build requested but spottheshot-vision does not exist" >&2; exit 2;
+  VISION_IMAGE=$(docker compose images -q vision)
+  [[ -n $VISION_IMAGE ]] || {
+    echo "--skip-build requested but Compose has no built vision image" >&2; exit 2;
   }
-  echo "=== Reusing existing spottheshot-vision image ==="
+  echo "=== Reusing existing vision image $VISION_IMAGE ==="
 else
   echo "=== Build one multi-model llama-server image ==="
   cd "${ROOT_DIR}"
   docker compose build vision
+  VISION_IMAGE=$(docker compose images -q vision)
+  [[ -n $VISION_IMAGE ]] || { echo "Could not resolve the built vision image" >&2; exit 1; }
 fi
 
 # ─── Per-model loop ───────────────────────────────────────────────────────────
@@ -143,7 +146,7 @@ for model in "${MODELS[@]}"; do
     -e THREADS_BATCH="${BENCH_THREADS}" \
     "${BENCH_ENV_ARGS[@]}" \
     -v "${ROOT_DIR}/vision/models:/app/models" \
-    spottheshot-vision >/dev/null
+    "$VISION_IMAGE" >/dev/null
 
   echo "=== ${model}: wait for health ==="
   ready=0
