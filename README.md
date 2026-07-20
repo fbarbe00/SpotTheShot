@@ -75,7 +75,7 @@ cd vision
 cd ..
 ```
 
-This pulls `Ministral-3-3B-Instruct-2512-IQ4_NL.gguf` + `mmproj-F16.gguf` (~2 GB) into `vision/models/ministral/`. The `entrypoint.sh` is wired to those exact filenames. If you swap models, edit the entrypoint to match.
+This pulls `Ministral-3-3B-Instruct-2512-IQ4_NL.gguf` + `mmproj-F16.gguf` (~2 GB) into `vision/models/ministral/`.
 
 ### 3. Run
 
@@ -100,7 +100,8 @@ Everything is in `.env`. Key knobs:
 | `DEFAULT_MAX_PLAYERS` | 20 | Per-lobby player cap (overridable per-token) |
 | `GEO_CONCURRENCY` | 2 | Parallel GeoCLIP requests in flight |
 | `VISION_CONCURRENCY` | 1 | Parallel vision LLM requests (memory-bound) |
-| `THREADS`, `NUM_THREADS` | 4 | CPU thread count for vision and geoclip |
+| `THREADS`, `NUM_THREADS` | 5 | CPU thread count for vision and geoclip (requests remain sequential) |
+| `CTX_SIZE` | 1024 | Vision context; raise only if prompts are truncated |
 | `VITE_MAP_BBOX_*` | Europe | Default in-game map bounding box |
 
 Token-based access control lives in `server/data/tokens.json` (gitignored). The defaults in `.env.example` apply to anyone without a token.
