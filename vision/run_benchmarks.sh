@@ -27,10 +27,10 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-BENCH_CPUS=${BENCH_CPUS:-3}
-BENCH_THREADS=${BENCH_THREADS:-3}
-BENCH_MEMORY=${BENCH_MEMORY:-5g}
-VISION_IMAGE=${BENCH_IMAGE:-spottheshot-vision:local}
+BENCH_CPUS=${BENCH_CPUS:-}
+BENCH_THREADS=${BENCH_THREADS:-}
+BENCH_MEMORY=${BENCH_MEMORY:-}
+VISION_IMAGE=${BENCH_IMAGE:-}
 CLIENT_IMAGE=${BENCH_CLIENT_IMAGE:-spottheshot-server:local}
 BENCH_NETWORK=spottheshot_benchmark
 
@@ -72,6 +72,12 @@ fi
 BENCH_ENV_ARGS=()
 [[ -n ${BENCH_MODEL_FILE:-} ]] && BENCH_ENV_ARGS+=(-e "MODEL_FILE=${BENCH_MODEL_FILE}")
 [[ -n ${BENCH_MMPROJ_FILE:-} ]] && BENCH_ENV_ARGS+=(-e "MMPROJ_FILE=${BENCH_MMPROJ_FILE}")
+[[ -n $BENCH_THREADS ]] && BENCH_ENV_ARGS+=(-e "THREADS=$BENCH_THREADS" -e "THREADS_BATCH=$BENCH_THREADS")
+BENCH_RESOURCE_ARGS=()
+[[ -n $BENCH_CPUS ]] && BENCH_RESOURCE_ARGS+=(--cpus "$BENCH_CPUS")
+if [[ -n $BENCH_MEMORY ]]; then
+  BENCH_RESOURCE_ARGS+=(--memory "$BENCH_MEMORY" --memory-swap "$BENCH_MEMORY")
+fi
 
 SUFFIX="${LIGHT_FLAG:+-light}"
 OUT_DIR="${ROOT_DIR}/vision/benchmarks/${STAMP}${SUFFIX}"
@@ -85,7 +91,11 @@ fi
 echo "Models: ${MODELS[*]}"
 echo "Output: ${OUT_DIR}"
 echo "Output mode: verbose (live progress bar + every response)"
-echo "Resource ceiling: ${BENCH_CPUS} CPUs, ${BENCH_THREADS} inference threads, ${BENCH_MEMORY} RAM"
+if [[ ${#BENCH_RESOURCE_ARGS[@]} -eq 0 && -z $BENCH_THREADS ]]; then
+  echo "Resources: Docker defaults; vision image uses its default inference threads"
+else
+  echo "Resources: CPUs=${BENCH_CPUS:-unlimited}, threads=${BENCH_THREADS:-image default}, RAM=${BENCH_MEMORY:-unlimited}"
+fi
 echo ""
 
 if $DOWNLOAD_IMAGES; then
@@ -114,9 +124,9 @@ done
 {
   echo "timestamp=$(date --iso-8601=seconds)"
   echo "models=${MODELS[*]}"
-  echo "bench_cpus=$BENCH_CPUS"
-  echo "bench_threads=$BENCH_THREADS"
-  echo "bench_memory=$BENCH_MEMORY"
+  echo "bench_cpus=${BENCH_CPUS:-docker default}"
+  echo "bench_threads=${BENCH_THREADS:-image default}"
+  echo "bench_memory=${BENCH_MEMORY:-docker default}"
   echo "bench_model_file=${BENCH_MODEL_FILE:-profile default}"
   echo "bench_mmproj_file=${BENCH_MMPROJ_FILE:-profile default}"
   uname -a
@@ -125,7 +135,22 @@ done
   docker version --format 'docker_client={{.Client.Version}} docker_server={{.Server.Version}}'
 } > "${OUT_DIR}/environment.txt"
 
+if [[ -z $VISION_IMAGE ]]; then
+  for candidate in spottheshot-vision:local spottheshot-vision:latest; do
+    if docker image inspect "$candidate" >/dev/null 2>&1; then
+      VISION_IMAGE=$candidate
+      break
+    fi
+  done
+fi
+if [[ -z $VISION_IMAGE ]]; then
+  VISION_IMAGE=$(docker image ls --format '{{.Repository}}:{{.Tag}}' | awk 'tolower($0) ~ /vision/ { print; exit }')
+fi
+
 if $SKIP_BUILD; then
+  [[ -n $VISION_IMAGE ]] || {
+    echo "--skip-build requested but no locally built vision image was found" >&2; exit 2;
+  }
   docker image inspect "$VISION_IMAGE" >/dev/null 2>&1 || {
     echo "--skip-build requested but image '$VISION_IMAGE' does not exist" >&2
     echo "Run 'docker compose build vision', or set BENCH_IMAGE to an existing tag." >&2
@@ -136,6 +161,7 @@ else
   echo "=== Build one multi-model llama-server image ==="
   cd "${ROOT_DIR}"
   docker compose build vision
+  VISION_IMAGE=spottheshot-vision:local
   docker image inspect "$VISION_IMAGE" >/dev/null 2>&1 || {
     echo "Could not resolve the built image '$VISION_IMAGE'" >&2; exit 1;
   }
@@ -151,14 +177,9 @@ for model in "${MODELS[@]}"; do
   docker rm -f vision_bench >/dev/null 2>&1 || true
   docker run -d \
     --name vision_bench \
-    --cpus "${BENCH_CPUS}" \
-    --cpu-shares 256 \
-    --memory "${BENCH_MEMORY}" \
-    --memory-swap "${BENCH_MEMORY}" \
+    "${BENCH_RESOURCE_ARGS[@]}" \
     --network "$BENCH_NETWORK" \
     -e MODEL="${model}" \
-    -e THREADS="${BENCH_THREADS}" \
-    -e THREADS_BATCH="${BENCH_THREADS}" \
     "${BENCH_ENV_ARGS[@]}" \
     -v "${ROOT_DIR}/vision/models:/app/models" \
     "$VISION_IMAGE" >/dev/null

@@ -44,12 +44,9 @@ Docker Compose—Node/npm and Python environments are not required. `--skip-buil
 skips rebuilding llama.cpp; the small server-based benchmark client image is
 built automatically once if it is absent.
 
-On a shared six-core/11 GiB server, defaults cap the benchmark at three CPUs,
-three inference threads, and 5 GiB RAM. Docker CPU shares let unrelated busy
-containers win scheduling time. Override only after checking `free -h` and
-`docker stats`, for example `BENCH_CPUS=2 BENCH_THREADS=2 BENCH_MEMORY=4g`.
-There is no swap safety net: if less than roughly 5–6 GiB is available, Gemma
-E4B may not fit and should be tested during a quieter window.
+By default the benchmark applies no Docker CPU or memory ceiling and uses the
+vision image's normal inference thread count. Optional controls remain available
+for a busy host, for example `BENCH_CPUS=3 BENCH_THREADS=3 BENCH_MEMORY=5g`.
 
 ## Quantization sweep
 
