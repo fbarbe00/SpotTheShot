@@ -5,6 +5,8 @@ services:
     build:
       context: ./vision
       dockerfile: ${DOCKERFILE:-Dockerfile}
+      args:
+        BUILD_JOBS: ${BUILD_JOBS:-3}
     environment:
       - THREADS=${THREADS:-5}
       - THREADS_BATCH=${THREADS_BATCH:-5}

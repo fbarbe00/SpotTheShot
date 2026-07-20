@@ -101,6 +101,7 @@ Everything is in `.env`. Key knobs:
 | `GEO_CONCURRENCY` | 2 | Parallel GeoCLIP requests in flight |
 | `VISION_CONCURRENCY` | 1 | Parallel vision LLM requests (memory-bound) |
 | `THREADS`, `NUM_THREADS` | 5 | CPU thread count for vision and geoclip (requests remain sequential) |
+| `BUILD_JOBS` | 3 | llama.cpp compiler jobs; keep low on a shared server |
 | `CTX_SIZE` | 1024 | Vision context; raise only if prompts are truncated |
 | `VITE_MAP_BBOX_*` | Europe | Default in-game map bounding box |
 
