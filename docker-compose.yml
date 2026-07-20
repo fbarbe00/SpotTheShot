@@ -1,6 +1,7 @@
 services:
   vision:
     container_name: vision_server
+    image: spottheshot-vision:local
     restart: unless-stopped
     build:
       context: ./vision

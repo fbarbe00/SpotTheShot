@@ -30,6 +30,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 BENCH_CPUS=${BENCH_CPUS:-3}
 BENCH_THREADS=${BENCH_THREADS:-3}
 BENCH_MEMORY=${BENCH_MEMORY:-5g}
+VISION_IMAGE=${BENCH_IMAGE:-spottheshot-vision:local}
 
 cleanup() { docker rm -f vision_bench >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
@@ -113,17 +114,19 @@ done
 } > "${OUT_DIR}/environment.txt"
 
 if $SKIP_BUILD; then
-  VISION_IMAGE=$(docker compose images -q vision)
-  [[ -n $VISION_IMAGE ]] || {
-    echo "--skip-build requested but Compose has no built vision image" >&2; exit 2;
+  docker image inspect "$VISION_IMAGE" >/dev/null 2>&1 || {
+    echo "--skip-build requested but image '$VISION_IMAGE' does not exist" >&2
+    echo "Run 'docker compose build vision', or set BENCH_IMAGE to an existing tag." >&2
+    exit 2
   }
   echo "=== Reusing existing vision image $VISION_IMAGE ==="
 else
   echo "=== Build one multi-model llama-server image ==="
   cd "${ROOT_DIR}"
   docker compose build vision
-  VISION_IMAGE=$(docker compose images -q vision)
-  [[ -n $VISION_IMAGE ]] || { echo "Could not resolve the built vision image" >&2; exit 1; }
+  docker image inspect "$VISION_IMAGE" >/dev/null 2>&1 || {
+    echo "Could not resolve the built image '$VISION_IMAGE'" >&2; exit 1;
+  }
 fi
 
 # ─── Per-model loop ───────────────────────────────────────────────────────────
