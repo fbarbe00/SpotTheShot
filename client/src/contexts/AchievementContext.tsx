@@ -12,7 +12,8 @@ interface AchievementContextType {
   trackCorrectGuess: (country: string, region: string, lat: number, lon: number) => void
   trackScore: (score: number, distanceKm: number) => void
   trackAIBeat: (distanceDifferenceKm: number) => void
-  trackPhotoUpload: (hasMetadata: boolean) => void
+  trackPhotoUpload: () => void
+  trackPhotoMetadata: () => void
   trackPhotoUsedInGame: () => void
   trackContinentCompletion: (country: string) => void
   trackWaterGuess: () => void

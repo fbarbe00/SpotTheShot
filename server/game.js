@@ -143,6 +143,7 @@ export class GameManager extends AIPipeline {
       isEndingRound: false,
       currentRoundPhoto: null,
       lastRoundResults: null,
+      roundHistory: [],
       roundStatistics: [],
     };
 
@@ -424,6 +425,7 @@ export class GameManager extends AIPipeline {
     lobby.roundIndex = -1;
     lobby.gameStartTime = Date.now();
     lobby.roundStatistics = [];
+    lobby.roundHistory = [];
     this.broadcastLobby(lobbyId);
     this.nextRound(lobbyId);
   }
@@ -507,7 +509,10 @@ export class GameManager extends AIPipeline {
   _finishGame(lobbyId, lobby) {
     lobby.state = 'finished';
     lobby.currentRoundPhoto = null;
-    this.io.to(lobbyId).emit('game_finished', this.serializeLobby(lobby));
+    for (const player of lobby.players.values()) {
+      if (!player.socketId) continue;
+      this.io.sockets.sockets.get(player.socketId)?.emit('game_finished', this.serializeLobby(lobby, player.id));
+    }
 
     this._cleanupPhotos(lobby).catch(error => handleError(error, 'finished game photo cleanup'));
 
@@ -536,9 +541,20 @@ export class GameManager extends AIPipeline {
 
   submitGuess(lobbyId, playerId, { lat, lon }) {
     const lobby = this.lobbies.get(lobbyId);
-    if (!lobby || lobby.state !== 'in_round') return;
+    if (!lobby) return { accepted: false, error: 'Lobby not found' };
+    if (lobby.state !== 'in_round') {
+      if (lobby.state === 'showing_results' && lobby.guesses.has(playerId)) {
+        return { accepted: true, duplicate: true };
+      }
+      return { accepted: false, error: 'Round is no longer accepting guesses' };
+    }
     const photo = this.currentPhoto(lobby);
-    if (!photo || !isValidCoordinate(lat, lon)) return;
+    if (!photo) return { accepted: false, error: 'Round photo not found' };
+    if (!isValidCoordinate(lat, lon)) return { accepted: false, error: 'Invalid guess location' };
+
+    // Submission is idempotent: retries caused by a lost acknowledgement must
+    // not overwrite the original guess or restart progressive timers.
+    if (lobby.guesses.has(playerId)) return { accepted: true, duplicate: true };
 
     const isAI = playerId.startsWith('ai-');
     const now = Date.now();
@@ -566,6 +582,7 @@ export class GameManager extends AIPipeline {
     if (player && !player.isAI) {
       this.io.to(lobbyId).emit('player_guess', { playerId, nickname: player.icon + player.nickname });
     }
+    return { accepted: true, duplicate: false };
   }
 
   async endRound(lobbyId) {
@@ -667,6 +684,8 @@ export class GameManager extends AIPipeline {
       roundDurationMs: lobby.roundDurationMs,
     };
 
+    lobby.roundHistory.push(lobby.lastRoundResults);
+
     this.io.to(lobbyId).emit('round_results', lobby.lastRoundResults);
 
     clearTimeout(lobby.timers.resultsEnd);
@@ -745,6 +764,9 @@ export class GameManager extends AIPipeline {
       roundStartAt: lobby.roundStartAt,
       firstGuessAt: lobby.firstGuessAt,
       lastRoundResults: lobby.state === 'showing_results' ? lobby.lastRoundResults : null,
+      roundHistory: lobby.state === 'finished' || lobby.state === 'showing_results'
+        ? lobby.roundHistory
+        : [],
       currentGuesses: lobby.state === 'in_round' && viewerPlayerId && lobby.guesses.has(viewerPlayerId)
         ? { [viewerPlayerId]: lobby.guesses.get(viewerPlayerId) }
         : null,
@@ -787,6 +809,7 @@ export class GameManager extends AIPipeline {
     lobby.isEndingRound = false;
     lobby.currentRoundPhoto = null;
     lobby.lastRoundResults = null;
+    lobby.roundHistory = [];
     lobby.roundToken = null;
     lobby.roundStatistics = [];
     clearTimeout(lobby.timers.roundEnd);
@@ -876,7 +899,7 @@ export class GameManager extends AIPipeline {
       } else if (lobby.state === 'showing_results' && lobby.lastRoundResults) {
         socket.emit('round_results', lobby.lastRoundResults);
       } else if (lobby.state === 'finished') {
-        socket.emit('game_finished', this.serializeLobby(lobby));
+        socket.emit('game_finished', this.serializeLobby(lobby, playerId));
       }
     }
 

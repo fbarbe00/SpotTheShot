@@ -72,8 +72,8 @@ function FitBounds({ photo, results }: { photo: Photo; results: Result[] }) {
   // This allows users to zoom/pan without the map resetting
   useEffect(() => {
     const points = [
-      photo.lat && photo.lon ? [photo.lat, photo.lon] : null,
-      ...results.map(r => r.lat && r.lon && !r.isAI ? [r.lat, r.lon] : null),
+      Number.isFinite(photo.lat) && Number.isFinite(photo.lon) ? [photo.lat!, photo.lon!] : null,
+      ...results.map(r => Number.isFinite(r.lat) && Number.isFinite(r.lon) ? [r.lat, r.lon] : null),
     ].filter(Boolean) as [number, number][];
 
     if (points.length > 0) {
@@ -120,7 +120,7 @@ export function RoundMap({
 
   // Auto-open photo popup on mount
   useEffect(() => {
-    if (photoMarkerRef.current && photo.lat && photo.lon) {
+    if (photoMarkerRef.current && Number.isFinite(photo.lat) && Number.isFinite(photo.lon)) {
       const marker = photoMarkerRef.current;
       // Open popup after a 5 second delay to ensure map is ready and results have been viewed
       const timeout = setTimeout(() => {

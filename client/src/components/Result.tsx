@@ -46,29 +46,25 @@ export type { StatFragment, StatMoment };
    Fits the map once on mount; ignores user
    interaction after that.
 ───────────────────────────────────────── */
-function FitBounds({ photo, results }: { photo: Photo; results: Result[] }) {
+function FitBounds({ photo, revealedHumans }: { photo: Photo; revealedHumans: Result[] }) {
   const map = useMap();
-  const hasFitted = useRef(false);
 
-  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
-    if (hasFitted.current) return;
+    if (revealedHumans.length === 0) return;
 
     const points = [
-      photo.lat && photo.lon ? [photo.lat, photo.lon] : null,
-      ...results.filter(r => !r.isAI).map(r => (r.lat && r.lon ? [r.lat, r.lon] : null)),
+      Number.isFinite(photo.lat) && Number.isFinite(photo.lon) ? [photo.lat!, photo.lon!] : null,
+      ...revealedHumans.map(r => (Number.isFinite(r.lat) && Number.isFinite(r.lon) ? [r.lat, r.lon] : null)),
     ].filter(Boolean) as [number, number][];
 
     if (points.length > 0) {
       try {
         map.fitBounds(L.latLngBounds(points), { padding: [50, 50] });
-        hasFitted.current = true;
       } catch (e) {
         logger.error('Failed to fit map bounds', e);
       }
     }
-  }, [map]); // deliberately omit points — only fit once on mount
-  /* eslint-enable react-hooks/exhaustive-deps */
+  }, [map, photo.lat, photo.lon, revealedHumans]);
 
   return null;
 }
@@ -292,6 +288,9 @@ function LeaderboardRow({
   );
 }
 
+const REVEAL_INITIAL_DELAY = 450;
+const MAX_REVEAL_SEQUENCE_MS = 7000;
+
 /* ─────────────────────────────────────────
    Main Result Component
 ───────────────────────────────────────── */
@@ -319,13 +318,92 @@ export default function ResultComponent({
 
   const [showScoringInfo, setShowScoringInfo] = useState(false);
   const photoMarkerRef = useRef<L.Marker>(null);
+  const prefersReducedMotion = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
 
+  // Sort: human players worst-first (most distance → last is the best guess),
+  // then AI players at the very end as the final "reveal"
+  const sortedForReveal = useMemo(() => {
+    const humans = results.filter(r => !r.isAI).sort((a, b) => b.distanceKm - a.distanceKm);
+    const ais    = results.filter(r => r.isAI);
+    return [...humans, ...ais];
+  }, [results]);
+
+  // Track { photoId, count } together so count resets synchronously at render
+  // time when photo.id changes — avoids a flash where all results show at once
+  // for one frame before the effect can call setRevealedCount(0).
+  const [revealState, setRevealState] = useState<{ photoId: string; count: number }>({
+    photoId: '', count: 0,
+  });
+  const effectiveCount  = revealState.photoId === photo.id ? revealState.count : 0;
+  const revealedResults = sortedForReveal.slice(0, effectiveCount);
+  // All human results — used for initial map framing so the zoom is correct before any pin drops
+  const allHumans = useMemo(() => results.filter(r => !r.isAI), [results]);
+
+  // Staggered reveal — reset on each new round
+  useEffect(() => {
+    setRevealState({ photoId: photo.id, count: 0 });
+    const len = sortedForReveal.length;
+    if (prefersReducedMotion) {
+      setRevealState({ photoId: photo.id, count: len });
+      return;
+    }
+    const stepDelay = len > 1
+      ? Math.min(1000, Math.floor((MAX_REVEAL_SEQUENCE_MS - REVEAL_INITIAL_DELAY) / (len - 1)))
+      : 0;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (let i = 0; i < len; i++) {
+      timers.push(setTimeout(
+        () => setRevealState({ photoId: photo.id, count: i + 1 }),
+        REVEAL_INITIAL_DELAY + i * stepDelay,
+      ));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [photo.id, sortedForReveal.length, prefersReducedMotion]);
+
+  // Open photo popup after all player guesses have been revealed
+  const revealStepMs = sortedForReveal.length > 1
+    ? Math.min(1000, Math.floor((MAX_REVEAL_SEQUENCE_MS - REVEAL_INITIAL_DELAY) / (sortedForReveal.length - 1)))
+    : 0;
+  const popupDelayMs = prefersReducedMotion
+    ? 0
+    : REVEAL_INITIAL_DELAY + Math.max(0, sortedForReveal.length - 1) * revealStepMs + 1200;
   useEffect(() => {
     const timeout = setTimeout(() => {
       photoMarkerRef.current?.openPopup();
-    }, 5000);
+    }, popupDelayMs);
     return () => clearTimeout(timeout);
-  }, [photo.id]);
+  }, [photo.id, popupDelayMs]);
+
+  // Memoize player icons so react-leaflet doesn't recreate them on every render
+  // (stable references prevent react-leaflet from re-triggering the drop animation)
+  const playerIcons = useMemo(() => {
+    const icons: Record<string, L.DivIcon> = {};
+    results.forEach(r => {
+      const color = r.color || '#7c3aed';
+      const dist  = `${Math.round(r.distanceKm)} km`;
+      icons[r.playerId] = new L.DivIcon({
+        className: 'leaflet-div-icon',
+        html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div style="font-size:28px;line-height:1;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.7))">${r.icon || '👤'}</div>
+          <div style="
+            background:${color};color:#fff;
+            font-size:9px;font-weight:700;line-height:1;
+            padding:2px 5px;border-radius:8px;
+            white-space:nowrap;
+            box-shadow:0 1px 4px rgba(0,0,0,0.4);
+            animation:chipIn 0.25s ease 0.5s both;
+          ">${dist}</div>
+        </div>`,
+        iconSize:    [52, 44],
+        iconAnchor:  [26, 28],
+        tooltipAnchor: [0, -28],
+      });
+    });
+    return icons;
+  }, [results]);
 
   const [phase, setPhase] = useState<'before' | 'after'>('before');
 
@@ -496,29 +574,40 @@ export default function ResultComponent({
                 </div>
               </Popup>
             </Marker>
-            {results.map(r => (
+            {revealedResults.map(r => (
               <Marker
                 key={r.playerId}
                 position={[r.lat, r.lon]}
-                icon={new L.DivIcon({
-                  className: 'leaflet-div-icon',
-                  html: `<div style="font-size:28px;line-height:1;filter:drop-shadow(0 0 2px rgba(0,0,0,.8))">${r.icon}</div>`,
-                  iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -32],
-                })}
+                icon={playerIcons[r.playerId]}
+                eventHandlers={{
+                  add: (e) => {
+                    // Animate the INNER div — Leaflet positions markers via
+                    // transform on the outer element; animating that breaks placement.
+                    const outer = (e.target as L.Marker).getElement();
+                    const inner = outer?.firstElementChild as HTMLElement | null;
+                    if (inner) inner.style.animation = 'markerDrop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
+                  },
+                }}
               >
-                <Tooltip direction="top" offset={[0, -5]} className="!font-bold !bg-surface !text-text !border-primary/20">
+                <Tooltip direction="top" offset={[0, -28]} className="!font-bold !bg-surface !text-text !border-primary/20">
                   {r.nickname}: {Math.round(r.distanceKm)} km
                 </Tooltip>
               </Marker>
             ))}
-            {results.map(r => (
+            {revealedResults.map(r => (
               <Polyline
                 key={r.playerId}
                 positions={[[r.lat, r.lon], center]}
                 color={r.color} weight={2} opacity={0.6} dashArray="5, 10"
+                eventHandlers={{
+                  add: (e) => {
+                    const path = (e.target as L.Path).getElement() as SVGElement | null;
+                    if (path) path.style.animation = 'lineReveal 0.5s ease 0.3s both';
+                  },
+                }}
               />
             ))}
-            <FitBounds photo={photo} results={results} />
+            <FitBounds photo={photo} revealedHumans={allHumans} />
           </MapContainer>
         </motion.div>
       </div>

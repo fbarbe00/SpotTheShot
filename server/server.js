@@ -680,12 +680,18 @@ io.on('connection', (socket) => {
     if (lobby?.hostId === hostId) gm.kickPlayer(lobbyId, playerIdToKick);
   });
 
-  socket.on('update_settings', ({ lobbyId, playerId, settings }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
+  socket.on('update_settings', ({ lobbyId, playerId, settings }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     const lobby = gm.lobbies.get(lobbyId);
     if (lobby?.hostId === playerId) {
-      try { gm.updateSettings(lobbyId, validateLobbySettings(settings)); }
-      catch (error) { socket.emit('error_msg', error.message); }
+      try {
+        gm.updateSettings(lobbyId, validateLobbySettings(settings));
+        callback?.({ success: true });
+      } catch (error) {
+        callback?.({ success: false, error: error.message });
+      }
+    } else {
+      callback?.({ success: false, error: 'Only the host can update settings' });
     }
   });
 
@@ -705,6 +711,9 @@ io.on('connection', (socket) => {
 
   socket.on('get_ai_processing_status', ({ lobbyId }, callback) => {
     try {
+      if (!currentPlayerId || !validateSocket(lobbyId, currentPlayerId)) {
+        return callback?.({ processed: 0, total: 0, stage: 'unavailable', isReady: false });
+      }
       callback?.(gm.getAIProcessingStatus(lobbyId));
     } catch (e) {
       console.error('Error getting AI processing status:', e);
@@ -762,19 +771,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('update_photo_details', ({ lobbyId, playerId, photoId, title, hint }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
+  socket.on('update_photo_details', ({ lobbyId, playerId, photoId, title, hint }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     try {
       const lobby = gm.lobbies.get(lobbyId);
-      if (!lobby) return;
+      if (!lobby) return callback?.({ success: false, error: 'Lobby not found' });
       const photo = lobby.photos.find(p => p.id === photoId && p.uploaderId === playerId);
-      if (!photo) return;
+      if (!photo) return callback?.({ success: false, error: 'Photo not found' });
       photo.title = String(title || '').slice(0, 50);
       photo.hint = String(hint || '').slice(0, 80);
       gm.broadcastLobby(lobbyId);
+      callback?.({ success: true });
     } catch (e) {
       console.error('Failed to update photo details:', e);
-      socket.emit('error_msg', e.message);
+      callback?.({ success: false, error: e.message });
     }
   });
 
@@ -810,13 +820,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
+  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     try {
-      if (!isValidCoordinate(lat, lon)) { socket.emit('error_msg', 'Invalid guess location.'); return; }
-      gm.submitGuess(lobbyId, playerId, { lat, lon });
+      if (!isValidCoordinate(lat, lon)) return callback?.({ success: false, error: 'Invalid guess location' });
+      const result = gm.submitGuess(lobbyId, playerId, { lat, lon });
+      callback?.({ success: result.accepted, duplicate: result.duplicate, error: result.error });
     } catch (e) {
       console.error('Submit guess error:', e);
+      callback?.({ success: false, error: e.message });
     }
   });
 

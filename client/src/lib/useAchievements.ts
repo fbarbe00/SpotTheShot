@@ -493,16 +493,21 @@ export function useAchievements() {
 
   // ── Photo tracking ─────────────────────────────────────────────────────────
 
-  const trackPhotoUpload = useCallback((hasMetadata = false) => {
+  const trackPhotoUpload = useCallback(() => {
     setStats(prev => {
       const updated = cloneStats(prev);
       updated.photosUploaded += 1;
       updateAchievementProgress('pro_photographer');
       updateAchievementProgress('uploader_legend');
-      if (hasMetadata) {
-        updated.photosWithMetadata += 1;
-        updateAchievementProgress('creative_director');
-      }
+      return updated;
+    });
+  }, [updateAchievementProgress]);
+
+  const trackPhotoMetadata = useCallback(() => {
+    setStats(prev => {
+      const updated = cloneStats(prev);
+      updated.photosWithMetadata += 1;
+      updateAchievementProgress('creative_director');
       return updated;
     });
   }, [updateAchievementProgress]);
@@ -705,6 +710,7 @@ export function useAchievements() {
     trackScore,
     trackAIBeat,
     trackPhotoUpload,
+    trackPhotoMetadata,
     trackPhotoUsedInGame,
     trackContinentCompletion,
     trackWaterGuess,

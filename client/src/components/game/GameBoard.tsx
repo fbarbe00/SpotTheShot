@@ -22,7 +22,7 @@ type GameBoardProps = {
   timerMs: number;
   timerStarted?: boolean;
   playerId: string;
-  onSubmitGuess: (p: { lat: number; lon: number }) => void;
+  onSubmitGuess: (p: { lat: number; lon: number }) => Promise<boolean>;
   serverAiTipIndex?: number | null;
 };
 
@@ -50,6 +50,7 @@ export function GameBoard({
   const [currentPin, setCurrentPin] = useState<{ lat: number; lon: number } | null>(existingGuess || null);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number; zoom: number } | null>(null);
   const [isLocked, setIsLocked] = useState(!!existingGuess);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageScale, setImageScale] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [isDraggingImage, setIsDraggingImage] = useState(false);
@@ -83,14 +84,20 @@ export function GameBoard({
     [photo]
   );
 
-  const handleConfirmGuess = (p: { lat: number; lon: number }) => {
+  const handleConfirmGuess = async (p: { lat: number; lon: number }) => {
     if (!canGuessThisRound) return;
-    if (hasSubmittedRef.current) return;
+    if (hasSubmittedRef.current || isSubmitting) return;
     hasSubmittedRef.current = true;
-    setIsLocked(true);
+    setIsSubmitting(true);
     setCurrentPin(p);
-    onSubmitGuess(p);
-    setMapExpanded(false);
+    const accepted = await onSubmitGuess(p);
+    setIsSubmitting(false);
+    if (accepted) {
+      setIsLocked(true);
+      setMapExpanded(false);
+    } else {
+      hasSubmittedRef.current = false;
+    }
   };
 
   const handlePinChange = (p: { lat: number; lon: number } | null) => {
@@ -105,8 +112,12 @@ export function GameBoard({
     if (!canGuessThisRound) return;
     if (timerStarted && timerMs < 1000 && !hasSubmittedRef.current && currentPin) {
       hasSubmittedRef.current = true;
-      setIsLocked(true);
-      onSubmitGuess(currentPin);
+      setIsSubmitting(true);
+      void onSubmitGuess(currentPin).then(accepted => {
+        setIsSubmitting(false);
+        if (accepted) setIsLocked(true);
+        else hasSubmittedRef.current = false;
+      });
     }
   }, [timerMs, timerStarted, currentPin, onSubmitGuess, canGuessThisRound]);
 
@@ -115,6 +126,7 @@ export function GameBoard({
     if (photo?.id !== lastPhotoIdRef.current) {
       hasSubmittedRef.current = false;
       setIsLocked(false);
+      setIsSubmitting(false);
       setCurrentPin(null);
       setImageScale(1);
       setImageOffset({ x: 0, y: 0 });
@@ -324,11 +336,12 @@ export function GameBoard({
       </div>
 
       {!isMapExpanded && (
-        <div className="absolute bottom-2 left-2 z-[1002] flex flex-col gap-1">
+        <div className="absolute bottom-2 left-2 z-[1002] flex flex-col gap-1.5">
           <button
             onClick={() => setImageScale(prev => clampImageScale(prev + 0.2))}
-            className="w-6 h-6 rounded-full bg-surface/85 text-white border border-primary/30 hover:bg-surface text-xs leading-none"
+            className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-surface/85 text-white border border-primary/30 hover:bg-surface text-base leading-none"
             title={t('ui.zoomIn')}
+            aria-label={t('ui.zoomIn')}
           >
             +
           </button>
@@ -340,8 +353,9 @@ export function GameBoard({
                 return next;
               });
             }}
-            className="w-6 h-6 rounded-full bg-surface/85 text-white border border-primary/30 hover:bg-surface text-xs leading-none"
+            className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-surface/85 text-white border border-primary/30 hover:bg-surface text-base leading-none"
             title={t('ui.zoomOut')}
+            aria-label={t('ui.zoomOut')}
           >
             -
           </button>
@@ -350,10 +364,11 @@ export function GameBoard({
               setImageScale(1);
               setImageOffset({ x: 0, y: 0 });
             }}
-            className="px-2 h-6 rounded-full bg-surface/85 text-white border border-primary/30 hover:bg-surface text-[10px] font-semibold"
+            className="px-2.5 h-9 md:h-8 rounded-full bg-surface/85 text-white border border-primary/30 hover:bg-surface text-[11px] font-semibold"
             title={t('ui.resetZoom')}
+            aria-label={t('ui.resetZoom')}
           >
-            Reset
+            {t('ui.resetZoom')}
           </button>
         </div>
       )}
@@ -362,7 +377,16 @@ export function GameBoard({
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
           onClick={() => setMapExpanded(true)}
-          className="absolute bottom-2 right-2 z-10 w-48 h-32 cursor-pointer group"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setMapExpanded(true);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={t('ui.guessLocation')}
+          className="absolute bottom-2 right-2 z-10 w-40 h-28 sm:w-48 sm:h-32 cursor-pointer group focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         >
           <div className="absolute inset-0">
             <MapGuess
@@ -408,6 +432,7 @@ export function GameBoard({
                 mapLanguage={lobby.settings.mapLanguage || 'local'}
               />
               <button onClick={() => setMapExpanded(false)}
+                aria-label={t('ui.closeModal')}
                 className="absolute bottom-4 left-4 z-[1000] p-3 rounded-full bg-surface hover:bg-primary/80 text-white transition-colors">
                 <Minimize size={24} />
               </button>
@@ -436,7 +461,7 @@ export function GameBoard({
             <button
               onClick={() => setVisibleTip(null)}
               className="w-8 h-8 rounded-full bg-surface/90 border border-primary/20 flex items-center justify-center text-base flex-shrink-0 backdrop-blur-sm shadow-lg hover:bg-surface transition-colors"
-              aria-label="Dismiss AI tip"
+              aria-label={t('ui.closeModal')}
             >
               🤖
             </button>
@@ -448,6 +473,13 @@ export function GameBoard({
         <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-40 backdrop-blur-sm">
           <h2 className="text-3xl font-bold text-primary">{t("game.guessLocked")}</h2>
           <p className="text-text-darker mt-2">{t("game.waitingOthers")}</p>
+        </div>
+      )}
+
+      {isSubmitting && !isLocked && (
+        <div className="absolute inset-0 bg-black/45 flex flex-col items-center justify-center z-40 backdrop-blur-sm" aria-live="polite">
+          <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+          <p className="text-text mt-3 font-semibold">{t('common.loading')}</p>
         </div>
       )}
 

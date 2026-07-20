@@ -27,7 +27,7 @@ import {
 } from './lib/version'
 
 // Socket response types
-interface SocketResponse { success?: boolean; error?: string; lobby?: Lobby; playerId?: string }
+interface SocketResponse { success?: boolean; error?: string; lobby?: Lobby; playerId?: string; duplicate?: boolean }
 
 // Lobby settings update type
 interface LobbySettingsUpdate {
@@ -657,9 +657,18 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
     socket.emit('start_game', { lobbyId: lobby.id, playerId })
   }
 
-  function updateSettings(settings: LobbySettingsUpdate) {
-    if (!lobby || !playerId) return
-    socket.emit('update_settings', { lobbyId: lobby.id, playerId, settings })
+  function updateSettings(settings: LobbySettingsUpdate): Promise<boolean> {
+    if (!lobby || !playerId) return Promise.resolve(false)
+    return new Promise(resolve => {
+      socket.timeout(7000).emit('update_settings', { lobbyId: lobby.id, playerId, settings }, (error: Error | null, response?: SocketResponse) => {
+        if (error || !response?.success) {
+          addToast(response?.error || t('toast.connectionHiccup'), 'error', 5000)
+          resolve(false)
+          return
+        }
+        resolve(true)
+      })
+    })
   }
 
   function kickPlayer(playerIdToKick: string) {
@@ -672,9 +681,27 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
     socket.emit('set_team', { lobbyId: lobby.id, playerId, team })
   }
 
-  function submitGuess(p: {lat:number,lon:number}) {
-    if (!lobby || !playerId) return
-    socket.emit('submit_guess', { lobbyId: lobby.id, playerId, lat: p.lat, lon: p.lon })
+  async function submitGuess(p: {lat:number,lon:number}): Promise<boolean> {
+    if (!lobby || !playerId) return false
+
+    const attempt = () => new Promise<boolean>(resolve => {
+      socket.timeout(6000).emit(
+        'submit_guess',
+        { lobbyId: lobby.id, playerId, lat: p.lat, lon: p.lon },
+        (error: Error | null, response?: SocketResponse) => resolve(!error && !!response?.success),
+      )
+    })
+
+    if (await attempt()) return true
+    if (!socket.connected) {
+      await new Promise<void>(resolve => {
+        const timeout = window.setTimeout(resolve, 5000)
+        socket.once('connect', () => { window.clearTimeout(timeout); resolve() })
+      })
+    }
+    const accepted = await attempt()
+    if (!accepted) addToast(t('toast.connectionHiccup'), 'warning', 5000)
+    return accepted
   }
 
   // Show achievement notification when game ends and achievements are unlocked
@@ -857,6 +884,7 @@ function AppContentWrapper() {
         trackScore: achievements.trackScore,
         trackAIBeat: achievements.trackAIBeat,
         trackPhotoUpload: achievements.trackPhotoUpload,
+        trackPhotoMetadata: achievements.trackPhotoMetadata,
         trackPhotoUsedInGame: achievements.trackPhotoUsedInGame,
         trackContinentCompletion: achievements.trackContinentCompletion,
         trackWaterGuess: achievements.trackWaterGuess,

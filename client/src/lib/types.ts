@@ -176,6 +176,7 @@ export interface Lobby {
   roundStartAt?: number | null;
   firstGuessAt?: number | null;
   lastRoundResults?: RoundResults | null;
+  roundHistory?: RoundResults[];
   currentGuesses?: Record<string, { lat: number; lon: number; timeTakenMs: number }> | null;
   roundDurationMs?: number;
 }

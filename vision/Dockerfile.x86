@@ -42,6 +42,7 @@ RUN mkdir -p /build/out \
       -DLLAMA_BUILD_SERVER=ON \
       -DLLAMA_BUILD_SERVER_ONLY=ON \
       -DLLAMA_BUILD_WEBUI=OFF \
+      -DLLAMA_MODEL_ONLY=mistral3 \
       -DCMAKE_C_COMPILER=clang \
       -DCMAKE_CXX_COMPILER=clang++ \
       "-DCMAKE_C_FLAGS=-march=znver2" \

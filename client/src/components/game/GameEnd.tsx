@@ -196,11 +196,11 @@ function EndScreenMap({
   const allPoints = useMemo(() => {
     const points: [number, number][] = [];
     for (const round of gameResults) {
-      if (round.photo.lat && round.photo.lon) {
+      if (Number.isFinite(round.photo.lat) && Number.isFinite(round.photo.lon)) {
         points.push([round.photo.lat, round.photo.lon]);
       }
       for (const result of round.results) {
-        if (result.lat && result.lon) {
+        if (Number.isFinite(result.lat) && Number.isFinite(result.lon)) {
           points.push([result.lat, result.lon]);
         }
       }
@@ -237,7 +237,7 @@ function EndScreenMap({
   };
 
   return (
-    <div className="h-80 rounded-lg overflow-hidden border-2 border-primary/20">
+    <div className="h-64 sm:h-80 rounded-lg overflow-hidden border-2 border-primary/20">
       <MapContainer
         center={center as [number, number]}
         zoom={2}
@@ -259,7 +259,7 @@ function EndScreenMap({
         )}
 
         {gameResults.map((round, roundIndex) => {
-          const photoPos: [number, number] | null = round.photo.lat && round.photo.lon
+          const photoPos: [number, number] | null = Number.isFinite(round.photo.lat) && Number.isFinite(round.photo.lon)
             ? [round.photo.lat, round.photo.lon]
             : null;
 
@@ -290,7 +290,7 @@ function EndScreenMap({
 
               {/* Player guesses */}
               {round.results.map((result) => {
-                if (!result.lat || !result.lon) return null;
+                if (!Number.isFinite(result.lat) || !Number.isFinite(result.lon)) return null;
                 return (
                   <Marker
                     key={`guess-${roundIndex}-${result.playerId}`}
@@ -315,7 +315,7 @@ function EndScreenMap({
               {/* Lines from guesses to actual location */}
               {photoPos &&
                 round.results.map((result) => {
-                  if (!result.lat || !result.lon) return null;
+                  if (!Number.isFinite(result.lat) || !Number.isFinite(result.lon)) return null;
                   return (
                     <Polyline
                       key={`line-${roundIndex}-${result.playerId}`}
@@ -383,16 +383,16 @@ export function GameEnd({ lobby, gameResults, onExitLobby, mapStyle = 'osm', map
     .filter((e): e is LeaderboardEntry => e != null);
 
   return (
-    <div className="text-center py-10 space-y-12">
+    <div className="text-center py-6 sm:py-10 space-y-8 sm:space-y-12 overflow-hidden">
       <div>
-        <h2 className="text-4xl font-extrabold mb-2 text-primary flex items-center justify-center gap-3">
+        <h2 className="text-3xl sm:text-4xl font-extrabold mb-2 text-primary flex items-center justify-center gap-2 sm:gap-3">
           <Crown /> {t('results.gameEnded')}
         </h2>
         <p className="text-text-darker">{t('results.finalLeaderboard')}</p>
       </div>
 
       {/* Podium */}
-      <div className="flex justify-center items-end gap-6 h-80">
+      <div className="flex justify-center items-end gap-2 sm:gap-6 min-h-72 sm:h-80 px-1">
         {podiumOrder.map(item => {
           // Use 1-indexed rank from sorted position — sorted.indexOf is safe here since
           // podiumOrder is a filtered slice of the same sorted array.
@@ -408,18 +408,18 @@ export function GameEnd({ lobby, gameResults, onExitLobby, mapStyle = 'osm', map
       {rest.length > 0 && (
         <div className="max-w-md mx-auto">
           {rest.map((item, i) => (
-            <div key={entryKey(item)} className="flex items-center gap-3 p-3 border-b border-primary/10">
+            <div key={entryKey(item)} className="flex items-center gap-2 sm:gap-3 p-3 border-b border-primary/10 min-w-0">
               <div className="w-10 text-right font-bold text-lg text-primary/80">{getOrdinal(i + 4)}</div>
               {item.kind === 'team' ? (
                 <>
-                  <div className="flex-1 font-semibold text-left">{item.team}</div>
+                  <div className="flex-1 font-semibold text-left truncate min-w-0">{item.team}</div>
                   <div className="font-mono text-lg">{item.score}</div>
                 </>
               ) : (
                 <>
                   <div className="text-xl">{item.icon}</div>
                   <div className="w-3 h-3 rounded-full" style={{ background: item.color || '#fff' }} />
-                  <div className="flex-1 font-semibold text-left">{item.nickname}</div>
+                  <div className="flex-1 font-semibold text-left truncate min-w-0">{item.nickname}</div>
                   <div className="font-mono text-lg">{item.score}</div>
                 </>
               )}
@@ -437,7 +437,7 @@ export function GameEnd({ lobby, gameResults, onExitLobby, mapStyle = 'osm', map
           >
             {t('results.gameHighlights')}
           </motion.h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
             {gameMoments.map((m, i) => <MomentCard key={m.label} moment={m} index={i} />)}
           </div>
         </div>

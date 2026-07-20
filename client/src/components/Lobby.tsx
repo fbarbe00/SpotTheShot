@@ -72,7 +72,7 @@ type LobbyProps = {
   onSetReady: (ready: boolean) => void
   onStartGame: () => void
   onExitLobby: () => void
-  onUpdateSettings: (settings: GameSettings) => void
+  onUpdateSettings: (settings: GameSettings) => Promise<boolean>
   onKickPlayer: (playerIdToKick: string) => void
   onSetTeam?: (playerId: string, team: string) => void
   onOpenVersionLog?: () => void
@@ -82,7 +82,7 @@ type LobbyProps = {
 
 // Modal dialog for host to configure game settings
 // Allows changing round duration, game mode, timer mode, hints, and AI guessing
-function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () => void, onSave: (settings: GameSettings) => void }) {
+function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () => void, onSave: (settings: GameSettings) => Promise<boolean> }) {
   const { addToast } = useToast()
   const { t } = useI18n()
   const [roundDurationSec, setRoundDurationSec] = useState(lobby.settings.roundDurationSec)
@@ -98,6 +98,7 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
   const [showImageDate, setShowImageDate] = useState(lobby.settings.showImageDate || false)
   const [mapStyle, setMapStyle] = useState(lobby.settings.mapStyle || 'osm')
   const [mapLanguage, setMapLanguage] = useState(lobby.settings.mapLanguage || 'local')
+  const [isSaving, setIsSaving] = useState(false)
 
   const c = lobby.constraints ?? OPEN_CONSTRAINTS;
 
@@ -113,12 +114,13 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
   // Check if hint threshold is valid for fixed mode
   const isHintThresholdInvalid = timerMode === 'fixed' && roundDurationSec > 0 && hintThresholdSec > roundDurationSec
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isHintThresholdInvalid) {
       addToast(t('settings.hintThresholdError'), 'warning', 4000)
       return
     }
-    onSave({
+    setIsSaving(true)
+    const saved = await onSave({
       ...lobby.settings,
       roundDurationSec,
       gameMode,
@@ -134,8 +136,11 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
       mapStyle,
       mapLanguage
     })
-    addToast(t('settings.updated'), 'success', 2000)
-    onClose()
+    setIsSaving(false)
+    if (saved) {
+      addToast(t('settings.updated'), 'success', 2000)
+      onClose()
+    }
   }
 
   return (
@@ -352,7 +357,7 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
                 <input
                   type="range"
                   min="0"
-                  max="10"
+                  max={maxPhotosPerPlayer}
                   value={minPhotosPerPlayer}
                   onChange={e => setMinPhotosPerPlayer(Number(e.target.value))}
                   className="w-full h-2 bg-background rounded-lg appearance-none cursor-pointer accent-primary"
@@ -368,7 +373,11 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
                   min="1"
                   max={c.maxPhotosPerPlayer}
                   value={maxPhotosPerPlayer}
-                  onChange={e => setMaxPhotosPerPlayer(Number(e.target.value))}
+                  onChange={e => {
+                    const value = Number(e.target.value)
+                    setMaxPhotosPerPlayer(value)
+                    setMinPhotosPerPlayer(current => Math.min(current, value))
+                  }}
                   className="w-full h-2 bg-background rounded-lg appearance-none cursor-pointer accent-primary"
                 />
               </div>
@@ -437,13 +446,15 @@ function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () =
         <div className="mt-6 md:mt-8 flex justify-end gap-2 md:gap-3">
           <button
             onClick={onClose}
+            disabled={isSaving}
             className="px-3 md:px-6 py-2 md:py-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold transition-colors text-sm md:text-base"
           >
             {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
-            className="px-3 md:px-6 py-2 md:py-3 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold transition-colors flex items-center gap-2 text-sm md:text-base"
+            disabled={isSaving}
+            className="px-3 md:px-6 py-2 md:py-3 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold transition-colors flex items-center gap-2 text-sm md:text-base disabled:opacity-50"
           >
             <Check size={16} className="md:!w-[18px] md:!h-[18px]" /> {t('settings.saveSettings')}
           </button>
@@ -545,7 +556,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
       });
     };
 
-    const intervalId = setInterval(fetchStatus, 3500);
+    const intervalId = setInterval(fetchStatus, 15000);
     fetchStatus();
     return () => clearInterval(intervalId);
   }, [lobby?.id, hasAIPlayer, aiFeaturesEnabled]);
@@ -607,10 +618,16 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
 
   if (!lobby) return null
 
+  const requestStartGame = () => {
+    const unreadyHumans = lobby.players.filter(p => !p.isAI && !p.ready)
+    if (unreadyHumans.length > 0 && !window.confirm(t('lobby.notAllReadyCanStart'))) return
+    onStartGame()
+  }
+
   return (
     <>
       <AnimatePresence>
-        {isSettingsOpen && <SettingsModal lobby={lobby} onClose={() => setSettingsOpen(false)} onSave={(settings) => { onUpdateSettings(settings); }} />}
+        {isSettingsOpen && <SettingsModal lobby={lobby} onClose={() => setSettingsOpen(false)} onSave={onUpdateSettings} />}
         {showQR && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -750,7 +767,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
       </div>
 
       {/* Mobile: Uploader - Made larger with better padding */}
-      <div className="md:hidden w-full px-2 mb-3 max-h-[60vh] overflow-y-auto">
+      <div className="md:hidden w-full px-2 mb-3">
         <Uploader lobby={lobby} playerId={playerId} />
       </div>
 
@@ -1000,7 +1017,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
               {me?.ready ? t('lobby.unready') : t('lobby.ready')}
             </button>
             {isHost ? (
-              <button disabled={lobby.photos.length === 0} onClick={onStartGame} className="md:ml-auto px-4 py-3 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base md:text-sm">
+              <button disabled={lobby.photos.length === 0} onClick={requestStartGame} className="md:ml-auto px-4 py-3 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base md:text-sm">
                 <Swords size={20} className="md:!w-[18px] md:!h-[18px]" /> {t('lobby.startGame')}
               </button>
             ) : (
@@ -1201,11 +1218,11 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 pt-1 border-t border-primary/10">
+        <div className="sticky bottom-2 z-20 flex gap-2 p-2 border border-primary/20 rounded-xl bg-surface/95 backdrop-blur shadow-lg">
           <button onClick={() => onSetReady(!me?.ready)} className={`flex-1 px-3 py-2 rounded font-bold text-xs transition-colors ${me?.ready ? 'bg-red-500/80 text-white' : 'bg-green-500/80 text-black'}`}>
             {me?.ready ? t('lobby.unready') : t('lobby.ready')}
           </button>
-          {isHost && <button disabled={lobby.photos.length === 0} onClick={onStartGame} className="flex-1 px-3 py-2 rounded bg-primary hover:bg-primary-dark text-black font-bold text-xs disabled:opacity-40">{t('lobby.start')}</button>}
+          {isHost && <button disabled={lobby.photos.length === 0} onClick={requestStartGame} className="flex-1 px-3 py-2 rounded bg-primary hover:bg-primary-dark text-black font-bold text-xs disabled:opacity-40">{t('lobby.start')}</button>}
         </div>
         {!isHost && <div className="text-xs text-text-darker text-center py-1">{t('lobby.waitingHost')}</div>}
       </div>
