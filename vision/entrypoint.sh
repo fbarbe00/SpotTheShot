@@ -55,10 +55,6 @@ case "$MODEL" in
     EXTRA_ARGS+=(--reasoning "${THINKING:-off}")
     [[ ${THINKING:-off} == off ]] && EXTRA_ARGS+=(--reasoning-budget 0)
     ;;
-  minicpm-v4.6)
-    MODEL_REL="minicpm-v4.6/MiniCPM-V-4_6-Q4_K_M.gguf"
-    MMPROJ_REL="minicpm-v4.6/mmproj-model-f16.gguf"
-    ;;
   *) echo "ERROR: unknown MODEL '$MODEL'" >&2; exit 2 ;;
 esac
 
