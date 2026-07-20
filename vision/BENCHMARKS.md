@@ -38,3 +38,10 @@ Qwen3.5 2B, and Gemma 4 E2B. To test only the two newly added sizes:
 The runner is verbose by default: it displays a live progress bar, each model
 response, and elapsed time. Container logs and structured JSON are retained in
 the timestamped output directory.
+
+On a shared six-core/11 GiB server, defaults cap the benchmark at three CPUs,
+three inference threads, and 5 GiB RAM. Docker CPU shares let unrelated busy
+containers win scheduling time. Override only after checking `free -h` and
+`docker stats`, for example `BENCH_CPUS=2 BENCH_THREADS=2 BENCH_MEMORY=4g`.
+There is no swap safety net: if less than roughly 5–6 GiB is available, Gemma
+E4B may not fit and should be tested during a quieter window.

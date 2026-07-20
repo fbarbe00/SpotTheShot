@@ -25,6 +25,12 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+BENCH_CPUS=${BENCH_CPUS:-3}
+BENCH_THREADS=${BENCH_THREADS:-3}
+BENCH_MEMORY=${BENCH_MEMORY:-5g}
+
+cleanup() { docker rm -f vision_bench >/dev/null 2>&1 || true; }
+trap cleanup EXIT INT TERM
 
 # ─── Parse --light flag and model list ───────────────────────────────────────
 LIGHT_FLAG=""
@@ -55,7 +61,13 @@ fi
 echo "Models: ${MODELS[*]}"
 echo "Output: ${OUT_DIR}"
 echo "Output mode: verbose (live progress bar + every response)"
+echo "Resource ceiling: ${BENCH_CPUS} CPUs, ${BENCH_THREADS} inference threads, ${BENCH_MEMORY} RAM"
 echo ""
+
+if curl -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then
+  echo "Port 8001 is already serving a vision process. Stop it before benchmarking." >&2
+  exit 2
+fi
 
 for image in atomium.jpg copenhagen.jpg eifell_tower.jpg italian_bollard.jpg vilnius.jpg yerevan.jpg; do
   [[ -f "${ROOT_DIR}/vision/test_images/${image}" ]] || {
@@ -77,10 +89,14 @@ for model in "${MODELS[@]}"; do
   docker rm -f vision_bench >/dev/null 2>&1 || true
   docker run -d \
     --name vision_bench \
+    --cpus "${BENCH_CPUS}" \
+    --cpu-shares 256 \
+    --memory "${BENCH_MEMORY}" \
+    --memory-swap "${BENCH_MEMORY}" \
     -p 127.0.0.1:8001:8001 \
     -e MODEL="${model}" \
-    -e THREADS="${THREADS:-5}" \
-    -e THREADS_BATCH="${THREADS_BATCH:-5}" \
+    -e THREADS="${BENCH_THREADS}" \
+    -e THREADS_BATCH="${BENCH_THREADS}" \
     -v "${ROOT_DIR}/vision/models:/app/models" \
     spottheshot-vision >/dev/null
 
