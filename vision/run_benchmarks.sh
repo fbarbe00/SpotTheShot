@@ -2,14 +2,26 @@
 # run_benchmarks.sh
 #
 # Usage:
-#   ./run_benchmarks.sh                          # full benchmark, all 4 models
-#   ./run_benchmarks.sh gemma4 ministral         # full benchmark, specific models
-#   ./run_benchmarks.sh --light                  # light benchmark, all 4 models
-#   ./run_benchmarks.sh --light gemma4 ministral # light benchmark, specific models
+#   ./run_benchmarks.sh                          # full benchmark, all 6 models
+#   ./run_benchmarks.sh qwen35-4b gemma4-e4b     # full benchmark, specific models
+#   ./run_benchmarks.sh --light                  # light benchmark, all 6 models
 #
 # --light runs ~½ the wall-clock time:
 #   3 images (instead of 6), English only (instead of 6 langs), 1 run (instead of 2).
 set -euo pipefail
+
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+  cat <<'EOF'
+Usage: ./vision/run_benchmarks.sh [--light] [MODEL ...]
+
+Default: verbose full benchmark of all six models, with a live progress bar and
+every generated title, hint, commentary, and request duration printed.
+
+Models: ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b
+Use --light for a 3-image, English-only, one-pass smoke test.
+EOF
+  exit 0
+fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -28,7 +40,7 @@ done
 if [[ "${#MODELS_ARG[@]}" -gt 0 ]]; then
   MODELS=("${MODELS_ARG[@]}")
 else
-  MODELS=("qwen3.5" "qwen3.5:2b" "gemma4" "ministral")
+  MODELS=(ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b)
 fi
 
 SUFFIX="${LIGHT_FLAG:+-light}"
@@ -42,25 +54,33 @@ else
 fi
 echo "Models: ${MODELS[*]}"
 echo "Output: ${OUT_DIR}"
+echo "Output mode: verbose (live progress bar + every response)"
 echo ""
+
+for image in atomium.jpg copenhagen.jpg eifell_tower.jpg italian_bollard.jpg vilnius.jpg yerevan.jpg; do
+  [[ -f "${ROOT_DIR}/vision/test_images/${image}" ]] || {
+    echo "Missing vision/test_images/${image}; add the six benchmark fixtures before running." >&2
+    exit 2
+  }
+done
+
+echo "=== Build one multi-model llama-server image ==="
+cd "${ROOT_DIR}"
+docker compose build vision
 
 # ─── Per-model loop ───────────────────────────────────────────────────────────
 for model in "${MODELS[@]}"; do
   # Sanitise model name for use as a filename (replace : with -)
   safe_model="${model//:/-}"
 
-  echo "=== ${model}: build image ==="
-  cd "${ROOT_DIR}"
-  MODEL="${model}" docker compose build vision
-
   echo "=== ${model}: start container ==="
   docker rm -f vision_bench >/dev/null 2>&1 || true
   docker run -d \
     --name vision_bench \
-    -p 8001:8001 \
+    -p 127.0.0.1:8001:8001 \
     -e MODEL="${model}" \
-    -e THREADS="${THREADS:-4}" \
-    -e THREADS_BATCH="${THREADS_BATCH:-4}" \
+    -e THREADS="${THREADS:-5}" \
+    -e THREADS_BATCH="${THREADS_BATCH:-5}" \
     -v "${ROOT_DIR}/vision/models:/app/models" \
     spottheshot-vision >/dev/null
 

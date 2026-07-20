@@ -77,6 +77,25 @@ cd ..
 
 This pulls `Ministral-3-3B-Instruct-2512-IQ4_NL.gguf` + `mmproj-F16.gguf` (~2 GB) into `vision/models/ministral/`.
 
+The `vision-model-benchmarks` branch can compare Ministral, Qwen3.5 0.8B/2B/4B,
+and Gemma 4 E2B/E4B without rebuilding llama.cpp between models. On that branch:
+
+```bash
+./vision/download-model.sh --list
+./vision/download-model.sh ministral qwen35-0.8b qwen35-2b qwen35-4b gemma4-e2b gemma4-e4b
+./vision/run_benchmarks.sh --light                 # quick smoke/quality pass
+./vision/run_benchmarks.sh                         # full 6-language comparison
+```
+
+Place the six named fixtures requested by the runner in `vision/test_images/`.
+The full test performs two passes per prompt so the first captures cold-cache
+cost and the second represents warm service latency. Raw responses and timings
+are saved in `vision/benchmarks/<timestamp>/`; use `benchmark_scores.csv` as the
+manual review sheet. Score instruction compliance, factual grounding,
+geographic clue usefulness, language quality, humor, truncation, and
+hallucinations while viewing each source image. Stop the regular application
+stack during testing so GeoCLIP does not compete for the server's six cores.
+
 ### 3. Run
 
 ```bash
