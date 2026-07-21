@@ -6,7 +6,7 @@
 #   ./run_benchmarks.sh qwen35-4b gemma4-e4b     # full benchmark, specific models
 #   ./run_benchmarks.sh --light                  # light benchmark, all 6 models
 #
-# --light runs ~½ the wall-clock time:
+# --light runs a 24x smaller request matrix:
 #   3 images (instead of 6), English only (instead of 6 langs), 1 run (instead of 2).
 set -euo pipefail
 
