@@ -266,7 +266,7 @@ export async function queryVisionModel(
 
     const startTime = Date.now();
     // temperature 0.5: creative enough for variety, stable enough for coherence.
-    const response = await callVisionAPI(imageB64, prompt, 50, 0.5, timeoutMs);
+    const response = await callVisionAPI(imageB64, prompt, 40, 0.5, timeoutMs);
     const processingTimeMs = Date.now() - startTime;
 
     if (!response.ok) {
@@ -299,7 +299,7 @@ export async function queryVisionModelForTitleAndHint(
 
     const startTime = Date.now();
     const response  = await callVisionAPI(
-      imageB64, prompt, 60, 0.6, timeoutMs,
+      imageB64, prompt, 48, 0.6, timeoutMs,
       { type: 'json_object', schema: TITLE_HINT_SCHEMA },
     );
     const processingTimeMs = Date.now() - startTime;
