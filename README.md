@@ -75,7 +75,7 @@ cd vision
 cd ..
 ```
 
-This pulls `Ministral-3-3B-Instruct-2512-IQ4_NL.gguf` + `mmproj-F16.gguf` (~2 GB) into `vision/models/ministral/`.
+This pulls `Ministral-3-3B-Instruct-2512-IQ4_NL.gguf` + `mmproj-F16.gguf` (~2 GB) into `vision/models/ministral/`. Other supported profiles can be listed with `./download-model.sh --list`; download one by name and set the same name as `MODEL` in `.env` to use it.
 
 ### 3. Run
 
@@ -100,6 +100,8 @@ Everything is in `.env`. Key knobs:
 | `DEFAULT_MAX_PLAYERS` | 20 | Per-lobby player cap (overridable per-token) |
 | `GEO_CONCURRENCY` | 2 | Parallel GeoCLIP requests in flight |
 | `VISION_CONCURRENCY` | 1 | Parallel vision LLM requests (memory-bound) |
+| `MODEL` | `ministral` | Vision profile downloaded by `vision/download-model.sh` |
+| `THINKING` | `off` | Reasoning mode for profiles that support it |
 | `THREADS`, `NUM_THREADS` | 5 | CPU thread count for vision and geoclip (requests remain sequential) |
 | `BUILD_JOBS` | 3 | llama.cpp compiler jobs; keep low on a shared server |
 | `CTX_SIZE` | 1024 | Vision context; raise only if prompts are truncated |

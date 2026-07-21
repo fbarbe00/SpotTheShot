@@ -6,6 +6,8 @@ TODO.md
 # Dependencies
 node_modules/
 models/
+vision/test_images/
+vision/benchmarks/*/
 model/
 weights/
 gps_gallery/

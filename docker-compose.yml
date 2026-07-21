@@ -8,6 +8,8 @@ services:
       args:
         BUILD_JOBS: ${BUILD_JOBS:-3}
     environment:
+      - MODEL=${MODEL:-ministral}
+      - THINKING=${THINKING:-off}
       - THREADS=${THREADS:-5}
       - THREADS_BATCH=${THREADS_BATCH:-5}
       - CTX_SIZE=${CTX_SIZE:-1024}
