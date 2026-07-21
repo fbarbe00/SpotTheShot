@@ -104,6 +104,7 @@ export class GameManager extends AIPipeline {
     if (attempts >= 10) throw new Error('Failed to generate unique lobby ID after multiple attempts');
 
     const playerId = uuid();
+    const sessionToken = uuid();
     const timerMode = settings?.timerMode || 'fixed';
     const roundDurationSec = timerMode === 'progressive' ? 0 : (settings?.roundDurationSec ?? 45);
     const duelRaceTimeSec = settings?.duelRaceTimeSec ?? 15;
@@ -142,18 +143,19 @@ export class GameManager extends AIPipeline {
       isEndingRound: false,
       currentRoundPhoto: null,
       lastRoundResults: null,
+      roundHistory: [],
       roundStatistics: [],
     };
 
     lobby.players.set(playerId, {
-      id: playerId, nickname, score: 0, ready: false, color: null, socketId, team: null, wins: 0, clientSessionId,
+      id: playerId, sessionToken, nickname, score: 0, ready: false, color: null, socketId, team: null, wins: 0, clientSessionId,
     });
 
     this.lobbies.set(lobbyId, lobby);
 
     if (lobby.settings.enableAIGuessing) this.addAIPlayer(lobbyId);
 
-    return { lobby, playerId };
+    return { lobby, playerId, sessionToken };
   }
 
   _assignPlayerToLeastPopulatedTeam(lobby, playerId) {
@@ -168,6 +170,7 @@ export class GameManager extends AIPipeline {
   updateSettings(lobbyId, newSettings) {
     const lobby = this.lobbies.get(lobbyId);
     if (!lobby) return;
+    if (lobby.state !== 'waiting') throw new Error('Settings cannot be changed after the game starts');
     const s = lobby.settings;
 
     if (newSettings.timerMode === 'fixed' || newSettings.timerMode === 'progressive') {
@@ -319,11 +322,12 @@ export class GameManager extends AIPipeline {
       throw new Error(`Lobby is full (max ${lobby.constraints.maxPlayersPerLobby} players)`);
     }
     const playerId = uuid();
+    const sessionToken = uuid();
     lobby.players.set(playerId, {
-      id: playerId, nickname, score: 0, ready: false, color: null, socketId, team: null, wins: 0, clientSessionId,
+      id: playerId, sessionToken, nickname, score: 0, ready: false, color: null, socketId, team: null, wins: 0, clientSessionId,
     });
     if (lobby.settings.gameMode === 'teams') this._assignPlayerToLeastPopulatedTeam(lobby, playerId);
-    return { lobby, playerId };
+    return { lobby, playerId, sessionToken };
   }
 
   setPlayerColor(lobby, playerId, color) {
@@ -421,6 +425,7 @@ export class GameManager extends AIPipeline {
     lobby.roundIndex = -1;
     lobby.gameStartTime = Date.now();
     lobby.roundStatistics = [];
+    lobby.roundHistory = [];
     this.broadcastLobby(lobbyId);
     this.nextRound(lobbyId);
   }
@@ -504,9 +509,12 @@ export class GameManager extends AIPipeline {
   _finishGame(lobbyId, lobby) {
     lobby.state = 'finished';
     lobby.currentRoundPhoto = null;
-    this.io.to(lobbyId).emit('game_finished', this.serializeLobby(lobby));
+    for (const player of lobby.players.values()) {
+      if (!player.socketId) continue;
+      this.io.sockets.sockets.get(player.socketId)?.emit('game_finished', this.serializeLobby(lobby, player.id));
+    }
 
-    this._cleanupPhotos(lobby);
+    this._cleanupPhotos(lobby).catch(error => handleError(error, 'finished game photo cleanup'));
 
     if (typeof this.config?.onGameFinished === 'function') {
       try {
@@ -533,9 +541,20 @@ export class GameManager extends AIPipeline {
 
   submitGuess(lobbyId, playerId, { lat, lon }) {
     const lobby = this.lobbies.get(lobbyId);
-    if (!lobby || lobby.state !== 'in_round') return;
+    if (!lobby) return { accepted: false, error: 'Lobby not found' };
+    if (lobby.state !== 'in_round') {
+      if (lobby.state === 'showing_results' && lobby.guesses.has(playerId)) {
+        return { accepted: true, duplicate: true };
+      }
+      return { accepted: false, error: 'Round is no longer accepting guesses' };
+    }
     const photo = this.currentPhoto(lobby);
-    if (!photo || !isValidCoordinate(lat, lon)) return;
+    if (!photo) return { accepted: false, error: 'Round photo not found' };
+    if (!isValidCoordinate(lat, lon)) return { accepted: false, error: 'Invalid guess location' };
+
+    // Submission is idempotent: retries caused by a lost acknowledgement must
+    // not overwrite the original guess or restart progressive timers.
+    if (lobby.guesses.has(playerId)) return { accepted: true, duplicate: true };
 
     const isAI = playerId.startsWith('ai-');
     const now = Date.now();
@@ -563,6 +582,7 @@ export class GameManager extends AIPipeline {
     if (player && !player.isAI) {
       this.io.to(lobbyId).emit('player_guess', { playerId, nickname: player.icon + player.nickname });
     }
+    return { accepted: true, duplicate: false };
   }
 
   async endRound(lobbyId) {
@@ -664,6 +684,8 @@ export class GameManager extends AIPipeline {
       roundDurationMs: lobby.roundDurationMs,
     };
 
+    lobby.roundHistory.push(lobby.lastRoundResults);
+
     this.io.to(lobbyId).emit('round_results', lobby.lastRoundResults);
 
     clearTimeout(lobby.timers.resultsEnd);
@@ -732,14 +754,22 @@ export class GameManager extends AIPipeline {
           lon: showCoords ? lon : null,
           title, hint, manualLocation, captureDate };
         const prediction = this.predictions.get(id);
-        if (prediction) { serialized.predictionLat = prediction.lat; serialized.predictionLon = prediction.lon; }
+        if (!hideAll && uploaderId === viewerPlayerId && prediction) {
+          serialized.predictionLat = prediction.lat;
+          serialized.predictionLon = prediction.lon;
+        }
         return serialized;
       }),
       currentRoundPhoto: lobby.currentRoundPhoto,
       roundStartAt: lobby.roundStartAt,
       firstGuessAt: lobby.firstGuessAt,
       lastRoundResults: lobby.state === 'showing_results' ? lobby.lastRoundResults : null,
-      currentGuesses: lobby.state === 'in_round' ? Object.fromEntries(lobby.guesses) : null,
+      roundHistory: lobby.state === 'finished' || lobby.state === 'showing_results'
+        ? lobby.roundHistory
+        : [],
+      currentGuesses: lobby.state === 'in_round' && viewerPlayerId && lobby.guesses.has(viewerPlayerId)
+        ? { [viewerPlayerId]: lobby.guesses.get(viewerPlayerId) }
+        : null,
       aiTipIndex: lobby.state === 'in_round' ? (lobby.aiTipIndex ?? null) : null,
     };
   }
@@ -756,8 +786,13 @@ export class GameManager extends AIPipeline {
         if (socket) socket.emit('lobby_update', this.serializeLobby(lobby, player.id));
       }
     } else {
-      // In-round / results: send a single shared payload with coords stripped.
-      this.io.to(lobbyId).emit('lobby_update', this.serializeLobby(lobby));
+      // Send personalized payloads so reconnect metadata never reveals another
+      // player's submitted guess or a model prediction.
+      for (const player of lobby.players.values()) {
+        if (!player.socketId) continue;
+        const socket = this.io.sockets.sockets.get(player.socketId);
+        if (socket) socket.emit('lobby_update', this.serializeLobby(lobby, player.id));
+      }
     }
   }
 
@@ -774,6 +809,7 @@ export class GameManager extends AIPipeline {
     lobby.isEndingRound = false;
     lobby.currentRoundPhoto = null;
     lobby.lastRoundResults = null;
+    lobby.roundHistory = [];
     lobby.roundToken = null;
     lobby.roundStatistics = [];
     clearTimeout(lobby.timers.roundEnd);
@@ -836,11 +872,12 @@ export class GameManager extends AIPipeline {
     this.broadcastLobby(lobbyId);
   }
 
-  reconnectPlayer({ lobbyId, playerId, socketId, clientSessionId = null }) {
+  reconnectPlayer({ lobbyId, playerId, sessionToken, socketId, clientSessionId = null }) {
     const lobby = findLobbyById(this.lobbies, lobbyId);
     if (!lobby) throw new Error('Lobby not found');
     const player = lobby.players.get(playerId);
     if (!player) throw new Error('Player not found');
+    if (!sessionToken || player.sessionToken !== sessionToken) throw new Error('Session not found');
 
     if (player.disconnectTimeoutId) {
       clearTimeout(player.disconnectTimeoutId);
@@ -862,7 +899,7 @@ export class GameManager extends AIPipeline {
       } else if (lobby.state === 'showing_results' && lobby.lastRoundResults) {
         socket.emit('round_results', lobby.lastRoundResults);
       } else if (lobby.state === 'finished') {
-        socket.emit('game_finished', this.serializeLobby(lobby));
+        socket.emit('game_finished', this.serializeLobby(lobby, playerId));
       }
     }
 

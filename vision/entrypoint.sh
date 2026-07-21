@@ -1,40 +1,74 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# jemalloc reduces memory fragmentation on long-running CPU inference
-ARCH=$(uname -m)
-if [ "$ARCH" = "aarch64" ]; then
+if [[ $(uname -m) == aarch64 ]]; then
   export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2
 else
   export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 fi
 
-THREADS=${THREADS:-4}
-THREADS_BATCH=${THREADS_BATCH:-4}
-MODELS_DIR="/app/models"
+THREADS=${THREADS:-5}
+THREADS_BATCH=${THREADS_BATCH:-5}
+CTX_SIZE=${CTX_SIZE:-1024}
+MODEL=${MODEL:-ministral}
+MODELS_DIR=/app/models
+EXTRA_ARGS=()
 
-# Ministral-3B: IQ4_NL — competitive 4-bit I-quant with good quality/speed balance
-# ctx-size 1024: image (~256 tokens) + multilingual prompt (~400) + output (60) needs ~720 total.
-# 1024 gives comfortable headroom; saves ~45 MB of KV cache vs 2048.
-MODEL_FILE="${MODELS_DIR}/ministral/Ministral-3-3B-Instruct-2512-IQ4_NL.gguf"
-MMPROJ_FILE="${MODELS_DIR}/ministral/mmproj-F16.gguf"
-[ -f "$MODEL_FILE" ]  || { echo "ERROR: $MODEL_FILE not found";  exit 1; }
-[ -f "$MMPROJ_FILE" ] || { echo "ERROR: $MMPROJ_FILE not found"; exit 1; }
+case "$MODEL" in
+  ministral)
+    MODEL_REL="ministral/Ministral-3-3B-Instruct-2512-IQ4_NL.gguf"
+    MMPROJ_REL="ministral/mmproj-F16.gguf"
+    ;;
+  qwen35-0.8b)
+    MODEL_REL="qwen35-0.8b/Qwen3.5-0.8B-UD-Q4_K_XL.gguf"
+    MMPROJ_REL="qwen35-0.8b/mmproj-F16.gguf"
+    EXTRA_ARGS+=(--reasoning "${THINKING:-off}")
+    [[ ${THINKING:-off} == off ]] && EXTRA_ARGS+=(--reasoning-budget 0)
+    ;;
+  qwen35-2b)
+    MODEL_REL="qwen35-2b/Qwen3.5-2B-UD-Q4_K_XL.gguf"
+    MMPROJ_REL="qwen35-2b/mmproj-F16.gguf"
+    EXTRA_ARGS+=(--reasoning "${THINKING:-off}")
+    [[ ${THINKING:-off} == off ]] && EXTRA_ARGS+=(--reasoning-budget 0)
+    ;;
+  qwen35-4b)
+    MODEL_REL="qwen35-4b/Qwen3.5-4B-UD-Q4_K_XL.gguf"
+    MMPROJ_REL="qwen35-4b/mmproj-F16.gguf"
+    EXTRA_ARGS+=(--reasoning "${THINKING:-off}")
+    [[ ${THINKING:-off} == off ]] && EXTRA_ARGS+=(--reasoning-budget 0)
+    ;;
+  gemma4-e2b)
+    MODEL_REL="gemma4-e2b/gemma-4-E2B-it-UD-Q4_K_XL.gguf"
+    MMPROJ_REL="gemma4-e2b/mmproj-F16.gguf"
+    EXTRA_ARGS+=(--reasoning "${THINKING:-off}")
+    [[ ${THINKING:-off} == off ]] && EXTRA_ARGS+=(--reasoning-budget 0)
+    ;;
+  gemma4-e4b)
+    MODEL_REL="gemma4-e4b/gemma-4-E4B-it-UD-Q4_K_XL.gguf"
+    MMPROJ_REL="gemma4-e4b/mmproj-F16.gguf"
+    EXTRA_ARGS+=(--reasoning "${THINKING:-off}")
+    [[ ${THINKING:-off} == off ]] && EXTRA_ARGS+=(--reasoning-budget 0)
+    ;;
+  minicpm-v4.6)
+    MODEL_REL="minicpm-v4.6/MiniCPM-V-4_6-Q4_K_M.gguf"
+    MMPROJ_REL="minicpm-v4.6/mmproj-model-f16.gguf"
+    EXTRA_ARGS+=(--reasoning "${THINKING:-off}")
+    [[ ${THINKING:-off} == off ]] && EXTRA_ARGS+=(--reasoning-budget 0)
+    ;;
+  *) echo "ERROR: unknown MODEL '$MODEL'" >&2; exit 2 ;;
+esac
+
+MODEL_FILE=${MODEL_FILE:-$MODELS_DIR/$MODEL_REL}
+MMPROJ_FILE=${MMPROJ_FILE:-$MODELS_DIR/$MMPROJ_REL}
+[[ -f $MODEL_FILE ]] || { echo "ERROR: $MODEL_FILE not found" >&2; exit 1; }
+[[ -f $MMPROJ_FILE ]] || { echo "ERROR: $MMPROJ_FILE not found" >&2; exit 1; }
 
 exec /app/llama-server \
-  --model  "$MODEL_FILE" \
-  --mmproj "$MMPROJ_FILE" \
-  --host 0.0.0.0 \
-  --port 8001 \
-  --jinja \
-  -fa on \
-  --ctx-size 1024 \
-  -b 256 -ub 256 \
-  -t "${THREADS}" -tb "${THREADS_BATCH}" \
-  --temp 0.15 \
-  --n-predict 100 \
-  --presence-penalty 0.1 \
-  --cache-type-k q4_0 \
-  --cache-type-v q4_0 \
-  --parallel 1 \
-  --alias "unsloth/Ministral-3-3B-Instruct-2512-GGUF"
+  --model "$MODEL_FILE" --mmproj "$MMPROJ_FILE" \
+  --host 0.0.0.0 --port 8001 --jinja -fa on \
+  --ctx-size "$CTX_SIZE" -b 256 -ub 256 \
+  -t "$THREADS" -tb "$THREADS_BATCH" \
+  --temp 0.15 --top-p 0.9 --n-predict 100 --presence-penalty 0.1 \
+  --cache-type-k q4_0 --cache-type-v q4_0 \
+  --parallel 1 --threads-http 2 --metrics --alias "$MODEL" \
+  "${EXTRA_ARGS[@]}"

@@ -84,6 +84,7 @@ export default function LocationPickerDialog({
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchController = useRef<AbortController | null>(null)
   const [lastSelectedLocation, setLastSelectedLocation] = useState<string | null>(null)
   const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const [predictionWindowOpen, setPredictionWindowOpen] = useState(false)
@@ -144,6 +145,9 @@ export default function LocationPickerDialog({
       return
     }
 
+    searchController.current?.abort()
+    const controller = new AbortController()
+    searchController.current = controller
     setSearchLoading(true)
     setSearchError(null)
 
@@ -151,8 +155,10 @@ export default function LocationPickerDialog({
       // Use Photon API (komoot) - more permissive ToS than Nominatim
       // https://photon.komoot.io/
       const response = await fetch(
-        `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`
+        `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=3`,
+        { signal: controller.signal }
       )
+      if (!response.ok) throw new Error(`Search returned ${response.status}`)
       const data = await response.json()
       // Photon returns features array with geometry.coordinates [lon, lat]
       const results = (data.features || []).map((f: {
@@ -165,10 +171,11 @@ export default function LocationPickerDialog({
       }))
       setSearchResults(results)
     } catch (error) {
+      if (controller.signal.aborted) return
       logger.error('Search failed', error)
       setSearchError(t('ui.searchError'))
     } finally {
-      setSearchLoading(false)
+      if (searchController.current === controller) setSearchLoading(false)
     }
   }
 
@@ -187,6 +194,7 @@ export default function LocationPickerDialog({
       if (searchTimeout.current) {
         clearTimeout(searchTimeout.current)
       }
+      searchController.current?.abort()
     }
   }, [searchQuery])
   /* eslint-enable react-hooks/exhaustive-deps */
@@ -228,6 +236,9 @@ export default function LocationPickerDialog({
       onKeyDown={handleKeyDown}
     >
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('ui.setPhotoLocation')}
         className="bg-surface rounded-2xl border border-primary/20 w-full max-w-4xl h-[90vh] md:max-w-6xl md:h-[85vh] flex flex-col overflow-hidden"
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

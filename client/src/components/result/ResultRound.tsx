@@ -4,7 +4,7 @@ import { Award, Medal, ThumbsUp } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import type { Photo, Result } from "../../lib/types";
-import { getMapInitialView } from "../../lib/utils";
+import { escapeHtml, getMapInitialView } from "../../lib/utils";
 import { useI18n } from "../../contexts/I18nContext";
 import { getCountryName } from "../../lib/countryNames";
 import { logger } from "../../lib/logger";
@@ -72,8 +72,8 @@ function FitBounds({ photo, results }: { photo: Photo; results: Result[] }) {
   // This allows users to zoom/pan without the map resetting
   useEffect(() => {
     const points = [
-      photo.lat && photo.lon ? [photo.lat, photo.lon] : null,
-      ...results.map(r => r.lat && r.lon && !r.isAI ? [r.lat, r.lon] : null),
+      Number.isFinite(photo.lat) && Number.isFinite(photo.lon) ? [photo.lat!, photo.lon!] : null,
+      ...results.map(r => Number.isFinite(r.lat) && Number.isFinite(r.lon) ? [r.lat, r.lon] : null),
     ].filter(Boolean) as [number, number][];
 
     if (points.length > 0) {
@@ -120,7 +120,7 @@ export function RoundMap({
 
   // Auto-open photo popup on mount
   useEffect(() => {
-    if (photoMarkerRef.current && photo.lat && photo.lon) {
+    if (photoMarkerRef.current && Number.isFinite(photo.lat) && Number.isFinite(photo.lon)) {
       const marker = photoMarkerRef.current;
       // Open popup after a 5 second delay to ensure map is ready and results have been viewed
       const timeout = setTimeout(() => {
@@ -152,7 +152,7 @@ export function RoundMap({
   });
 
   const playerMarker = (r: Result) => {
-    const playerLabel = `<div style="font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; color: var(--color-text, #333); font-weight: 500; margin-top: 2px;">${r.nickname}</div>`;
+    const playerLabel = `<div style="font-size: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; color: var(--color-text, #333); font-weight: 500; margin-top: 2px;">${escapeHtml(r.nickname)}</div>`;
     const content = `<div style="font-size: 20px; line-height: 1;">${r.icon || "👤"}</div>${playerLabel}`;
     return new L.DivIcon({
       className: "leaflet-div-icon",

@@ -17,8 +17,11 @@ WORKDIR /build
 
 COPY llama.cpp /build/llama.cpp
 
+RUN test -f /build/llama.cpp/tools/mtmd/models/models.h
+
 WORKDIR /build/llama.cpp
 
+ARG BUILD_JOBS=3
 RUN mkdir -p /build/out \
  && rm -rf build \
  && cmake -B build \
@@ -40,13 +43,13 @@ RUN mkdir -p /build/out \
       -DLLAMA_BUILD_EXAMPLES=OFF \
       -DLLAMA_BUILD_TOOLS=ON \
       -DLLAMA_BUILD_SERVER=ON \
-      -DLLAMA_BUILD_SERVER_ONLY=ON \
-      -DLLAMA_BUILD_WEBUI=OFF \
+      -DLLAMA_BUILD_UI=OFF \
+      -DLLAMA_USE_PREBUILT_UI=OFF \
       -DCMAKE_C_COMPILER=clang \
       -DCMAKE_CXX_COMPILER=clang++ \
-      "-DCMAKE_C_FLAGS=-march=znver2" \
-      "-DCMAKE_CXX_FLAGS=-march=znver2" \
- && cmake --build build --config Release --target llama-server -j"$(nproc)" \
+      "-DCMAKE_C_FLAGS=-march=znver1" \
+      "-DCMAKE_CXX_FLAGS=-march=znver1" \
+ && cmake --build build --config Release --target llama-server -j"${BUILD_JOBS}" \
  && cp build/bin/llama-server /build/out/llama-server
 
 ############################

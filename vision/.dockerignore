@@ -1,4 +1,9 @@
-/models/
+models/**
+llama.cpp/models/**
+!llama.cpp/src/models/
+!llama.cpp/src/models/**
+!llama.cpp/tools/mtmd/models/
+!llama.cpp/tools/mtmd/models/**
 .git
 .gitignore
 .DS_Store

@@ -5,9 +5,14 @@ services:
     build:
       context: ./vision
       dockerfile: ${DOCKERFILE:-Dockerfile}
+      args:
+        BUILD_JOBS: ${BUILD_JOBS:-3}
     environment:
-      - THREADS=${THREADS:-4}
-      - THREADS_BATCH=${THREADS_BATCH:-4}
+      - MODEL=${MODEL:-ministral}
+      - THINKING=${THINKING:-off}
+      - THREADS=${THREADS:-5}
+      - THREADS_BATCH=${THREADS_BATCH:-5}
+      - CTX_SIZE=${CTX_SIZE:-1024}
     volumes:
       - ./vision/models:/app/models
     healthcheck:
@@ -21,7 +26,7 @@ services:
     restart: unless-stopped
     build: ./geoclip
     environment:
-      - NUM_THREADS=${NUM_THREADS:-4}
+      - NUM_THREADS=${NUM_THREADS:-5}
       - CACHE_DIR=/app/cache
     volumes:
       # FastGeoCLIP bakes its weights + GPS gallery CSV into the image; only

@@ -48,7 +48,7 @@ export function ConnectionStatus() {
   const text = isReconnecting ? t('ui.reconnecting') : t('ui.connectionLost')
 
   return (
-    <div className={`fixed top-4 right-4 px-4 py-2 rounded-lg border ${bgColor} flex items-center gap-2 z-50`}>
+    <div role="status" aria-live="polite" className={`fixed top-4 right-4 px-4 py-2 rounded-lg border ${bgColor} flex items-center gap-2 z-50 shadow-lg backdrop-blur-sm`}>
       {icon}
       <span className="text-sm font-medium">{text}</span>
     </div>

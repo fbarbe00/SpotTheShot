@@ -10,6 +10,20 @@ Optionally drop in an **on-device "AI" player** that guesses for itself and auto
 
 A self-hosted multiplayer game built around three services: a Node.js + Socket.IO server, a FastAPI image-to-GPS model ([FastGeoCLIP](https://github.com/fbarbe00/FastGeoCLIP)), and a llama.cpp vision LLM for AI commentary and auto-naming.
 
+## See it in action
+
+![An active SpotTheShot round showing an alpine lake and the mini-map guessing interface](docs/screenshots/game-desktop.png)
+
+| Build the lobby together | Place your guess | Compare the results |
+|---|---|---|
+| ![SpotTheShot lobby with players, AI opponent, settings, and an uploaded photo](docs/screenshots/lobby-desktop.png) | ![Expanded map used to place a location guess](docs/screenshots/guess-map-desktop.png) | ![Round results with player guesses and leaderboard](docs/screenshots/results-desktop.png) |
+
+The complete flow is responsive on smaller screens too:
+
+<p align="center">
+  <img src="docs/screenshots/game-mobile.png" width="320" alt="SpotTheShot active round on a mobile screen">
+</p>
+
 ## Architecture
 
 | Service | Stack | Port | What it does |
@@ -61,7 +75,7 @@ cd vision
 cd ..
 ```
 
-This pulls `Ministral-3-3B-Instruct-2512-IQ4_NL.gguf` + `mmproj-F16.gguf` (~2 GB) into `vision/models/ministral/`. The `entrypoint.sh` is wired to those exact filenames. If you swap models, edit the entrypoint to match.
+This pulls `Ministral-3-3B-Instruct-2512-IQ4_NL.gguf` + `mmproj-F16.gguf` (~2 GB) into `vision/models/ministral/`. Other supported profiles can be listed with `./download-model.sh --list`; download one by name and set the same name as `MODEL` in `.env` to use it.
 
 ### 3. Run
 
@@ -86,7 +100,11 @@ Everything is in `.env`. Key knobs:
 | `DEFAULT_MAX_PLAYERS` | 20 | Per-lobby player cap (overridable per-token) |
 | `GEO_CONCURRENCY` | 2 | Parallel GeoCLIP requests in flight |
 | `VISION_CONCURRENCY` | 1 | Parallel vision LLM requests (memory-bound) |
-| `THREADS`, `NUM_THREADS` | 4 | CPU thread count for vision and geoclip |
+| `MODEL` | `ministral` | Vision profile downloaded by `vision/download-model.sh` |
+| `THINKING` | `off` | Reasoning mode for profiles that support it |
+| `THREADS`, `NUM_THREADS` | 5 | CPU thread count for vision and geoclip (requests remain sequential) |
+| `BUILD_JOBS` | 3 | llama.cpp compiler jobs; keep low on a shared server |
+| `CTX_SIZE` | 1024 | Vision context; raise only if prompts are truncated |
 | `VITE_MAP_BBOX_*` | Europe | Default in-game map bounding box |
 
 Token-based access control lives in `server/data/tokens.json` (gitignored). The defaults in `.env.example` apply to anyone without a token.
@@ -145,7 +163,13 @@ Tests and translation audit:
 cd client
 npm run test
 npm run check-translations
+cd ../server
+npm test
 ```
+
+Player sessions use a private browser-stored credential for reconnects, uploads,
+and photo access. Clearing site data signs that browser out of its active lobby;
+the player can immediately join again as a new participant.
 
 ## Supported languages
 

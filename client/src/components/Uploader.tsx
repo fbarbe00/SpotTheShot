@@ -7,6 +7,7 @@ import LocationPickerDialog from './LocationPickerDialog'
 import { AnimatePresence } from 'framer-motion'
 import * as exifr from 'exifr'
 import { useI18n } from '../contexts/I18nContext'
+import { useAchievementContext } from '../contexts/AchievementContext'
 import { logger } from '../lib/logger'
 import {
   getHistory,
@@ -29,6 +30,19 @@ async function hashBlob(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer()
   const digest = await crypto.subtle.digest('SHA-256', buf)
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++
+      results[index] = await worker(items[index]!)
+    }
+  })
+  await Promise.all(runners)
+  return results
 }
 
 async function extractGPS(file: File): Promise<{ lat: number | null; lon: number | null }> {
@@ -69,6 +83,7 @@ async function extractCaptureDate(file: File): Promise<string | null> {
 export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: string }) {
   const { addToast } = useToast()
   const { t } = useI18n()
+  const achievements = useAchievementContext()
   const [message, setMessage] = useState<string>('')
   const [busy, setBusy] = useState(false)
   const [photosNeedingLocation, setPhotosNeedingLocation] = useState<
@@ -84,6 +99,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
   const [reuploadedEntryIds, setReuploadedEntryIds] = useState<Set<string>>(new Set())
   const sessionStart = useRef(Date.now())
   const sessionHashes = useRef(new Set<string>())
+  const metadataTrackedPhotoIds = useRef(new Set<string>())
 
   // Detect if on Android
   const isAndroidMobile = /Android/i.test(navigator.userAgent)
@@ -154,15 +170,15 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     setMessage(t('uploader.processingPhotos', { count: files.length }))
 
     try {
-      const prepared = await Promise.all(
-        files.map(async file => {
+      // Limit simultaneous EXIF parsing and canvas resizing to avoid memory
+      // spikes on phones when a large batch is selected.
+      const prepared = await mapWithConcurrency(files, 2, async file => {
           const { lat, lon } = await extractGPS(file)
           const captureDate = await extractCaptureDate(file)
           const resized = await resizeImage(file, 1200)
           const hash = await hashBlob(resized)
           return { file: resized, lat, lon, captureDate, hash }
-        })
-      )
+      })
 
       const uniquePrepared = prepared.filter(p => !sessionHashes.current.has(p.hash))
       const duplicateCount = prepared.length - uniquePrepared.length
@@ -206,6 +222,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
       const failed = allResults.filter((r: UploadResult) => r.error)
 
       if (successful.length) {
+        successful.forEach(() => achievements.trackPhotoUpload())
         addToast(t('uploader.uploadSuccess', { count: successful.length }), 'success', 3000)
         allResults.forEach((r, i) => {
           if (r.ok && uniquePrepared[i]?.hash) sessionHashes.current.add(uniquePrepared[i].hash)
@@ -369,10 +386,25 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     setPhotoHints(prev => ({ ...prev, [photoId]: truncatedHint }))
   }
 
-  function savePhotoDetails(photoId: string, title: string | undefined, hint: string | undefined) {
+  async function savePhotoDetails(photoId: string, title: string | undefined, hint: string | undefined) {
     const truncatedTitle = (title ?? '').slice(0, 50)
     const truncatedHint = (hint ?? '').slice(0, 80)
-    socket.emit('update_photo_details', { lobbyId: lobby.id, playerId, photoId, title: truncatedTitle, hint: truncatedHint })
+    const saved = await new Promise<boolean>(resolve => {
+      socket.timeout(7000).emit(
+        'update_photo_details',
+        { lobbyId: lobby.id, playerId, photoId, title: truncatedTitle, hint: truncatedHint },
+        (error: Error | null, response?: { success?: boolean }) => resolve(!error && !!response?.success),
+      )
+    })
+    if (!saved) {
+      addToast(t('toast.connectionHiccup'), 'warning', 5000)
+      return
+    }
+
+    if ((truncatedTitle || truncatedHint) && !metadataTrackedPhotoIds.current.has(photoId)) {
+      metadataTrackedPhotoIds.current.add(photoId)
+      achievements.trackPhotoMetadata()
+    }
 
     if ((title ?? '').length > 50 || (hint ?? '').length > 80) {
       const truncatedMsg = [

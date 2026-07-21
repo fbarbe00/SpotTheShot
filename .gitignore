@@ -5,7 +5,10 @@ TODO.md
 .DS_Store/
 # Dependencies
 node_modules/
-models/
+/vision/models/
+/vision/llama.cpp/models/
+vision/test_images/
+vision/benchmarks/*/
 model/
 weights/
 gps_gallery/

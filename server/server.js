@@ -8,6 +8,7 @@ import mime from 'mime';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { GameManager } from './game.js';
 import { pickAvatarColor, pickAvatarIcon, AVATAR_ICONS, isValidCoordinate } from './utils.js';
 import { SERVER_CONFIG } from './config.js';
@@ -25,8 +26,8 @@ const GAME_STATS_FILE = process.env.GAME_STATS_FILE || path.join(DATA_DIR, 'game
 const PENDING_JOIN_TIMEOUT_MS = 5 * 60 * 1000;
 const SOCKET_DISCONNECT_TIMEOUT_MS = 30 * 60 * 1000;
 const EMPTY_LOBBY_GRACE_MS = 3 * 60 * 60 * 1000;
-const CLEANUP_INTERVAL_MS = 5 * 60 * 60 * 1000;
-const SESSION_SWEEP_INTERVAL_MS = 5 * 24 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+const SESSION_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const TOKEN_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const VALID_LANGUAGES = ['en', 'fr', 'it', 'es', 'de', 'ru'];
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
@@ -129,6 +130,44 @@ function normalizeLobbyId(id) {
   return typeof id === 'string' ? id.toUpperCase() : id;
 }
 
+function normalizeNickname(value) {
+  const nickname = String(value || '').trim().replace(/[\u0000-\u001F\u007F]/g, '').slice(0, MAX_NICKNAME_LENGTH);
+  return nickname || null;
+}
+
+function validateLobbySettings(settings = {}) {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Invalid lobby settings');
+  const checks = [
+    ['roundDurationSec', 10, 300], ['duelRaceTimeSec', 5, 120],
+    ['hintThresholdSec', 0, 300], ['uploaderPenaltyPercent', 0, 100],
+    ['minPhotosPerPlayer', 0, 100], ['maxPhotosPerPlayer', 1, 100],
+  ];
+  for (const [key, min, max] of checks) {
+    if (settings[key] !== undefined && (!validateInput(settings[key], 'number', min, max) || !Number.isInteger(settings[key]))) {
+      throw new Error(`${key} must be an integer between ${min} and ${max}`);
+    }
+  }
+  for (const key of ['enableAIGuessing', 'visionCommentary', 'autoNameImages', 'showImageDate']) {
+    if (settings[key] !== undefined && typeof settings[key] !== 'boolean') throw new Error(`${key} must be a boolean`);
+  }
+  if (settings.gameMode !== undefined && !['individual', 'teams'].includes(settings.gameMode)) throw new Error('Invalid game mode');
+  if (settings.timerMode !== undefined && !['fixed', 'progressive'].includes(settings.timerMode)) throw new Error('Invalid timer mode');
+  if (settings.language !== undefined && !VALID_LANGUAGES.includes(String(settings.language).toLowerCase())) throw new Error('Invalid language');
+  if (settings.minPhotosPerPlayer !== undefined && settings.maxPhotosPerPlayer !== undefined
+    && settings.minPhotosPerPlayer > settings.maxPhotosPerPlayer) throw new Error('Minimum photos cannot exceed maximum photos');
+  return settings;
+}
+
+function getSessionToken(req) {
+  const authorization = req.get('authorization');
+  if (authorization?.startsWith('Bearer ')) return authorization.slice(7);
+  return typeof req.query.sessionToken === 'string' ? req.query.sessionToken : null;
+}
+
+function isAuthorizedPlayer(lobby, playerId, sessionToken) {
+  return !!(sessionToken && lobby?.players.get(playerId)?.sessionToken === sessionToken);
+}
+
 async function cleanupUploadedFiles(files = []) {
   await Promise.all(
     files
@@ -153,7 +192,14 @@ const upload = multer({
     destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => cb(null, `${uuid()}.${mime.getExtension(file.mimetype) || 'bin'}`),
   }),
-  limits: { fileSize: UPLOAD_LIMIT_MB * 1024 * 1024 },
+  limits: {
+    fileSize: UPLOAD_LIMIT_MB * 1024 * 1024,
+    files: MAX_PHOTOS_PER_PLAYER,
+    fields: MAX_PHOTOS_PER_PLAYER * 2,
+    parts: MAX_PHOTOS_PER_PLAYER * 3,
+    fieldNameSize: 100,
+    fieldSize: 4096,
+  },
 });
 
 /* ─── Game manager ─── */
@@ -174,6 +220,15 @@ function checkUploadRateLimit(playerId, maxRequests = 5, windowMs = 60000) {
   recent.push(now);
   uploadRateLimits.set(playerId, recent);
   return true;
+}
+
+function sweepUploadRateLimits(windowMs = 60000) {
+  const cutoff = Date.now() - windowMs;
+  for (const [playerId, timestamps] of uploadRateLimits) {
+    const recent = timestamps.filter(timestamp => timestamp >= cutoff);
+    if (recent.length) uploadRateLimits.set(playerId, recent);
+    else uploadRateLimits.delete(playerId);
+  }
 }
 
 /* ─── Lobby cleanup ─── */
@@ -214,6 +269,7 @@ async function cleanupEmptyLobbies() {
 setInterval(cleanupEmptyLobbies, CLEANUP_INTERVAL_MS);
 
 function sweepStaleSessions() {
+  sweepUploadRateLimits();
   for (const [clientId, session] of latestSessionByClient.entries()) {
     const lobby = gm.lobbies.get(session.lobbyId);
     if (!lobby || !lobby.players.has(session.playerId)) {
@@ -308,8 +364,8 @@ app.get('/uploads/:filename', (req, res) => {
   if (!lobby) {
     return res.status(404).json({ error: 'Lobby not found' });
   }
-  if (!lobby.players.has(playerId)) {
-    return res.status(403).json({ error: 'Player is not in this lobby' });
+  if (!isAuthorizedPlayer(lobby, playerId, getSessionToken(req))) {
+    return res.status(403).json({ error: 'Invalid photo access session' });
   }
 
   const safeFilename = path.basename(filename);
@@ -331,40 +387,29 @@ app.post('/api/token/validate', async (req, res) => {
 
 app.post('/api/lobbies', async (req, res) => {
   const { nickname: rawNickname, settings, clientSessionId, tokenSecret } = req.body || {};
-  const nickname = String(rawNickname || '').trim().slice(0, MAX_NICKNAME_LENGTH);
+  const nickname = normalizeNickname(rawNickname);
+  if (!nickname) return res.status(400).json({ error: 'Nickname is required' });
 
   if (gm.lobbies.size >= SERVER_CONFIG.maxLobbies) {
     return res.status(503).json({ error: 'Server is at capacity', maxLobbies: SERVER_CONFIG.maxLobbies });
   }
 
-  if (settings) {
-    if (settings.roundDurationSec !== undefined && !validateInput(settings.roundDurationSec, 'number', 10, 300)) {
-      return res.status(400).json({ error: 'roundDurationSec must be a number between 10 and 300' });
-    }
-    if (settings.gameMode !== undefined && !['individual', 'teams'].includes(settings.gameMode)) {
-      return res.status(400).json({ error: 'gameMode must be either "individual" or "teams"' });
-    }
-    if (settings.timerMode !== undefined && !['fixed', 'progressive'].includes(settings.timerMode)) {
-      return res.status(400).json({ error: 'timerMode must be either "fixed" or "progressive"' });
-    }
-    if (settings.language !== undefined && !VALID_LANGUAGES.includes(String(settings.language).toLowerCase())) {
-      return res.status(400).json({ error: `language must be one of: ${VALID_LANGUAGES.join(', ')}` });
-    }
-  }
+  try { validateLobbySettings(settings); } catch (error) { return res.status(400).json({ error: error.message }); }
 
   const token = await validateToken(tokenSecret);
   const constraints = applyToken(token, SERVER_CONFIG.defaults);
 
-  const { lobby, playerId } = await gm.createLobby({ nickname, socketId: null, settings, constraints, clientSessionId });
+  const { lobby, playerId, sessionToken } = await gm.createLobby({ nickname, socketId: null, settings, constraints, clientSessionId });
   gm.schedulePendingJoinExpiry(lobby.id, playerId, PENDING_JOIN_TIMEOUT_MS);
   gm.setPlayerColor(lobby, playerId, pickAvatarColor(nickname));
   gm.setPlayerIcon(lobby, playerId, pickAvatarIcon(nickname));
-  res.json({ lobby: gm.serializeLobby(lobby, playerId), playerId });
+  res.json({ lobby: gm.serializeLobby(lobby, playerId), playerId, sessionToken });
 });
 
 app.post('/api/lobbies/:lobbyId/join', (req, res) => {
   const { nickname: rawNickname, clientSessionId } = req.body || {};
-  const nickname = String(rawNickname || '').trim().slice(0, MAX_NICKNAME_LENGTH);
+  const nickname = normalizeNickname(rawNickname);
+  if (!nickname) return res.status(400).json({ error: 'Nickname is required' });
   const { lobbyId } = req.params;
 
   if (!validateInput(lobbyId, 'string', 3, 12)) {
@@ -372,11 +417,11 @@ app.post('/api/lobbies/:lobbyId/join', (req, res) => {
   }
 
   try {
-    const { lobby, playerId } = gm.joinLobby({ lobbyId: lobbyId.toUpperCase(), nickname, socketId: null, clientSessionId });
+    const { lobby, playerId, sessionToken } = gm.joinLobby({ lobbyId: lobbyId.toUpperCase(), nickname, socketId: null, clientSessionId });
     gm.schedulePendingJoinExpiry(lobby.id, playerId, PENDING_JOIN_TIMEOUT_MS);
     gm.setPlayerColor(lobby, playerId, pickAvatarColor(nickname));
     gm.setPlayerIcon(lobby, playerId, pickAvatarIcon(nickname));
-    res.json({ lobby: gm.serializeLobby(lobby, playerId), playerId });
+    res.json({ lobby: gm.serializeLobby(lobby, playerId), playerId, sessionToken });
   } catch (e) {
     const status = e.message === 'Lobby not found' ? 404 : 400;
     res.status(status).json({ error: e.message });
@@ -420,6 +465,10 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
     await cleanupUploadedFiles(files);
     return res.status(403).json({ error: 'Player not found in this lobby' });
   }
+  if (!isAuthorizedPlayer(lobby, playerId, getSessionToken(req))) {
+    await cleanupUploadedFiles(files);
+    return res.status(403).json({ error: 'Invalid upload session' });
+  }
 
   // Use lobby settings for max photos, fallback to server default
   const maxPhotos = lobby.settings?.maxPhotosPerPlayer ?? MAX_PHOTOS_PER_PLAYER;
@@ -429,11 +478,16 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
   const rejectedFiles = files.slice(remainingSlots);
   await cleanupUploadedFiles(rejectedFiles);
 
-  const results = rejectedFiles.map(f => ({ error: 'Upload limit reached', filename: f.originalname, max: maxPhotos }));
+  const results = new Array(files.length);
+  rejectedFiles.forEach((file, index) => {
+    results[acceptedFiles.length + index] = { error: 'Upload limit reached', filename: file.originalname, max: maxPhotos };
+  });
 
   for (let i = 0; i < acceptedFiles.length; i++) {
     const file = acceptedFiles[i];
     try {
+      const metadata = await sharp(file.path, { limitInputPixels: 40_000_000 }).metadata();
+      if (!['jpeg', 'png', 'gif', 'webp'].includes(metadata.format)) throw new Error('Unsupported or malformed image');
       let lat = null, lon = null;
       const gpsRaw = req.body.gps?.[i];
       if (gpsRaw) {
@@ -467,7 +521,7 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
       const photoData = { id, url, lat, lon, uploaderId: playerId, captureDate };
 
       gm.upsertPhoto(normalizedLobbyId, photoData);
-      results.push({ ok: true, photo: { id, url, lat, lon, captureDate }, hasGPS: lat !== null });
+      results[i] = { ok: true, photo: { id, url, lat, lon, captureDate }, hasGPS: lat !== null };
 
       if (lobby.settings?.enableAIGuessing) {
         gm.prefetchAIPrediction(id, photoData, normalizedLobbyId).catch(err =>
@@ -477,7 +531,7 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
     } catch (err) {
       console.error('Upload failed:', err);
       await cleanupUploadedFiles([file]);
-      results.push({ error: 'Failed to process image', filename: file.originalname, details: err.message });
+      results[i] = { error: 'Failed to process image', filename: file.originalname, details: err.message };
     }
   }
 
@@ -523,6 +577,7 @@ io.on('connection', (socket) => {
   const query = socket.handshake.query || {};
   const lobbyId = auth.lobbyId || query.lobbyId;
   const playerId = auth.playerId || query.playerId;
+  const sessionToken = auth.sessionToken || query.sessionToken;
   const handshakeClientSessionId = auth.clientSessionId || query.clientSessionId || null;
 
   let currentLobbyId = null;
@@ -538,7 +593,7 @@ io.on('connection', (socket) => {
     (async () => {
       try {
         const normalizedLobbyId = lobbyId.toUpperCase();
-        const reconnectResult = gm.reconnectPlayer({ lobbyId: normalizedLobbyId, playerId, socketId: socket.id, clientSessionId: currentClientSessionId });
+        const reconnectResult = gm.reconnectPlayer({ lobbyId: normalizedLobbyId, playerId, sessionToken, socketId: socket.id, clientSessionId: currentClientSessionId });
         await enforceSingleSessionForClient(currentClientSessionId, { lobbyId: normalizedLobbyId, playerId, socketId: socket.id });
         socket.join(normalizedLobbyId);
         currentLobbyId = normalizedLobbyId;
@@ -552,11 +607,12 @@ io.on('connection', (socket) => {
     })();
   }
 
-  socket.on('join_lobby', async ({ lobbyId, nickname: rawNickname, playerId, clientSessionId }) => {
-    const nickname = String(rawNickname || '').trim().slice(0, MAX_NICKNAME_LENGTH);
+  socket.on('join_lobby', async ({ lobbyId, nickname: rawNickname, playerId, sessionToken: incomingSessionToken, clientSessionId }) => {
+    const nickname = normalizeNickname(rawNickname);
     try {
       currentClientSessionId = clientSessionId || currentClientSessionId;
       if (!lobbyId || typeof lobbyId !== 'string') throw new Error('Lobby ID is required');
+      if (!nickname) throw new Error('Nickname is required');
 
       const normalizedLobbyId = lobbyId.toUpperCase();
       let lobby;
@@ -566,6 +622,7 @@ io.on('connection', (socket) => {
         lobby = gm.lobbies.get(normalizedLobbyId);
         const player = lobby?.players.get(newPlayerId);
         if (!player) throw new Error('Session not found. Please rejoin the lobby.');
+        if (!incomingSessionToken || player.sessionToken !== incomingSessionToken) throw new Error('Session not found. Please rejoin the lobby.');
         player.socketId = socket.id;
         if (currentClientSessionId) player.clientSessionId = currentClientSessionId;
         if (player.disconnectTimeoutId) {
@@ -576,6 +633,7 @@ io.on('connection', (socket) => {
         const res = gm.joinLobby({ lobbyId: normalizedLobbyId, nickname, socketId: socket.id, clientSessionId: currentClientSessionId });
         lobby = res.lobby;
         newPlayerId = res.playerId;
+        incomingSessionToken = res.sessionToken;
         gm.setPlayerColor(lobby, newPlayerId, pickAvatarColor(nickname));
         gm.setPlayerIcon(lobby, newPlayerId, pickAvatarIcon(nickname));
       }
@@ -586,7 +644,7 @@ io.on('connection', (socket) => {
       socket.join(normalizedLobbyId);
       currentLobbyId = normalizedLobbyId;
       currentPlayerId = newPlayerId;
-      socket.emit('joined', { lobby: gm.serializeLobby(lobby, newPlayerId), playerId: newPlayerId });
+      socket.emit('joined', { lobby: gm.serializeLobby(lobby, newPlayerId), playerId: newPlayerId, sessionToken: incomingSessionToken });
       gm.broadcastLobby(normalizedLobbyId);
     } catch (e) {
       socket.emit('error_msg', e.message);
@@ -622,10 +680,19 @@ io.on('connection', (socket) => {
     if (lobby?.hostId === hostId) gm.kickPlayer(lobbyId, playerIdToKick);
   });
 
-  socket.on('update_settings', ({ lobbyId, playerId, settings }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
+  socket.on('update_settings', ({ lobbyId, playerId, settings }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     const lobby = gm.lobbies.get(lobbyId);
-    if (lobby?.hostId === playerId) gm.updateSettings(lobbyId, settings);
+    if (lobby?.hostId === playerId) {
+      try {
+        gm.updateSettings(lobbyId, validateLobbySettings(settings));
+        callback?.({ success: true });
+      } catch (error) {
+        callback?.({ success: false, error: error.message });
+      }
+    } else {
+      callback?.({ success: false, error: 'Only the host can update settings' });
+    }
   });
 
   socket.on('add_ai_player', ({ lobbyId, playerId }) => {
@@ -644,6 +711,9 @@ io.on('connection', (socket) => {
 
   socket.on('get_ai_processing_status', ({ lobbyId }, callback) => {
     try {
+      if (!currentPlayerId || !validateSocket(lobbyId, currentPlayerId)) {
+        return callback?.({ processed: 0, total: 0, stage: 'unavailable', isReady: false });
+      }
       callback?.(gm.getAIProcessingStatus(lobbyId));
     } catch (e) {
       console.error('Error getting AI processing status:', e);
@@ -701,19 +771,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('update_photo_details', ({ lobbyId, playerId, photoId, title, hint }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
+  socket.on('update_photo_details', ({ lobbyId, playerId, photoId, title, hint }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     try {
       const lobby = gm.lobbies.get(lobbyId);
-      if (!lobby) return;
+      if (!lobby) return callback?.({ success: false, error: 'Lobby not found' });
       const photo = lobby.photos.find(p => p.id === photoId && p.uploaderId === playerId);
-      if (!photo) return;
+      if (!photo) return callback?.({ success: false, error: 'Photo not found' });
       photo.title = String(title || '').slice(0, 50);
       photo.hint = String(hint || '').slice(0, 80);
       gm.broadcastLobby(lobbyId);
+      callback?.({ success: true });
     } catch (e) {
       console.error('Failed to update photo details:', e);
-      socket.emit('error_msg', e.message);
+      callback?.({ success: false, error: e.message });
     }
   });
 
@@ -749,13 +820,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
+  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     try {
-      if (!isValidCoordinate(lat, lon)) { socket.emit('error_msg', 'Invalid guess location.'); return; }
-      gm.submitGuess(lobbyId, playerId, { lat, lon });
+      if (!isValidCoordinate(lat, lon)) return callback?.({ success: false, error: 'Invalid guess location' });
+      const result = gm.submitGuess(lobbyId, playerId, { lat, lon });
+      callback?.({ success: result.accepted, duplicate: result.duplicate, error: result.error });
     } catch (e) {
       console.error('Submit guess error:', e);
+      callback?.({ success: false, error: e.message });
     }
   });
 
@@ -794,7 +867,7 @@ io.on('connection', (socket) => {
       if (!validateSocket(normalizedLobbyId, playerId)) return callback({ success: false, error: 'Invalid socket' });
       const lobby = gm.lobbies.get(normalizedLobbyId);
       if (!lobby) return callback({ success: false, error: 'Lobby not found' });
-      if (lobby.state !== 'finished' && lobby.hostId !== playerId) {
+      if (lobby.hostId !== playerId) {
         return callback({ success: false, error: 'Only host can reset lobby' });
       }
       gm.resetLobby(normalizedLobbyId);
@@ -844,6 +917,8 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+  server.close(() => process.exit(1));
+  setTimeout(() => process.exit(1), 5000).unref();
 });
 
 server.listen(PORT, () => {

@@ -28,6 +28,15 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Remove white background from Leaflet div icons */
 .leaflet-div-icon {
   background: transparent !important;
@@ -37,6 +46,22 @@
 
 /* CSS Animations - lightweight alternative to framer-motion */
 @layer utilities {
+  @keyframes markerDrop {
+    0% { transform: translateY(-90px) scale(0.3); opacity: 0; }
+    55% { transform: translateY(10px) scale(1.2); opacity: 1; }
+    75% { transform: translateY(-5px) scale(0.9); }
+    88% { transform: translateY(3px) scale(1.05); }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  @keyframes chipIn {
+    from { opacity: 0; transform: translateY(6px) scale(0.7); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes lineReveal {
+    from { opacity: 0; }
+    to { opacity: 0.6; }
+  }
+
   /* Fade animations */
   @keyframes fadeIn {
     from { opacity: 0; }
@@ -109,4 +134,3 @@
     animation: scaleOut 0.15s ease-in;
   }
 }
-
