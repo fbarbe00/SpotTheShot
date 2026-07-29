@@ -47,6 +47,7 @@ export class AIPipeline {
     this._datePredictionAttempted = new Set();
     this._visionRevisions = new Map();
     this._titleRevisions = new Map();
+    this._dateRevisions = new Map();
 
     this.geoActive = 0;
     this.geoQueue = [];
@@ -93,13 +94,12 @@ export class AIPipeline {
   _invalidatePhotoCaches(photoId) {
     this._visionRevisions.set(photoId, (this._visionRevisions.get(photoId) || 0) + 1);
     this._titleRevisions.set(photoId, (this._titleRevisions.get(photoId) || 0) + 1);
+    this._invalidateDatePrediction(photoId);
     for (const cache of [
       this.predictions, this.photoLocations, this.predictionLocations,
       this.visionCommentaries, this.imageTitles,
-      this.datePredictions,
       this._inflightPredictions, this._inflightPhotoLocations,
       this._inflightPredictionLocations, this._inflightVisions, this._inflightTitles,
-      this._inflightDates,
       this._preprocessedImages,
     ]) {
       cache.delete(photoId);
@@ -107,7 +107,15 @@ export class AIPipeline {
     this._predictionAttempted.delete(photoId);
     this._visionAttempted.delete(photoId);
     this._autoNamingAttempted.delete(photoId);
+  }
+
+  _invalidateDatePrediction(photoId) {
+    this._dateRevisions.set(photoId, (this._dateRevisions.get(photoId) || 0) + 1);
+    this.datePredictions.delete(photoId);
     this._datePredictionAttempted.delete(photoId);
+    for (const key of this._inflightDates.keys()) {
+      if (key.startsWith(`${photoId}:`)) this._inflightDates.delete(key);
+    }
   }
 
   _invalidateLocationCaches(photoId) {
@@ -474,35 +482,59 @@ export class AIPipeline {
     }
     const inflightKey = `${photo.id}:${earliestDate}:${latestDate}`;
     if (this._inflightDates.has(inflightKey)) {
-      try { return await this._inflightDates.get(inflightKey); } catch { return null; }
+      try {
+        return await this._inflightDates.get(inflightKey);
+      } catch (error) {
+        console.warn(`[vision] In-flight date prediction failed for photo ${photo.id}:`, error?.message ?? error);
+        return null;
+      }
     }
+    const revision = this._dateRevisions.get(photo.id) || 0;
     const promise = (async () => {
       const release = await this._acquire('vision');
       try {
         const imageB64 = await this._ensurePreprocessed(photo);
         if (!imageB64) return null;
-        const response = await queryVisionModelForDate(
-          imageB64,
-          timeoutMs,
-          earliestDate,
-          latestDate,
-        );
-        let date = normalizePhotoDate(response?.date);
-        if (!date) return null;
+        let date = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          const response = await queryVisionModelForDate(
+            imageB64,
+            timeoutMs,
+            earliestDate,
+            latestDate,
+          );
+          date = normalizePhotoDate(response?.date);
+          if (date || response?.requestFailed) break;
+          console.warn(`[vision] Retrying invalid date prediction for photo ${photo.id} (${attempt}/2)`);
+        }
+        if (!date) {
+          console.warn(
+            `[vision] No valid date prediction for photo ${photo.id} within ${earliestDate}..${latestDate}`,
+          );
+          return null;
+        }
+        if ((this._dateRevisions.get(photo.id) || 0) !== revision) return null;
         if (date < earliestDate) date = earliestDate;
         if (date > latestDate) date = latestDate;
         const entry = { date, earliestDate, latestDate, timestamp: Date.now() };
         this.datePredictions.set(photo.id, entry);
         return entry;
       } finally {
-        this._datePredictionAttempted.add(photo.id);
+        if ((this._dateRevisions.get(photo.id) || 0) === revision) {
+          this._datePredictionAttempted.add(photo.id);
+        }
         release();
       }
     })().finally(() => {
       if (this._inflightDates.get(inflightKey) === promise) this._inflightDates.delete(inflightKey);
     });
     this._inflightDates.set(inflightKey, promise);
-    try { return await promise; } catch { return null; }
+    try {
+      return await promise;
+    } catch (error) {
+      console.warn(`[vision] Date prediction failed for photo ${photo.id}:`, error?.message ?? error);
+      return null;
+    }
   }
 
   async prefetchLocation(photoId, photo) {

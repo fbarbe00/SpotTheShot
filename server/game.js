@@ -432,11 +432,24 @@ export class GameManager extends AIPipeline {
     if (!normalized) throw new Error('Use a valid date in YYYY-MM-DD format');
     if (normalized > todayUtcDate()) throw new Error('Photo date cannot be in the future');
     photo.captureDate = normalized;
-    this._invalidateVisionCommentary(photoId);
-    if (lobby.settings.visionCommentary) {
+    this._invalidateModeDependentCaches(photo);
+    for (const candidate of lobby.photos) {
+      this._invalidateDatePrediction(candidate.id);
+      if (candidate.id !== photo.id) this._invalidateVisionCommentary(candidate.id);
+    }
+    if (lobby.settings.gameType === 'date'
+      && (lobby.settings.enableAIGuessing || lobby.settings.visionCommentary)) {
       this._markAINotReady(lobbyId);
-      this.prefetchVisionCommentary(photo.id, photo, lobbyId)
-        .catch(err => handleError(err, 'AI photo-date commentary refresh'));
+      for (const candidate of lobby.photos) {
+        const prefetch = lobby.settings.visionCommentary
+          ? this.prefetchVisionCommentary(candidate.id, candidate, lobbyId)
+          : this.prefetchAIPrediction(candidate.id, candidate, lobbyId);
+        prefetch.catch(err => handleError(err, 'AI photo-date prediction refresh'));
+      }
+    }
+    if (lobby.settings.autoNameImages) {
+      this.prefetchAutoNaming(photo.id, photo, lobbyId)
+        .catch(err => handleError(err, 'AI photo-date title refresh'));
     }
     this.broadcastLobby(lobbyId);
     return normalized;

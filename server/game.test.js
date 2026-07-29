@@ -378,8 +378,17 @@ test('date and mode edits invalidate AI output generated for stale settings', as
   assert.equal(photo.hint, '');
 
   gm.visionCommentaries.set(photo.id, { commentary: 'Old date joke', timestamp: Date.now() });
+  gm.datePredictions.set(photo.id, {
+    date: '1999-01-01',
+    earliestDate: '1990-01-01',
+    latestDate: '2010-01-01',
+    timestamp: Date.now(),
+  });
+  gm._datePredictionAttempted.add(photo.id);
   gm.updatePhotoDate(created.lobby.id, created.playerId, photo.id, '2001-02-03');
   assert.equal(gm.visionCommentaries.has(photo.id), false);
+  assert.equal(gm.datePredictions.has(photo.id), false);
+  assert.equal(gm._datePredictionAttempted.has(photo.id), false);
 });
 
 test('DateTheShot photo prefetch never invokes GeoCLIP location work', async () => {

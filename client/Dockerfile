@@ -26,7 +26,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Health check - keeps container monitoring working
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://localhost/index.html || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1/index.html || exit 1
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

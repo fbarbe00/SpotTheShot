@@ -73,10 +73,10 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
   const currentGameType = useRef(lobby.settings.gameType)
   currentGameType.current = lobby.settings.gameType
 
-  // Mobile photo-library pickers can return a privacy-sanitized copy. Default
-  // to the file browser on mobile, while keeping the quicker picker optional.
   const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-  const [useFileBrowser, setUseFileBrowser] = useState(isMobileDevice)
+  const [useFileBrowser, setUseFileBrowser] = useState(
+    isMobileDevice && lobby.settings.gameType === 'spot',
+  )
 
   useEffect(() => {
     getHistory().then(entries => {
@@ -104,7 +104,8 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
 
   useEffect(() => {
     setEditingPhotoId(null)
-  }, [lobby.settings.gameType])
+    setUseFileBrowser(isMobileDevice && lobby.settings.gameType === 'spot')
+  }, [lobby.settings.gameType, isMobileDevice])
 
   useEffect(() => {
     if (lobby.settings.gameType === 'date') {

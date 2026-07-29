@@ -5,6 +5,7 @@ import {
   buildDateGuessPrompt,
   buildTitleHintPrompt,
   buildUploaderCommentaryPrompt,
+  normalizeVisionDateOutput,
 } from './visionClient.js';
 
 test('date guess prompt is light, structured, and bounded by the uploaded-photo range', () => {
@@ -14,6 +15,12 @@ test('date guess prompt is light, structured, and bounded by the uploaded-photo 
   assert.match(prompt, /1972-04-03/);
   assert.match(prompt, /2026-07-29/);
   assert.match(prompt, /inclusive/);
+});
+
+test('vision date output accepts a full date or defaults a year-month to its first day', () => {
+  assert.equal(normalizeVisionDateOutput('2023-05-17'), '2023-05-17');
+  assert.equal(normalizeVisionDateOutput(' 2023-05 '), '2023-05-01');
+  assert.equal(normalizeVisionDateOutput('2023'), '');
 });
 
 test('date commentary prompt compares the AI guess with the real date', () => {

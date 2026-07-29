@@ -20,7 +20,12 @@ const TITLE_HINT_SCHEMA = {
 
 const DATE_SCHEMA = {
   type: 'object',
-  properties: { date: { type: 'string' } },
+  properties: {
+    date: {
+      type: 'string',
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$',
+    },
+  },
   required: ['date'],
   additionalProperties: false,
 };
@@ -173,6 +178,14 @@ export function buildDateGuessPrompt(
   latestDate = new Date().toISOString().slice(0, 10),
 ) {
   return `Estimate when this photo was taken from visible clues. Return only JSON in the form {"date":"YYYY-MM-DD"}. Choose the most plausible day when the exact day is uncertain. The date must be between ${earliestDate} and ${latestDate}, inclusive.`;
+}
+
+export function normalizeVisionDateOutput(value) {
+  if (typeof value !== 'string') return '';
+  const date = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  if (/^\d{4}-\d{2}$/.test(date)) return `${date}-01`;
+  return '';
 }
 
 export function buildTitleHintPrompt(language, region, country, gameType = 'spot', captureDate = null) {
@@ -467,23 +480,32 @@ export async function queryVisionModelForDate(
     const prompt = buildDateGuessPrompt(earliestDate, latestDate);
     const startTime = Date.now();
     const response = await callVisionAPI(
-      imageB64, prompt, 24, 0.2, timeoutMs,
+      imageB64, prompt, 32, 0.2, timeoutMs,
       { type: 'json_object', schema: DATE_SCHEMA },
     );
     if (!response.ok) {
-      console.warn('[vision] Date query failed:', response.status);
-      return { date: '', processingTimeMs: 0 };
+      console.warn(`[vision] Date query failed: ${response.status} - ${await response.text()}`);
+      return { date: '', processingTimeMs: 0, requestFailed: true };
     }
     const result = await response.json();
     const raw = result?.choices?.[0]?.message?.content || '';
+    console.log('[vision] date raw:', raw);
     let date = '';
-    try { date = JSON.parse(raw).date || ''; } catch {
-      date = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+    try {
+      date = normalizeVisionDateOutput(JSON.parse(raw).date);
+    } catch {
+      date = normalizeVisionDateOutput(raw.match(/\d{4}-\d{2}(?:-\d{2})?/)?.[0]);
     }
-    return { date, processingTimeMs: Date.now() - startTime };
+    if (!date) {
+      console.warn(
+        `[vision] Date query returned an invalid value (finish_reason=${result?.choices?.[0]?.finish_reason ?? 'unknown'}):`,
+        JSON.stringify(raw),
+      );
+    }
+    return { date, processingTimeMs: Date.now() - startTime, requestFailed: false };
   } catch (error) {
     handleVisionError(error, 'Date query');
-    return { date: '', processingTimeMs: 0 };
+    return { date: '', processingTimeMs: 0, requestFailed: true };
   }
 }
 

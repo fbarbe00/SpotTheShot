@@ -107,15 +107,17 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setGameType('spot')}
-                className={`p-3 rounded-lg border-2 transition-all ${gameType === 'spot' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
+                className={`min-w-0 overflow-hidden p-2 md:p-3 rounded-lg border-2 transition-all ${gameType === 'spot' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
               >
                 <MapPin size={20} className="mx-auto mb-1" />
-                <div className="text-sm font-bold">SpotTheShot</div>
+                <div className="text-[11px] font-bold leading-tight tracking-tight">
+                  SpotThe<wbr />Shot
+                </div>
                 <div className="text-xs text-text-darker">{t('settings.spotTypeDesc')}</div>
               </button>
               <button
                 onClick={() => setGameType('uploader')}
-                className={`relative p-3 rounded-lg border-2 transition-all ${gameType === 'uploader' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
+                className={`relative min-w-0 overflow-hidden p-2 md:p-3 rounded-lg border-2 transition-all ${gameType === 'uploader' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
               >
                 {isUploaderModeNew() && (
                   <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-black">
@@ -130,7 +132,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
               </button>
               <button
                 onClick={() => setGameType('date')}
-                className={`relative p-3 rounded-lg border-2 transition-all ${gameType === 'date' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
+                className={`relative min-w-0 overflow-hidden p-2 md:p-3 rounded-lg border-2 transition-all ${gameType === 'date' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
               >
                 {isDateModeNew() && (
                   <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-black">
@@ -138,7 +140,9 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
                   </span>
                 )}
                 <CalendarDays size={20} className="mx-auto mb-1" />
-                <div className="text-sm font-bold">DateTheShot</div>
+                <div className="text-[11px] font-bold leading-tight tracking-tight">
+                  DateThe<wbr />Shot
+                </div>
                 <div className="text-xs text-text-darker">{t('settings.dateTypeDesc')}</div>
               </button>
             </div>

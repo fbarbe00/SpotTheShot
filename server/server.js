@@ -352,7 +352,7 @@ app.get('/api/server-status', (req, res) => {
         [...gm.lobbies.values()].flatMap(l => (l.photos ?? []).map(p => path.basename(p.url)).filter(Boolean))
       );
       let totalSizeBytes = 0, orphanedCount = 0;
-      const files = fs.readdirSync(uploadsPath);
+      const files = fs.readdirSync(uploadsPath).filter(file => !file.startsWith('.'));
 
       for (const file of files) {
         try {
@@ -644,12 +644,12 @@ io.on('connection', (socket) => {
     'join_lobby', 'leave_lobby', 'kick_player', 'update_settings',
     'add_ai_player', 'remove_ai_player', 'get_ai_processing_status', 'set_team',
     'delete_photo', 'update_icon', 'update_photo_location', 'update_photo_details',
-    'set_ready', 'start_game', 'request_lobby_sync', 'submit_guess',
+    'update_photo_date', 'set_ready', 'start_game', 'request_lobby_sync', 'submit_guess',
     'restart_game', 'next_round', 'reset_lobby',
   ]);
   const acknowledgementEvents = new Set([
     'leave_lobby', 'update_settings', 'get_ai_processing_status',
-    'update_photo_details', 'request_lobby_sync', 'submit_guess',
+    'update_photo_details', 'update_photo_date', 'request_lobby_sync', 'submit_guess',
     'next_round', 'reset_lobby',
   ]);
   socket.use((packet, next) => {

@@ -187,7 +187,7 @@ the player can immediately join again as a new participant.
 
 - Photo dates are read from EXIF metadata when available and can be edited by the uploader in the lobby.
 - PNG `Creation Time` metadata and dates embedded in common screenshot filenames are also detected. If no usable date is found, a required date-entry dialog opens after upload.
-- Date and GPS metadata are extracted from the original file before the browser resizes it. On mobile, the metadata-preserving file browser is the default; the optional quick photo-library picker may provide a privacy-sanitized copy without EXIF data, in which case the lobby asks for the missing date or location.
+- Date and GPS metadata are extracted from the selected file before the browser resizes it. On mobile, DateTheShot defaults to the quick photo-library picker, while SpotTheShot defaults to the file browser. Picker behavior varies by mobile OS; if the browser supplies a privacy-sanitized copy without EXIF data, the lobby asks for the missing date or location.
 - Every photo needs a valid date before a DateTheShot game can start.
 - Dates after the server's current day are rejected on upload, edit, and guess submission.
 - At game start, the server derives the timeline from the photo collection: a random 1–20 years before the oldest photo and 1–20 years after the newest, capped at today. Month/year landmarks and precise date controls make long ranges usable.

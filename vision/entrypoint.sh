@@ -65,7 +65,8 @@ MMPROJ_FILE=${MMPROJ_FILE:-$MODELS_DIR/$MMPROJ_REL}
 
 exec /app/llama-server \
   --model "$MODEL_FILE" --mmproj "$MMPROJ_FILE" \
-  --host 0.0.0.0 --port 8001 --jinja -fa on \
+  --host 0.0.0.0 --port 8001 --jinja -fa on --no-ui \
+  --cors-origins localhost --no-cors-credentials \
   --ctx-size "$CTX_SIZE" -b 256 -ub 256 \
   -t "$THREADS" -tb "$THREADS_BATCH" \
   --temp 0.15 --top-p 0.9 --n-predict 100 --presence-penalty 0.1 \
