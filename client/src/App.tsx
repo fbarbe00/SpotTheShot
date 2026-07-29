@@ -14,6 +14,7 @@ import { useEffect, useState, useRef } from 'react'
 import { socket, api, clearPlayerSessionToken, connectSocket, getClientSessionId, getPlayerSessionToken, getStoredToken, setPlayerSessionToken } from './lib/socket'
 import type { Lobby, Player } from './lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
+import { X } from 'lucide-react'
 import { useGameState } from './lib/useGameState'
 import { useAchievements } from './lib/useAchievements'
 import { logger } from './lib/logger'
@@ -720,6 +721,10 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
     setShowVersionLog(true)
     setHasUnseenVersionLog(false)
   }
+  const closeVersionLog = () => {
+    setShowVersionLog(false)
+    setHasUnseenVersionLog(false)
+  }
 
   return (
     <Layout
@@ -778,45 +783,69 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
+            onClick={closeVersionLog}
           >
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             transition={{ duration: 0.2 }}
-            className="w-full max-w-xl rounded-2xl border border-primary/20 bg-surface p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="version-log-title"
+            onClick={event => event.stopPropagation()}
+            className="flex h-[100svh] max-h-[100svh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border border-primary/20 bg-surface shadow-2xl sm:h-auto sm:max-h-[85vh] sm:rounded-2xl"
           >
-            <h2 className="text-2xl font-bold text-primary mb-2">What&apos;s New</h2>
-            <p className="text-sm text-text-darker mb-6">
-              Version <span className="font-mono font-semibold text-text">{APP_VERSION}</span>
-            </p>
-
-            <div className="space-y-5">
-              {versionNotes.map(entry => (
-                <div key={entry.version} className="rounded-xl border border-primary/10 bg-white/5 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-bold text-primary">{entry.version}</span>
-                    <span className="text-xs text-text-darker">{entry.date}</span>
-                  </div>
-                  <ul className="space-y-2 text-sm text-text-darker">
-                    {entry.notes.map(note => (
-                      <li key={note}>• {note}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-primary/15 p-4 sm:px-6 sm:py-5">
+              <div className="min-w-0">
+                <h2 id="version-log-title" className="text-xl font-bold text-primary sm:text-2xl">
+                  {t('lobby.whatsNew')}
+                </h2>
+                <p className="mt-1 text-sm text-text-darker">
+                  Version <span className="font-mono font-semibold text-text">{APP_VERSION}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeVersionLog}
+                aria-label={t('ui.closeModal')}
+                className="-mr-1 shrink-0 rounded-lg p-2 text-text-darker transition-colors hover:bg-white/10 hover:text-primary"
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            <button
-              onClick={() => {
-                setShowVersionLog(false)
-                setHasUnseenVersionLog(false)
-              }}
-              className="mt-6 w-full rounded-lg bg-primary py-2.5 text-black font-bold hover:bg-primary-dark transition-colors"
-            >
-              Continue
-            </button>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6">
+              <div className="space-y-3 sm:space-y-5">
+                {versionNotes.map(entry => (
+                  <div key={entry.version} className="rounded-xl border border-primary/10 bg-white/5 p-3 sm:p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-bold text-primary">{entry.version}</span>
+                      <span className="text-xs text-text-darker">{entry.date}</span>
+                    </div>
+                    <ul className="space-y-2 text-sm leading-relaxed text-text-darker">
+                      {entry.notes.map(note => (
+                        <li key={note} className="flex items-start gap-2">
+                          <span aria-hidden="true" className="shrink-0 text-primary">•</span>
+                          <span className="min-w-0 break-words">{note}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="shrink-0 border-t border-primary/15 bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
+              <button
+                type="button"
+                onClick={closeVersionLog}
+                className="w-full rounded-lg bg-primary py-2.5 font-bold text-black transition-colors hover:bg-primary-dark"
+              >
+                {t('ui.closeModal')}
+              </button>
+            </div>
           </motion.div>
           </motion.div>
         )}

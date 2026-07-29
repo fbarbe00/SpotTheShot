@@ -353,43 +353,140 @@ function FitBoundsComponent({ points }: { points: [number, number][] }) {
 }
 
 const DAY_MS = 86_400_000;
-const dayNumber = (date: string) => Date.parse(`${date}T12:00:00Z`) / DAY_MS;
+const dayNumber = (date: string) => {
+  const timestamp = Date.parse(`${date}T12:00:00Z`);
+  return Number.isFinite(timestamp) ? timestamp / DAY_MS : null;
+};
+
+type DateTimelineMarker = {
+  key: string;
+  date: string;
+  position: number;
+  kind: 'photo' | 'guess';
+  round: number;
+  nickname?: string;
+  icon?: string;
+  color?: string;
+  row: number;
+};
 
 function EndScreenDateTimeline({ gameResults }: { gameResults: RoundResults[] }) {
-  const values = gameResults.flatMap(round => [
-    round.photo.captureDate,
-    ...round.results.map(result => result.guessedDate),
-  ]).filter((value): value is string => !!value);
-  if (!values.length) return null;
-  const days = values.map(dayNumber);
+  const datedRounds = gameResults.map((round, roundIndex) => ({
+    round,
+    roundNumber: roundIndex + 1,
+    actualDay: round.photo.captureDate ? dayNumber(round.photo.captureDate) : null,
+  }));
+  const datedGuesses = datedRounds.flatMap(({ round, roundNumber }) =>
+    round.results.flatMap(result => {
+      const date = result.guessedDate;
+      const day = date ? dayNumber(date) : null;
+      return date && day !== null ? [{ result, date, day, roundNumber }] : [];
+    }),
+  );
+  const actualDates = datedRounds.flatMap(({ round, roundNumber, actualDay }) =>
+    round.photo.captureDate && actualDay !== null
+      ? [{ date: round.photo.captureDate, day: actualDay, roundNumber, photoId: round.photo.id }]
+      : [],
+  );
+  const days = [...actualDates.map(item => item.day), ...datedGuesses.map(item => item.day)];
+  if (!days.length) return null;
   const low = Math.min(...days);
   const high = Math.max(...days);
   const padding = Math.max(30, Math.ceil(Math.max(1, high - low) * 0.08));
   const start = low - padding;
   const end = high + padding;
-  const position = (date?: string) => date ? ((dayNumber(date) - start) / Math.max(1, end - start)) * 100 : 0;
+  const position = (day: number) => ((day - start) / Math.max(1, end - start)) * 100;
   const label = (day: number) => new Date(day * DAY_MS).toISOString().slice(0, 10);
+  const unplacedMarkers: Omit<DateTimelineMarker, 'row'>[] = [
+    ...actualDates.map(item => ({
+      key: `photo-${item.photoId}-${item.roundNumber}`,
+      date: item.date,
+      position: position(item.day),
+      kind: 'photo' as const,
+      round: item.roundNumber,
+    })),
+    ...datedGuesses.map(({ result, date, day, roundNumber }) => ({
+      key: `guess-${roundNumber}-${result.playerId}`,
+      date,
+      position: position(day),
+      kind: 'guess' as const,
+      round: roundNumber,
+      nickname: result.nickname,
+      icon: result.icon,
+      color: result.color,
+    })),
+  ].sort((a, b) => a.position - b.position);
+
+  // Put close markers on separate rows so guesses remain tappable and readable on phones.
+  const rowEnds: number[] = [];
+  const markers: DateTimelineMarker[] = unplacedMarkers.map(marker => {
+    let row = rowEnds.findIndex(lastPosition => marker.position - lastPosition >= 7);
+    if (row === -1) row = rowEnds.length;
+    rowEnds[row] = marker.position;
+    return { ...marker, row };
+  });
+  const ticks = Array.from({ length: 5 }, (_, index) => {
+    const day = start + ((end - start) * index) / 4;
+    return { day, position: index * 25 };
+  });
+  const plotHeight = 84 + Math.max(0, rowEnds.length - 1) * 34;
 
   return (
-    <div className="rounded-xl border border-primary/20 bg-surface/60 p-4 text-left">
-      <div className="mb-3 flex justify-between text-xs font-bold text-text-darker"><span>{label(start)}</span><span>{label(end)}</span></div>
-      <div className="space-y-5">
-        {gameResults.map((round, index) => (
-          <div key={`${round.photo.id}-${round.roundIndex}`}>
-            <div className="mb-1 text-xs font-bold text-primary">{`#${index + 1} · ${round.photo.captureDate}`}</div>
-            <div className="relative h-10">
-              <div className="absolute left-0 right-0 top-4 h-1 rounded bg-gradient-to-r from-amber-900 via-violet-700 to-primary" />
-              <span className="absolute top-1 -translate-x-1/2 text-white" style={{ left: `${position(round.photo.captureDate)}%` }}>◆</span>
-              {round.results.map(result => (
-                <span key={result.playerId} title={`${result.nickname}: ${result.guessedDate}`}
-                  className="absolute top-2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 bg-surface text-sm"
-                  style={{ left: `${position(result.guessedDate)}%`, borderColor: result.color || '#a78bfa' }}>
-                  {result.icon || '👤'}
-                </span>
-              ))}
-            </div>
+    <div className="rounded-xl border border-primary/20 bg-surface/60 p-3 text-left sm:p-4">
+      <div className="mb-3 flex flex-wrap gap-2 text-[11px] text-text-darker">
+        {actualDates.map(item => (
+          <span key={`${item.photoId}-${item.roundNumber}`} className="rounded-full border border-white/10 bg-white/5 px-2 py-1">
+            <span className="text-white">◆</span> #{item.roundNumber} · {item.date}
+          </span>
+        ))}
+      </div>
+      <div className="relative" style={{ height: `${plotHeight}px` }}>
+        {ticks.map(({ day, position: tickPosition }, index) => (
+          <div
+            key={day}
+            className={`absolute bottom-0 top-7 -translate-x-1/2 border-l border-white/10 ${
+              index > 0 && index < 4 ? 'hidden sm:block' : ''
+            }`}
+            style={{ left: `${tickPosition}%` }}
+          >
+            <span className={`absolute -top-7 whitespace-nowrap text-[10px] font-bold text-text-darker ${
+              index === 0 ? 'left-0' : index === 4 ? 'right-0' : '-translate-x-1/2'
+            }`}>
+              {label(day)}
+            </span>
           </div>
         ))}
+        <div className="absolute left-0 right-0 top-8 h-1 rounded bg-gradient-to-r from-amber-900 via-violet-700 to-primary" />
+        {markers.map(marker => {
+          const markerLabel = marker.kind === 'photo'
+            ? `#${marker.round}: ${marker.date}`
+            : `#${marker.round} · ${marker.nickname}: ${marker.date}`;
+          return marker.kind === 'photo' ? (
+            <span
+              key={marker.key}
+              title={markerLabel}
+              aria-label={markerLabel}
+              className="absolute flex h-7 w-7 -translate-x-1/2 items-center justify-center text-lg text-white"
+              style={{ left: `${marker.position}%`, top: `${48 + marker.row * 34}px` }}
+            >
+              ◆
+            </span>
+          ) : (
+            <span
+              key={marker.key}
+              title={markerLabel}
+              aria-label={markerLabel}
+              className="absolute flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 bg-surface text-sm shadow"
+              style={{
+                left: `${marker.position}%`,
+                top: `${48 + marker.row * 34}px`,
+                borderColor: marker.color || '#a78bfa',
+              }}
+            >
+              {marker.icon || '👤'}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -415,17 +512,41 @@ function EndScreenUploaderStats({ gameResults, players }: { gameResults: RoundRe
     .sort((a, b) => b.totalVotes - a.totalVotes);
   const { t } = useI18n();
   return (
-    <div className="overflow-x-auto rounded-xl border border-primary/20 bg-surface/60">
-      <div className="grid min-w-[620px] grid-cols-[1fr_repeat(4,minmax(58px,auto))] gap-2 border-b border-primary/20 p-3 text-[10px] font-black uppercase text-text-darker">
-        <span>{t('game.uploader.player')}</span><span>{t('game.uploader.votes')}</span><span>{t('game.uploader.correctVotes')}</span><span>{t('game.uploader.wrongVotes')}</span><span>{t('game.uploader.correctGuesses')}</span>
+    <>
+      <div className="space-y-2 sm:hidden">
+        {stats.map(({ player, totalVotes, correctVotes, incorrectVotes, correctGuesses }) => (
+          <div key={player.id} className="rounded-xl border border-primary/20 bg-surface/60 p-3">
+            <div className="mb-3 min-w-0 truncate font-bold">{player.icon} {player.nickname}</div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                [t('game.uploader.votes'), totalVotes, 'text-text'],
+                [t('game.uploader.correctVotes'), correctVotes, 'text-emerald-400'],
+                [t('game.uploader.wrongVotes'), incorrectVotes, 'text-rose-400'],
+                [t('game.uploader.correctGuesses'), correctGuesses, 'text-primary'],
+              ].map(([statLabel, value, color]) => (
+                <div key={String(statLabel)} className="min-w-0 rounded-lg bg-white/5 p-2">
+                  <div className="break-words text-[10px] font-black uppercase leading-tight text-text-darker">
+                    {statLabel}
+                  </div>
+                  <div className={`mt-1 text-lg font-black ${color}`}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
-      {stats.map(({ player, totalVotes, correctVotes, incorrectVotes, correctGuesses }) => (
-        <div key={player.id} className="grid min-w-[620px] grid-cols-[1fr_repeat(4,minmax(58px,auto))] gap-2 border-b border-white/5 p-3 text-sm last:border-0">
-          <span className="min-w-0 truncate font-bold">{player.icon} {player.nickname}</span>
-          <span>{totalVotes}</span><span className="text-emerald-400">{correctVotes}</span><span className="text-rose-400">{incorrectVotes}</span><span className="text-primary">{correctGuesses}</span>
+      <div className="hidden overflow-hidden rounded-xl border border-primary/20 bg-surface/60 sm:block">
+        <div className="grid grid-cols-[minmax(140px,1fr)_repeat(4,minmax(72px,auto))] gap-2 border-b border-primary/20 p-3 text-[10px] font-black uppercase text-text-darker">
+          <span>{t('game.uploader.player')}</span><span>{t('game.uploader.votes')}</span><span>{t('game.uploader.correctVotes')}</span><span>{t('game.uploader.wrongVotes')}</span><span>{t('game.uploader.correctGuesses')}</span>
         </div>
-      ))}
-    </div>
+        {stats.map(({ player, totalVotes, correctVotes, incorrectVotes, correctGuesses }) => (
+          <div key={player.id} className="grid grid-cols-[minmax(140px,1fr)_repeat(4,minmax(72px,auto))] gap-2 border-b border-white/5 p-3 text-sm last:border-0">
+            <span className="min-w-0 truncate font-bold">{player.icon} {player.nickname}</span>
+            <span>{totalVotes}</span><span className="text-emerald-400">{correctVotes}</span><span className="text-rose-400">{incorrectVotes}</span><span className="text-primary">{correctGuesses}</span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
