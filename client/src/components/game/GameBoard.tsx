@@ -324,12 +324,13 @@ export function GameBoard({
       >
         <img
           src={buildPhotoUrl(photo.url, lobby.id, playerId)}
-          className="absolute inset-0 w-full h-full object-contain select-none"
+          className="game-photo absolute inset-0 w-full h-full object-contain select-none"
           style={{
             transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale})`,
             transformOrigin: 'center center',
           }}
           draggable={false}
+          onContextMenu={(event) => event.preventDefault()}
           alt={t('ui.guessLocation')}
           onError={() => logger.error('GameBoard failed to load photo', photo.url)}
         />

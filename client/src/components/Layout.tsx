@@ -20,7 +20,7 @@ export default function Layout({
   const { t } = useI18n();
 
   return (
-    <div className="min-h-[100svh] w-full bg-background flex items-center justify-center p-1.5 sm:p-2">
+    <div className="min-h-[100svh] w-full bg-background flex items-start md:items-center justify-center p-1.5 sm:p-2 pt-2 md:pt-2">
       <ConnectionStatus />
       <div className="w-full max-w-6xl relative">
         <div className="pointer-events-none absolute -top-12 -left-10 h-28 w-28 rounded-full bg-primary/20 blur-3xl" />

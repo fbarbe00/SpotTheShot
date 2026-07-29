@@ -35,13 +35,13 @@ export class AIPipeline {
     this.geoQueue = [];
     // Reduce concurrency for CPU-based AI processing (GeoCLIP runs on CPU)
     // Can be overridden via GEO_CONCURRENCY env var
-    this.geoConcurrency = parseInt(process.env.GEO_CONCURRENCY || '2', 10);
+    this.geoConcurrency = Math.max(1, Math.min(8, parseInt(process.env.GEO_CONCURRENCY || '2', 10) || 2));
 
     this.visionActive = 0;
     this.visionQueue = [];
     // Vision model runs sequentially to avoid memory issues on CPU
     // Can be overridden via VISION_CONCURRENCY env var
-    this.visionConcurrency = parseInt(process.env.VISION_CONCURRENCY || '1', 10);
+    this.visionConcurrency = Math.max(1, Math.min(4, parseInt(process.env.VISION_CONCURRENCY || '1', 10) || 1));
   }
 
   /* ─── Concurrency semaphore ─── */

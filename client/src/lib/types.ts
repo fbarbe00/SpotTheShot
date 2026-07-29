@@ -179,4 +179,5 @@ export interface Lobby {
   roundHistory?: RoundResults[];
   currentGuesses?: Record<string, { lat: number; lon: number; timeTakenMs: number }> | null;
   roundDurationMs?: number;
+  aiTipIndex?: number | null;
 }

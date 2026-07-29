@@ -4,7 +4,11 @@ Create a lobby, invite your friends, everyone uploads a handful of photos, and y
 
 Optionally drop in an **on-device "AI" player** that guesses for itself and auto-names everyone's photos with one-line commentary. The AI runs entirely on your machine, no API keys, no external services.
 
-**Privacy by design.** Your photos don't leave your server. Photos live on disk only for the duration of the round they're being played in, and are deleted as soon as the round ends.
+**Privacy by design.** Your photos don't leave your server. Server copies live on
+disk only for the active game and are deleted when it finishes. For convenient
+re-use, each player's browser may retain up to four recent unpinned photos plus
+photos they explicitly pin; that local history can be deleted in the photo picker
+or by clearing site data.
 
 **Built for modest hardware.** Both AI services are CPU-only and target ~4 GB of RAM at idle.
 

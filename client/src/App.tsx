@@ -11,7 +11,7 @@ import { AchievementNotification } from './components/AchievementNotification'
 import { useToast } from './lib/toast'
 import { ToastProvider, ToastContainer } from './lib/toast.tsx'
 import { useEffect, useState, useRef } from 'react'
-import { socket, api, clearPlayerSessionToken, getClientSessionId, getPlayerSessionToken, getStoredToken, setPlayerSessionToken } from './lib/socket'
+import { socket, api, clearPlayerSessionToken, connectSocket, getClientSessionId, getPlayerSessionToken, getStoredToken, setPlayerSessionToken } from './lib/socket'
 import type { Lobby, Player } from './lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameState } from './lib/useGameState'
@@ -110,7 +110,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
     if (l.state === 'in_round' && l.currentRoundPhoto) {
       // Client uses user-facing duration (what player sees in settings)
       // Server internally adds +1s buffer, but client doesn't know about it
-      const durationMs = (l.settings?.roundDurationSec || 45) * 1000
+      const durationMs = (l.settings?.roundDurationSec ?? 30) * 1000
       const nextRoundInfo = {
         roundIndex: l.roundIndex,
         totalRounds: l.totalRounds,
@@ -320,36 +320,6 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     // Handle lobby updates - sync client phase with server state
-    socket.on('connect', () => {
-      try {
-        const savedLobbyId = window.localStorage.getItem('geo-snap-lobbyId')
-        const savedPlayerId = window.localStorage.getItem('geo-snap-playerId')
-        const savedJoinLobbyId = window.localStorage.getItem('geo-snap-joinLobbyId')
-        const clientSessionId = getClientSessionId()
-        
-        // Try full session reconnection first
-        if (savedLobbyId && savedPlayerId) {
-          socket.emit('join_lobby', {
-            lobbyId: savedLobbyId,
-            playerId: savedPlayerId,
-            sessionToken: getPlayerSessionToken(),
-            nickname: nickname || 'Player',
-            clientSessionId,
-          })
-        }
-        // Fallback: try to reconnect using just joinLobbyId if we have one
-        else if (savedJoinLobbyId && !lobbyRef.current) {
-          socket.emit('join_lobby', {
-            lobbyId: savedJoinLobbyId,
-            nickname: nickname || 'Player',
-            clientSessionId,
-          })
-        }
-      } catch {
-        // no-op
-      }
-    })
-
     socket.on('lobby_update', (l: Lobby) => {
       logger.debug('lobby_update received', {
         state: l.state,
@@ -555,6 +525,8 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       saveGameState('end', photoRef.current, roundInfoRef.current, 0, resultsRef.current)
     })
 
+    connectSocket()
+
     return () => {
       clearInterval(timerInterval)
       socket.off('lobby_update')
@@ -568,6 +540,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
       socket.off('timer')
       socket.off('round_results')
       socket.off('game_finished')
+      socket.disconnect()
     }
   }, [])
   /* eslint-enable react-hooks/exhaustive-deps */

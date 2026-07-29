@@ -106,7 +106,9 @@ export class GameManager extends AIPipeline {
     const playerId = uuid();
     const sessionToken = uuid();
     const timerMode = settings?.timerMode || 'fixed';
-    const roundDurationSec = timerMode === 'progressive' ? 0 : (settings?.roundDurationSec ?? 45);
+    const roundDurationSec = timerMode === 'progressive'
+      ? 0
+      : (settings?.roundDurationSec ?? this.config.roundDurationSec ?? 30);
     const duelRaceTimeSec = settings?.duelRaceTimeSec ?? 15;
     const language = this._normalizeLanguage(settings?.language);
 
@@ -317,6 +319,7 @@ export class GameManager extends AIPipeline {
   joinLobby({ lobbyId, nickname, socketId, clientSessionId = null }) {
     const lobby = findLobbyById(this.lobbies, lobbyId);
     if (!lobby) throw new Error('Lobby not found');
+    if (lobby.state !== 'waiting') throw new Error('Game already started');
     const humanCount = [...lobby.players.values()].filter(p => !p.id.startsWith('ai-')).length;
     if (humanCount >= lobby.constraints.maxPlayersPerLobby) {
       throw new Error(`Lobby is full (max ${lobby.constraints.maxPlayersPerLobby} players)`);
@@ -343,6 +346,7 @@ export class GameManager extends AIPipeline {
   upsertPhoto(lobbyId, photo) {
     const lobby = this.lobbies.get(lobbyId);
     if (!lobby) throw new Error('Lobby not found');
+    if (lobby.state !== 'waiting') throw new Error('Photos are locked after the game starts');
 
     const playerPhotoCount = lobby.photos.filter(p => p.uploaderId === photo.uploaderId).length;
     if (playerPhotoCount >= lobby.settings.maxPhotosPerPlayer) {
@@ -373,6 +377,7 @@ export class GameManager extends AIPipeline {
   async deletePhoto(lobbyId, playerId, photoId) {
     const lobby = this.lobbies.get(lobbyId);
     if (!lobby) return;
+    if (lobby.state !== 'waiting') return;
     const idx = lobby.photos.findIndex(p => p.id === photoId);
     if (idx === -1) return;
     const photo = lobby.photos[idx];
@@ -394,6 +399,7 @@ export class GameManager extends AIPipeline {
     if (!lobby) throw new Error('Lobby not found');
     const p = lobby.players.get(playerId);
     if (!p) throw new Error('Player not found');
+    if (lobby.state !== 'waiting') throw new Error('Ready state is locked after the game starts');
     p.ready = ready;
     this.broadcastLobby(lobbyId);
   }
@@ -550,6 +556,7 @@ export class GameManager extends AIPipeline {
     }
     const photo = this.currentPhoto(lobby);
     if (!photo) return { accepted: false, error: 'Round photo not found' };
+    if (!lobby.players.has(playerId)) return { accepted: false, error: 'Player not found' };
     if (!isValidCoordinate(lat, lon)) return { accepted: false, error: 'Invalid guess location' };
 
     // Submission is idempotent: retries caused by a lost acknowledgement must
@@ -749,10 +756,17 @@ export class GameManager extends AIPipeline {
       })),
       photos: lobby.photos.map(({ id, url, uploaderId, lat, lon, title, hint, manualLocation, captureDate }) => {
         const showCoords = !hideAll && (viewerPlayerId === null || uploaderId === viewerPlayerId);
-        const serialized = { id, url, uploaderId,
+        const isOwnPhoto = viewerPlayerId === null || uploaderId === viewerPlayerId;
+        // Before play, other members only need counts/uploader ownership. Do
+        // not send the original URL: a CSS blur can always be removed locally.
+        const showPhotoDetails = lobby.state !== 'waiting' || isOwnPhoto;
+        const serialized = { id, url: showPhotoDetails ? url : '', uploaderId,
           lat: showCoords ? lat : null,
           lon: showCoords ? lon : null,
-          title, hint, manualLocation, captureDate };
+          title: showPhotoDetails ? title : undefined,
+          hint: showPhotoDetails ? hint : undefined,
+          manualLocation: showPhotoDetails ? manualLocation : undefined,
+          captureDate: showPhotoDetails ? captureDate : undefined };
         const prediction = this.predictions.get(id);
         if (!hideAll && uploaderId === viewerPlayerId && prediction) {
           serialized.predictionLat = prediction.lat;
@@ -859,7 +873,13 @@ export class GameManager extends AIPipeline {
       if (leaderboard.length > 0) {
         const topScore = leaderboard[0].score;
         for (const entry of leaderboard) {
-          if (entry.score === topScore) {
+          if (entry.score !== topScore) continue;
+          if (lobby.settings.gameMode === 'teams') {
+            for (const member of entry.players ?? []) {
+              const player = lobby.players.get(member.id);
+              if (player) player.wins = (player.wins || 0) + 1;
+            }
+          } else {
             const player = lobby.players.get(entry.id);
             if (player) player.wins = (player.wins || 0) + 1;
           }
@@ -954,6 +974,16 @@ export class GameManager extends AIPipeline {
     this.broadcastLobby(lobbyId);
   }
 
+  async deleteLobby(lobbyId) {
+    const lobby = this.lobbies.get(lobbyId);
+    if (!lobby) return;
+    clearTimeout(lobby.timers.roundEnd);
+    clearTimeout(lobby.timers.resultsEnd);
+    clearInterval(lobby.timers.ticker);
+    await this._cleanupPhotos(lobby);
+    this.lobbies.delete(lobbyId);
+  }
+
   schedulePendingJoinExpiry(lobbyId, playerId, timeoutMs = 2 * 60 * 1000) {
     const lobby = this.lobbies.get(lobbyId);
     const player = lobby?.players.get(playerId);
@@ -963,7 +993,16 @@ export class GameManager extends AIPipeline {
       const activeLobby = this.lobbies.get(lobbyId);
       const activePlayer = activeLobby?.players.get(playerId);
       if (activeLobby && activePlayer && activePlayer.socketId === null) {
-        this.leaveLobby(lobbyId, playerId).catch(() => { });
+        this.leaveLobby(lobbyId, playerId)
+          .then(async () => {
+            const remainingLobby = this.lobbies.get(lobbyId);
+            const hasHumanPlayers = remainingLobby
+              && [...remainingLobby.players.values()].some(p => !p.isAI && !String(p.id).startsWith('ai-'));
+            if (remainingLobby?.state === 'waiting' && !hasHumanPlayers) {
+              await this.deleteLobby(lobbyId);
+            }
+          })
+          .catch(() => { });
       }
     }, timeoutMs);
   }

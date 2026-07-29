@@ -69,7 +69,9 @@ export default function Game(props: GameProps) {
     const photo = roundResults.photo;
     const isOwnPhoto = photo.uploaderId === props.playerId;
 
-    const sortedResults = [...roundResults.results].sort((a, b) => a.distanceKm - b.distanceKm);
+    // Round wins follow awarded points (including uploader penalties), matching
+    // the server leaderboard rather than merely choosing the nearest pin.
+    const sortedResults = [...roundResults.results].sort((a, b) => b.points - a.points);
     const winner = sortedResults[0];
     const runnerUp = sortedResults[1];
     const didWinRound = winner?.playerId === props.playerId;

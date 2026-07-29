@@ -71,12 +71,16 @@ export async function pruneExpiredTokens() {
  */
 export function applyToken(token, defaults) {
   if (!token) return { ...defaults };
+  const boundedInt = (value, fallback, max) =>
+    Number.isInteger(value) && value > 0 ? Math.min(value, max) : fallback;
+  const booleanOrDefault = (value, fallback) =>
+    typeof value === 'boolean' ? value : fallback;
   return {
-    maxPlayersPerLobby:    token.maxPlayersPerLobby    ?? defaults.maxPlayersPerLobby,
-    maxPhotosPerPlayer:    token.maxPhotosPerPlayer    ?? defaults.maxPhotosPerPlayer,
-    allowAllMaps:          token.allowAllMaps          ?? defaults.allowAllMaps,
-    allowAIGuessing:       token.allowAIGuessing       ?? defaults.allowAIGuessing,
-    allowAutoNaming:       token.allowAutoNaming       ?? defaults.allowAutoNaming,
-    allowVisionCommentary: token.allowVisionCommentary ?? defaults.allowVisionCommentary,
+    maxPlayersPerLobby:    boundedInt(token.maxPlayersPerLobby, defaults.maxPlayersPerLobby, 1000),
+    maxPhotosPerPlayer:    boundedInt(token.maxPhotosPerPlayer, defaults.maxPhotosPerPlayer, 100),
+    allowAllMaps:          booleanOrDefault(token.allowAllMaps, defaults.allowAllMaps),
+    allowAIGuessing:       booleanOrDefault(token.allowAIGuessing, defaults.allowAIGuessing),
+    allowAutoNaming:       booleanOrDefault(token.allowAutoNaming, defaults.allowAutoNaming),
+    allowVisionCommentary: booleanOrDefault(token.allowVisionCommentary, defaults.allowVisionCommentary),
   };
 }

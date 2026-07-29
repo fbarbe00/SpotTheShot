@@ -5,10 +5,10 @@ import { useToast } from '../lib/toast'
 import { Trash2, ChevronDown, ChevronUp, Map, Star, Check } from 'lucide-react'
 import LocationPickerDialog from './LocationPickerDialog'
 import { AnimatePresence } from 'framer-motion'
-import * as exifr from 'exifr'
 import { useI18n } from '../contexts/I18nContext'
 import { useAchievementContext } from '../contexts/AchievementContext'
 import { logger } from '../lib/logger'
+import { extractCaptureDate, extractGPS, hashBlob, mapWithConcurrency, resizeImage } from '../lib/photoProcessing'
 import {
   getHistory,
   addToHistory,
@@ -25,58 +25,6 @@ interface UploadResult { ok?: boolean; error?: string; photo?: { id: string; url
 
 // Default upload limit in MB (server may override this)
 const DEFAULT_UPLOAD_LIMIT_MB = 20;
-
-async function hashBlob(blob: Blob): Promise<string> {
-  const buf = await blob.arrayBuffer()
-  const digest = await crypto.subtle.digest('SHA-256', buf)
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length)
-  let nextIndex = 0
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (nextIndex < items.length) {
-      const index = nextIndex++
-      results[index] = await worker(items[index]!)
-    }
-  })
-  await Promise.all(runners)
-  return results
-}
-
-async function extractGPS(file: File): Promise<{ lat: number | null; lon: number | null }> {
-  try {
-    const exif = await exifr.parse(file, { gps: true })
-
-    if (
-      typeof exif?.latitude === 'number' &&
-      typeof exif?.longitude === 'number' &&
-      !Number.isNaN(exif.latitude) &&
-      !Number.isNaN(exif.longitude)
-    ) {
-      return { lat: exif.latitude, lon: exif.longitude }
-    }
-  } catch (err) {
-    logger.warn(`Failed to extract GPS from ${file.name}`, err)
-  }
-
-  return { lat: null, lon: null }
-}
-
-async function extractCaptureDate(file: File): Promise<string | null> {
-  try {
-    const exif = await exifr.parse(file, { exif: true })
-
-    if (exif?.DateTimeOriginal) return exif.DateTimeOriginal.toString()
-    if (exif?.CreateDate) return exif.CreateDate.toString()
-    if (exif?.ModifyDate) return exif.ModifyDate.toString()
-  } catch (err) {
-    logger.warn(`Failed to extract capture date from ${file.name}`, err)
-  }
-
-  return null
-}
 
 // Photo upload interface - allows players to upload geotagged photos
 // Handles batch uploads, EXIF validation, and manual location picking for photos without GPS
@@ -325,35 +273,6 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     getHistory().then(setHistoryEntries)
   }
 
-  function resizeImage(file: File, maxSize: number): Promise<File> {
-    return new Promise(resolve => {
-      const img = new Image()
-      img.onload = () => {
-        let { width, height } = img
-        const canvas = document.createElement('canvas')
-
-        if (width > height && width > maxSize) {
-          height = (height * maxSize) / width
-          width = maxSize
-        } else if (height > maxSize) {
-          width = (width * maxSize) / height
-          height = maxSize
-        }
-
-        canvas.width = width
-        canvas.height = height
-        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
-
-        canvas.toBlob(
-          blob => resolve(new File([blob!], file.name, { type: 'image/jpeg' })),
-          'image/jpeg',
-          0.85
-        )
-      }
-      img.src = URL.createObjectURL(file)
-    })
-  }
-
   function handleLocationConfirm(photoId: string, lat: number, lon: number) {
     socket.emit('update_photo_location', { lobbyId: lobby.id, playerId, photoId, lat, lon })
     const entry = photosNeedingLocation.find(p => p.photoId === photoId)
@@ -368,14 +287,33 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     const currentPhoto = photosNeedingLocation[0]
     if (currentPhoto) {
       socket.emit('delete_photo', { lobbyId: lobby.id, playerId, photoId: currentPhoto.photoId })
+      forgetPhoto(currentPhoto.photoId)
       setPhotosNeedingLocation(prev => prev.slice(1))
       setLocationPickerStep(prev => prev + 1)
       addToast(t('uploader.photoDeleted'), 'info', 2000)
     }
   }
 
+  // Clear any local bookkeeping tied to a deleted photo so it can be
+  // re-uploaded (as a fresh file or from history) without being mistaken
+  // for a duplicate of a photo that no longer exists in the lobby.
+  function forgetPhoto(photoId: string) {
+    const matchingEntries = historyEntries.filter(e => e.serverPhotoId === photoId)
+    matchingEntries.forEach(e => {
+      if (e.contentHash) sessionHashes.current.delete(e.contentHash)
+    })
+    if (matchingEntries.length) {
+      setReuploadedEntryIds(prev => {
+        const next = new Set(prev)
+        matchingEntries.forEach(e => next.delete(e.id))
+        return next
+      })
+    }
+  }
+
   function deletePhoto(photoId: string) {
     socket.emit('delete_photo', { lobbyId: lobby.id, playerId, photoId })
+    forgetPhoto(photoId)
     addToast(t('uploader.photoDeleted'), 'info', 2000)
   }
 
@@ -657,25 +595,22 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
           </div>
         )}
 
-        {/* Other Players' Photos Grid View */}
+        {/* Other players: show ownership/count only. The server deliberately
+            withholds pre-round URLs because a CSS blur is trivial to remove. */}
         {otherPhotos.length > 0 && (
           <div className="mt-4">
             <h4 className="text-sm font-bold text-text-darker mb-3">{t('uploader.otherPhotos', { count: otherPhotos.length })}</h4>
-            <div className="grid grid-cols-3 gap-2">
-              {otherPhotos.map((p) => {
-                const uploader = lobby.players.find(pl => pl.id === p.uploaderId)
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {lobby.players.filter(player => player.id !== playerId && !player.id.startsWith('ai-')).map(player => {
+                const count = otherPhotos.filter(photo => photo.uploaderId === player.id).length
+                if (count === 0) return null
                 return (
-                  <div key={p.id} className="relative group border-2 border-primary/30">
-                    <img
-                      src={buildPhotoUrl(p.url, lobby.id, playerId)}
-                      className={`w-full h-24 object-cover rounded-lg transition-all ${p.uploaderId !== playerId ? 'blur-xl' : ''}`}
-                    />
-                    {uploader && (
-                      <div className="absolute bottom-1 left-1 flex items-center gap-1 bg-black/60 rounded-md px-2 py-1 text-xs overflow-hidden">
-                        <span className="text-sm flex-shrink-0">{uploader.icon}</span>
-                        <span className="text-white truncate max-w-[120px]">{uploader.nickname}</span>
-                      </div>
-                    )}
+                  <div key={player.id} className="rounded-lg border border-primary/20 bg-white/5 p-3 flex items-center gap-2 min-w-0">
+                    <span className="text-xl">{player.icon}</span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate">{player.nickname}</div>
+                      <div className="text-[11px] text-text-darker">📷 {count}</div>
+                    </div>
                   </div>
                 )
               })}

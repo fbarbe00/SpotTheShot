@@ -18,22 +18,34 @@ dotenv.config();
 
 const PORT = 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-const ROUND_DURATION_SEC = Number(process.env.ROUND_DURATION_SEC || 30);
-const UPLOAD_LIMIT_MB = Number(process.env.UPLOAD_LIMIT_MB || 20);
-const MAX_PHOTOS_PER_PLAYER = Number(process.env.MAX_PHOTOS_PER_PLAYER || 10);
+const positiveNumber = (value, fallback, max) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
+};
+const ROUND_DURATION_SEC = positiveNumber(process.env.ROUND_DURATION_SEC, 30, 300);
+const UPLOAD_LIMIT_MB = positiveNumber(process.env.UPLOAD_LIMIT_MB, 20, 50);
+const MAX_PHOTOS_PER_PLAYER = Math.floor(positiveNumber(process.env.MAX_PHOTOS_PER_PLAYER, 10, 100));
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const GAME_STATS_FILE = process.env.GAME_STATS_FILE || path.join(DATA_DIR, 'game-stats.json');
+const parsedStatsHistoryLimit = Number(process.env.GAME_STATS_HISTORY_LIMIT);
+const GAME_STATS_HISTORY_LIMIT = Number.isInteger(parsedStatsHistoryLimit) && parsedStatsHistoryLimit >= 0
+  ? parsedStatsHistoryLimit
+  : 1000;
 const PENDING_JOIN_TIMEOUT_MS = 5 * 60 * 1000;
 const SOCKET_DISCONNECT_TIMEOUT_MS = 30 * 60 * 1000;
 const EMPTY_LOBBY_GRACE_MS = 3 * 60 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const SESSION_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const TOKEN_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const REQUEST_RATE_SWEEP_INTERVAL_MS = 10 * 60 * 1000;
 const VALID_LANGUAGES = ['en', 'fr', 'it', 'es', 'de', 'ru'];
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const MAX_NICKNAME_LENGTH = 30;
 
 const app = express();
+// The production nginx proxy is the only hop in front of Express. Trusting one
+// hop lets the lightweight per-IP limits below use the real client address.
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: { origin: CLIENT_URL, methods: ['GET', 'POST'] },
@@ -90,6 +102,9 @@ const gameStats = loadGameStats();
 function appendGameStats(summary) {
   gameStats.totalGamesPlayed += 1;
   gameStats.games.push({ gameNumber: gameStats.totalGamesPlayed, ...summary });
+  if (gameStats.games.length > GAME_STATS_HISTORY_LIMIT) {
+    gameStats.games.splice(0, gameStats.games.length - GAME_STATS_HISTORY_LIMIT);
+  }
   gameStats.updatedAt = new Date().toISOString();
   saveGameStats(gameStats);
 }
@@ -138,7 +153,7 @@ function normalizeNickname(value) {
 function validateLobbySettings(settings = {}) {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Invalid lobby settings');
   const checks = [
-    ['roundDurationSec', 10, 300], ['duelRaceTimeSec', 5, 120],
+    ['roundDurationSec', 5, 300], ['duelRaceTimeSec', 5, 120],
     ['hintThresholdSec', 0, 300], ['uploaderPenaltyPercent', 0, 100],
     ['minPhotosPerPlayer', 0, 100], ['maxPhotosPerPlayer', 1, 100],
   ];
@@ -231,6 +246,35 @@ function sweepUploadRateLimits(windowMs = 60000) {
   }
 }
 
+// Lightweight in-memory limits protect the small self-hosted server without
+// adding a database or a per-request network dependency. They intentionally
+// allow normal party setup bursts while preventing lobby-slot exhaustion.
+const requestRateLimits = new Map();
+function rateLimit(scope, maxRequests, windowMs) {
+  return (req, res, next) => {
+    const key = `${scope}:${req.ip}`;
+    const now = Date.now();
+    const recent = (requestRateLimits.get(key) ?? []).filter(timestamp => now - timestamp < windowMs);
+    if (recent.length >= maxRequests) {
+      return res.status(429).json({ error: 'Too many requests. Please wait and try again.' });
+    }
+    recent.push(now);
+    requestRateLimits.set(key, recent);
+    next();
+  };
+}
+
+function sweepRequestRateLimits() {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [key, timestamps] of requestRateLimits) {
+    const recent = timestamps.filter(timestamp => timestamp >= cutoff);
+    if (recent.length) requestRateLimits.set(key, recent);
+    else requestRateLimits.delete(key);
+  }
+}
+
+setInterval(sweepRequestRateLimits, REQUEST_RATE_SWEEP_INTERVAL_MS).unref();
+
 /* ─── Lobby cleanup ─── */
 
 async function cleanupEmptyLobbies() {
@@ -239,7 +283,7 @@ async function cleanupEmptyLobbies() {
 
   for (const [lobbyId, lobby] of gm.lobbies.entries()) {
     const hasActivePlayers = [...lobby.players.values()].some(
-      p => p.socketId !== null || p.disconnectTimeoutId !== null
+      p => p.socketId !== null || p.disconnectTimeoutId != null
     );
 
     if (!hasActivePlayers) {
@@ -253,15 +297,8 @@ async function cleanupEmptyLobbies() {
     }
   }
 
-  for (const { lobbyId, lobby } of toDelete) {
-    await Promise.all((lobby.photos ?? []).map(async photo => {
-      const filePath = path.join(UPLOADS_DIR, path.basename(photo.url));
-      await fs.promises.unlink(filePath).catch(err => {
-        if (err.code !== 'ENOENT') console.error(`Failed to delete photo ${photo.url}:`, err.message);
-      });
-      gm._invalidatePhotoCaches(photo.id);
-    }));
-    gm.lobbies.delete(lobbyId);
+  for (const { lobbyId } of toDelete) {
+    await gm.deleteLobby(lobbyId);
     emptyLobbyTimestamps.delete(lobbyId);
   }
 }
@@ -349,6 +386,10 @@ app.get('/api/game-stats', (req, res) => {
 });
 
 app.get('/uploads/:filename', (req, res) => {
+  res.set({
+    'Cache-Control': 'private, no-store',
+    'Referrer-Policy': 'no-referrer',
+  });
   const { filename } = req.params;
   const { lobbyId, playerId } = req.query;
 
@@ -377,7 +418,7 @@ app.get('/uploads/:filename', (req, res) => {
   return res.sendFile(path.join(UPLOADS_DIR, safeFilename));
 });
 
-app.post('/api/token/validate', async (req, res) => {
+app.post('/api/token/validate', rateLimit('token', 30, 60 * 1000), async (req, res) => {
   const { secret } = req.body || {};
   const token = await validateToken(secret);
   if (!token) return res.json({ valid: false });
@@ -385,7 +426,7 @@ app.post('/api/token/validate', async (req, res) => {
   res.json({ valid: true, name: token.name || null, expiresAt: token.expiresAt || null, capabilities });
 });
 
-app.post('/api/lobbies', async (req, res) => {
+app.post('/api/lobbies', rateLimit('create-lobby', 6, 10 * 60 * 1000), async (req, res) => {
   const { nickname: rawNickname, settings, clientSessionId, tokenSecret } = req.body || {};
   const nickname = normalizeNickname(rawNickname);
   if (!nickname) return res.status(400).json({ error: 'Nickname is required' });
@@ -406,7 +447,7 @@ app.post('/api/lobbies', async (req, res) => {
   res.json({ lobby: gm.serializeLobby(lobby, playerId), playerId, sessionToken });
 });
 
-app.post('/api/lobbies/:lobbyId/join', (req, res) => {
+app.post('/api/lobbies/:lobbyId/join', rateLimit('join-lobby', 30, 60 * 1000), (req, res) => {
   const { nickname: rawNickname, clientSessionId } = req.body || {};
   const nickname = normalizeNickname(rawNickname);
   if (!nickname) return res.status(400).json({ error: 'Nickname is required' });
@@ -468,6 +509,10 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
   if (!isAuthorizedPlayer(lobby, playerId, getSessionToken(req))) {
     await cleanupUploadedFiles(files);
     return res.status(403).json({ error: 'Invalid upload session' });
+  }
+  if (lobby.state !== 'waiting') {
+    await cleanupUploadedFiles(files);
+    return res.status(409).json({ error: 'Photos can only be uploaded before the game starts' });
   }
 
   // Use lobby settings for max photos, fallback to server default
@@ -573,6 +618,35 @@ async function enforceSingleSessionForClient(clientSessionId, nextSession) {
 /* ─── Socket.IO ─── */
 
 io.on('connection', (socket) => {
+  // Socket.IO callbacks are optional at the protocol level. Normalize every
+  // game packet to an object and add a no-op acknowledgement where a handler
+  // expects one, so malformed/truncated packets cannot throw a process-level
+  // TypeError. Field-level authorization still happens in each handler.
+  const objectPayloadEvents = new Set([
+    'join_lobby', 'leave_lobby', 'kick_player', 'update_settings',
+    'add_ai_player', 'remove_ai_player', 'get_ai_processing_status', 'set_team',
+    'delete_photo', 'update_icon', 'update_photo_location', 'update_photo_details',
+    'set_ready', 'start_game', 'request_lobby_sync', 'submit_guess',
+    'restart_game', 'next_round', 'reset_lobby',
+  ]);
+  const acknowledgementEvents = new Set([
+    'leave_lobby', 'update_settings', 'get_ai_processing_status',
+    'update_photo_details', 'request_lobby_sync', 'submit_guess',
+    'next_round', 'reset_lobby',
+  ]);
+  socket.use((packet, next) => {
+    const eventName = packet[0];
+    if (objectPayloadEvents.has(eventName)
+      && (!packet[1] || typeof packet[1] !== 'object' || Array.isArray(packet[1]))) {
+      packet[1] = {};
+    }
+    if (acknowledgementEvents.has(eventName)
+      && typeof packet[packet.length - 1] !== 'function') {
+      packet.push(() => {});
+    }
+    next();
+  });
+
   const auth = socket.handshake.auth || {};
   const query = socket.handshake.query || {};
   const lobbyId = auth.lobbyId || query.lobbyId;
@@ -698,7 +772,7 @@ io.on('connection', (socket) => {
   socket.on('add_ai_player', ({ lobbyId, playerId }) => {
     if (!validateSocket(lobbyId, playerId)) return;
     const lobby = gm.lobbies.get(lobbyId);
-    if (lobby?.hostId === playerId) {
+    if (lobby?.hostId === playerId && lobby.state === 'waiting') {
       try { gm.addAIPlayer(lobbyId); } catch (e) { socket.emit('error_msg', e.message); }
     }
   });
@@ -706,7 +780,7 @@ io.on('connection', (socket) => {
   socket.on('remove_ai_player', ({ lobbyId, playerId }) => {
     if (!validateSocket(lobbyId, playerId)) return;
     const lobby = gm.lobbies.get(lobbyId);
-    if (lobby?.hostId === playerId) gm.removeAIPlayer(lobbyId);
+    if (lobby?.hostId === playerId && lobby.state === 'waiting') gm.removeAIPlayer(lobbyId);
   });
 
   socket.on('get_ai_processing_status', ({ lobbyId }, callback) => {
@@ -725,6 +799,7 @@ io.on('connection', (socket) => {
     const normalizedLobbyId = normalizeLobbyId(lobbyId);
     const lobby = gm.lobbies.get(normalizedLobbyId);
     if (!lobby) return;
+    if (lobby.state !== 'waiting') return;
     if (!validateSocket(normalizedLobbyId, playerId) && lobby.hostId !== currentPlayerId) return;
     if (!['Team 1', 'Team 2', null].includes(team)) {
       socket.emit('error_msg', 'Invalid team assignment');
@@ -736,7 +811,10 @@ io.on('connection', (socket) => {
 
   socket.on('delete_photo', ({ lobbyId, playerId, photoId }) => {
     if (!validateSocket(lobbyId, playerId)) return;
-    gm.deletePhoto(lobbyId, playerId, photoId);
+    const lobby = gm.lobbies.get(normalizeLobbyId(lobbyId));
+    if (lobby?.state !== 'waiting') return;
+    gm.deletePhoto(normalizeLobbyId(lobbyId), playerId, photoId)
+      .catch(error => console.warn('Failed to delete photo:', error?.message));
   });
 
   socket.on('update_icon', ({ lobbyId, playerId, icon }) => {
@@ -757,6 +835,7 @@ io.on('connection', (socket) => {
       }
       const lobby = gm.lobbies.get(lobbyId);
       if (!lobby) return;
+      if (lobby.state !== 'waiting') return;
       const photo = lobby.photos.find(p => p.id === photoId && p.uploaderId === playerId);
       if (!photo) return;
       photo.lat = lat;
@@ -776,6 +855,7 @@ io.on('connection', (socket) => {
     try {
       const lobby = gm.lobbies.get(lobbyId);
       if (!lobby) return callback?.({ success: false, error: 'Lobby not found' });
+      if (lobby.state !== 'waiting') return callback?.({ success: false, error: 'Photo details are locked after the game starts' });
       const photo = lobby.photos.find(p => p.id === photoId && p.uploaderId === playerId);
       if (!photo) return callback?.({ success: false, error: 'Photo not found' });
       photo.title = String(title || '').slice(0, 50);
@@ -790,6 +870,7 @@ io.on('connection', (socket) => {
 
   socket.on('set_ready', ({ lobbyId, playerId, ready }) => {
     if (!validateSocket(lobbyId, playerId)) return;
+    if (typeof ready !== 'boolean') return;
     try { gm.setReady(lobbyId, playerId, ready); } catch (e) {
       console.error('Failed to set ready status:', e);
     }
@@ -832,12 +913,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('restart_game', ({ lobbyId, playerId }) => {
+  socket.on('restart_game', async ({ lobbyId, playerId }) => {
     if (!validateSocket(lobbyId, playerId)) return;
     const lobby = gm.lobbies.get(lobbyId);
     if (lobby?.hostId === playerId) {
       try {
-        gm.restartGame(lobbyId);
+        await gm.restartGame(lobbyId);
       } catch (e) {
         console.error('Failed to restart game:', e);
         socket.emit('error_msg', e.message);
@@ -845,12 +926,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('next_round', ({ lobbyId, playerId }, callback) => {
+  socket.on('next_round', async ({ lobbyId, playerId }, callback) => {
     try {
       if (!validateSocket(lobbyId, playerId)) return callback({ success: false, error: 'Invalid socket' });
       const lobby = gm.lobbies.get(lobbyId);
       if (lobby?.hostId === playerId) {
-        gm.nextRound(lobbyId);
+        await gm.nextRound(lobbyId);
         callback({ success: true });
       } else {
         callback({ success: false, error: 'Lobby not found or not host' });
@@ -861,7 +942,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('reset_lobby', ({ lobbyId, playerId }, callback) => {
+  socket.on('reset_lobby', async ({ lobbyId, playerId }, callback) => {
     try {
       const normalizedLobbyId = normalizeLobbyId(lobbyId);
       if (!validateSocket(normalizedLobbyId, playerId)) return callback({ success: false, error: 'Invalid socket' });
@@ -870,7 +951,7 @@ io.on('connection', (socket) => {
       if (lobby.hostId !== playerId) {
         return callback({ success: false, error: 'Only host can reset lobby' });
       }
-      gm.resetLobby(normalizedLobbyId);
+      await gm.resetLobby(normalizedLobbyId);
       callback({ success: true });
     } catch (error) {
       console.error('Error resetting lobby:', error);

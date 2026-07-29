@@ -96,7 +96,9 @@ export function buildPhotoUrl(photoUrl: string, lobbyId?: string | null, playerI
 }
 
 export const socket = io(SERVER_URL, {
-  autoConnect: true,
+  // React installs all game listeners before explicitly connecting. This
+  // avoids losing a fast handshake reconnection event during initial render.
+  autoConnect: false,
   // Optimize socket transports for better performance
   transports: ['websocket', 'polling'],
   reconnection: true,
@@ -124,6 +126,11 @@ function refreshSocketAuth() {
 
 socket.io.on('reconnect_attempt', refreshSocketAuth);
 socket.on('connect_error', refreshSocketAuth);
+
+export function connectSocket(): void {
+  refreshSocketAuth();
+  if (!socket.connected) socket.connect();
+}
 
 export const api = {
   base: SERVER_URL,
@@ -167,7 +174,14 @@ export const api = {
       )
 
       if (!r.ok) {
-        throw new Error(`Upload failed with status ${r.status}`)
+        let message = `Upload failed with status ${r.status}`
+        try {
+          const body = await r.json()
+          if (typeof body?.error === 'string') message = body.error
+        } catch {
+          // Keep the status fallback when a proxy returns a non-JSON response.
+        }
+        throw new Error(message)
       }
 
       return r.json()

@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, ArrowDown, Info } from "lucide-react";
 import type { LeaderboardItem, IndividualLeaderboardItem, TeamLeaderboardItem, Player } from "../../lib/types";
 import { getOrdinal } from "../../lib/utils";
-import { AnimatedCounter } from "./ResultRound";
+import { AnimatedCounter } from "../ui/AnimatedCounter";
 import { useI18n } from "../../contexts/I18nContext";
 import { getCountryName } from "../../lib/countryNames";
 
@@ -111,7 +111,7 @@ export function ResultLeaderboard({
                 <div className="font-extrabold text-lg tracking-wide">{item.team}</div>
                 {rankArrow}
                 <div className="ml-auto font-mono font-black text-xl text-primary border-2 border-primary/30 bg-primary/10 px-3 py-1 rounded-lg">
-                  <AnimatedCounter value={item.score} previousValue={getPreviousScore(item, i)} delay={1 + i * 0.1} />
+                  <AnimatedCounter value={item.score} previousValue={getPreviousScore(item, i)} delay={1000 + i * 100} />
                 </div>
               </div>
               <div className="ml-6 space-y-1">
@@ -142,7 +142,7 @@ export function ResultLeaderboard({
             )}
             {rankArrow}
             <div className="font-mono font-black text-xl text-primary border-2 border-primary/30 bg-primary/10 px-3 py-1 rounded-lg">
-              <AnimatedCounter value={item.score} previousValue={getPreviousScore(item, i)} delay={1 + i * 0.1} />
+              <AnimatedCounter value={item.score} previousValue={getPreviousScore(item, i)} delay={1000 + i * 100} />
             </div>
           </motion.div>
         );

@@ -8,7 +8,7 @@ import { useToast } from "../lib/toast";
 import { useI18n } from "../contexts/I18nContext";
 import { getCountryName } from "../lib/countryNames";
 import { MomentCard, pickRoundMoments, pickGameMoments } from "./result/GameHighlights";
-import { AnimatedCounter } from "./result/ResultRound";
+import { AnimatedCounter } from "./ui/AnimatedCounter";
 import { ScoringInfo } from "./result/ResultLeaderboard";
 import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap, Popup } from "react-leaflet";
 import L from "leaflet";

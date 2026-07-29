@@ -80,3 +80,69 @@ test('finished lobby serialization includes complete round history', async () =>
   assert.equal(serialized.roundHistory.length, 1);
   assert.equal(serialized.roundHistory[0].photo.id, 'photo');
 });
+
+test('waiting lobby withholds other players photo URLs and metadata', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({ nickname: 'Host', settings: { enableAIGuessing: false }, constraints });
+  const joined = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: null });
+  created.lobby.photos.push({
+    id: 'secret-photo',
+    url: '/uploads/secret.jpg',
+    uploaderId: created.playerId,
+    lat: 10,
+    lon: 20,
+    title: 'Secret title',
+    hint: 'Secret hint',
+    captureDate: '2025-01-01',
+  });
+
+  const guestView = gm.serializeLobby(created.lobby, joined.playerId);
+  assert.equal(guestView.photos[0].url, '');
+  assert.equal(guestView.photos[0].lat, null);
+  assert.equal(guestView.photos[0].title, undefined);
+
+  const hostView = gm.serializeLobby(created.lobby, created.playerId);
+  assert.equal(hostView.photos[0].url, '/uploads/secret.jpg');
+  assert.equal(hostView.photos[0].lat, 10);
+  assert.equal(hostView.photos[0].title, 'Secret title');
+});
+
+test('new players and photo mutations are rejected after game start', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({ nickname: 'Host', settings: { enableAIGuessing: false }, constraints });
+  created.lobby.state = 'in_round';
+
+  assert.throws(
+    () => gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Late', socketId: null }),
+    /already started/,
+  );
+  assert.throws(
+    () => gm.upsertPhoto(created.lobby.id, {
+      id: 'late-photo', url: '/uploads/late.jpg', uploaderId: created.playerId, lat: 1, lon: 2,
+    }),
+    /locked/,
+  );
+  assert.throws(
+    () => gm.setReady(created.lobby.id, created.playerId, true),
+    /locked/,
+  );
+  created.lobby.photos.push({
+    id: 'existing-photo', url: '/uploads/does-not-exist.jpg', uploaderId: created.playerId, lat: 1, lon: 2,
+  });
+  await gm.deletePhoto(created.lobby.id, created.playerId, 'existing-photo');
+  assert.equal(created.lobby.photos.length, 1);
+});
+
+test('configured round duration is used when creation settings omit it', async () => {
+  const io = {
+    sockets: { sockets: new Map() },
+    to: () => ({ emit: () => {} }),
+  };
+  const gm = new GameManager(io, { roundDurationSec: 22 });
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false },
+    constraints,
+  });
+  assert.equal(created.lobby.settings.roundDurationSec, 22);
+});

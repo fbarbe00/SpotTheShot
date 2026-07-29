@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
   html, body, #root {
@@ -25,6 +24,14 @@
     max-height: 1.25rem;
     margin: 0;
     cursor: pointer;
+  }
+
+  /* Keep long-press image actions from covering the map controls on mobile.
+     This is a UX guard, not a security boundary; protected pre-round photo
+     URLs are withheld by the server. */
+  .game-photo {
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
   }
 }
 

@@ -40,9 +40,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    depends_on:
-      - vision
-
   server:
     container_name: spottheshot_server
     restart: unless-stopped
@@ -55,6 +52,12 @@ services:
       # Bind-mount to a host directory so game stats + tokens are visible,
       # backupable, and survive any docker operation including `down -v`.
       - ./server/data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/server-status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       - geoclip
       - vision
