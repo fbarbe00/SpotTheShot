@@ -41,7 +41,11 @@ interface UploadResult {
   filename?: string
 }
 
-type PendingPhotoDetail = { photoId: string; url: string; historyEntryId?: string }
+type PendingPhotoDetail = {
+  photoId: string
+  url: string
+  historyEntryId?: string
+}
 
 // Default upload limit in MB (server may override this)
 const DEFAULT_UPLOAD_LIMIT_MB = 20;
@@ -143,7 +147,13 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
   }
 
   async function saveUploadsToHistory(
-    prepared: Array<{ file: File; lat: number | null; lon: number | null; captureDate?: string | null; hash?: string }>,
+    prepared: Array<{
+      file: File
+      lat: number | null
+      lon: number | null
+      captureDate?: string | null
+      hash?: string
+    }>,
     results: UploadResult[]
   ) {
     const saves = results.map((r, i) => {
@@ -188,7 +198,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
       // spikes on phones when a large batch is selected.
       const prepared = await mapWithConcurrency(files, 2, async file => {
           // Read from the original mobile-picker file before canvas resizing
-          // strips EXIF. Preserve both values in local history so switching
+          // strips EXIF. Preserve location and date in local history so switching
           // modes does not make a previously uploaded photo incomplete.
           const metadata = await extractPhotoMetadata(file)
           const captureDate = normalizeCaptureDate(metadata.captureDate)
@@ -546,6 +556,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
         )}
         {lobby.settings.gameType === 'date' && currentPhotoNeedingDate && (
           <DatePickerDialog
+            key={currentPhotoNeedingDate.photoId}
             photoUrl={buildPhotoUrl(currentPhotoNeedingDate.url, lobby.id, playerId)}
             onConfirm={date => savePhotoDate(currentPhotoNeedingDate.photoId, date)}
             onDelete={handleDateDelete}

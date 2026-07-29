@@ -33,6 +33,25 @@ export type PhotoMetadata = {
   captureDate: string | null
 }
 
+export function resolvePhotoDate(
+  metadata: Record<string, unknown> | null | undefined,
+  filename: string,
+): string | null {
+  return parseCaptureDateValue(metadata?.DateTimeOriginal)
+    || parseCaptureDateValue(
+      metadata?.DateTimeDigitized
+      || metadata?.CreateDate
+      || metadata?.DateCreated
+      || metadata?.DigitalCreationDate
+      || metadata?.['Creation Time']
+      || metadata?.CreationTime
+      || metadata?.ModifyDate
+      || metadata?.DateTime
+      || metadata?.MetadataDate,
+    )
+    || extractDateFromFilename(filename)
+}
+
 /**
  * Read all metadata from the original file in one pass. Call this before
  * resizing: encoding through canvas intentionally removes EXIF data.
@@ -43,7 +62,12 @@ export async function extractPhotoMetadata(file: File): Promise<PhotoMetadata> {
   let captureDate: string | null = null
 
   try {
-    const metadata = await exifr.parse(file, { gps: true, exif: true })
+    const metadata = await exifr.parse(file, {
+      gps: true,
+      exif: true,
+      xmp: true,
+      iptc: true,
+    })
     if (
       typeof metadata?.latitude === 'number'
       && typeof metadata?.longitude === 'number'
@@ -53,20 +77,16 @@ export async function extractPhotoMetadata(file: File): Promise<PhotoMetadata> {
       lat = metadata.latitude
       lon = metadata.longitude
     }
-    captureDate = parseCaptureDateValue(
-      metadata?.DateTimeOriginal
-      || metadata?.CreateDate
-      || metadata?.ModifyDate
-      || metadata?.['Creation Time'],
-    )
+    captureDate = resolvePhotoDate(metadata, file.name)
   } catch (error) {
     logger.warn(`Failed to extract metadata from ${file.name}`, error)
+    captureDate = extractDateFromFilename(file.name)
   }
 
   return {
     lat,
     lon,
-    captureDate: captureDate || extractDateFromFilename(file.name),
+    captureDate,
   }
 }
 
@@ -78,7 +98,7 @@ export async function extractPhotoMetadata(file: File): Promise<PhotoMetadata> {
 export function selectUploadMetadata(
   gameType: GameType,
   metadata: PhotoMetadata,
-): PhotoMetadata {
+): Pick<PhotoMetadata, 'lat' | 'lon' | 'captureDate'> {
   return {
     lat: gameType === 'spot' ? metadata.lat : null,
     lon: gameType === 'spot' ? metadata.lon : null,

@@ -3,11 +3,21 @@ import {
   extractDateFromFilename,
   normalizeCaptureDate,
   parseCaptureDateValue,
+  resolvePhotoDate,
   selectUploadMetadata,
   requiredPhotoDetail,
 } from './photoProcessing'
 
 describe('photo capture dates', () => {
+  it('uses the first available image date when the original capture date is absent', () => {
+    expect(resolvePhotoDate({ CreateDate: '2021:06:04 12:30:00' }, 'photo.jpg'))
+      .toBe('2021-06-04')
+    expect(resolvePhotoDate({
+      DateTimeOriginal: '2020:02:03 08:00:00',
+      ModifyDate: '2024:05:06 09:00:00',
+    }, 'photo.jpg')).toBe('2020-02-03')
+  })
+
   it('detects the date in GNOME screenshot filenames', () => {
     expect(extractDateFromFilename('Screenshot From 2026-07-17 10-17-10.png')).toBe('2026-07-17')
   })
