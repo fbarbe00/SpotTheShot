@@ -259,13 +259,17 @@ test('DateTheShot hides future answers while showing results', async () => {
   assert.equal(view.lastRoundResults.photo.captureDate, '1984-04-01');
 });
 
-test('DateTheShot bounds add 1-20 years around the photo collection and cap at today', () => {
+test('DateTheShot bounds add 1-3 years around the photo collection and cap at today', () => {
   const earliestPadding = deriveDateTimelineBounds(['2000-05-10', '2025-05-10'], () => 0);
   assert.equal(earliestPadding.start, '1999-05-10');
   assert.equal(earliestPadding.end, '2026-05-10');
   const widestPadding = deriveDateTimelineBounds(['2000-05-10', todayUtcDate()], () => 0.999);
-  assert.equal(widestPadding.start, '1980-05-10');
+  assert.equal(widestPadding.start, '1997-05-10');
   assert.equal(widestPadding.end, todayUtcDate());
+  assert.deepEqual(
+    deriveDateTimelineBounds(['2000-05-10', '2010-05-10'], () => 0.999),
+    { start: '1997-05-10', end: '2013-05-10' },
+  );
 });
 
 test('DateTheShot AI prompt bounds use uploaded photo dates plus ten years', () => {

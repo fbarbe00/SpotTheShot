@@ -67,8 +67,8 @@ export function defaultTimelineStart() {
 export function deriveDateTimelineBounds(captureDates, random = Math.random) {
   const normalized = captureDates.map(normalizePhotoDate).filter(Boolean).sort();
   if (!normalized.length) return { start: defaultTimelineStart(), end: todayUtcDate() };
-  const beforeYears = 1 + Math.floor(random() * 20);
-  const afterYears = 1 + Math.floor(random() * 20);
+  const beforeYears = 1 + Math.floor(random() * 3);
+  const afterYears = 1 + Math.floor(random() * 3);
   const startDate = new Date(`${normalized[0]}T12:00:00Z`);
   const endDate = new Date(`${normalized[normalized.length - 1]}T12:00:00Z`);
   startDate.setUTCFullYear(startDate.getUTCFullYear() - beforeYears);
