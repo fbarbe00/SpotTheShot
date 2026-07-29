@@ -2,9 +2,17 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { lookupLocation } from './geoclipClient.js';
-import { preprocessImageBuffer, queryVisionModel, queryVisionModelForTitleAndHint } from './visionClient.js';
+import {
+  preprocessImageBuffer,
+  queryVisionModel,
+  queryVisionModelForDate,
+  queryVisionModelForDateCommentary,
+  queryVisionModelForUploaderCommentary,
+  queryVisionModelForTitleAndHint,
+} from './visionClient.js';
 import { handleError, handleAIOperationError, mimeTypeForFile } from './gameHelpers.js';
 import { isValidCoordinate } from './utils.js';
+import { deriveDatePromptBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
 
 const GEOCLIP_URL = process.env.GEOCLIP_URL || 'http://geoclip:8000';
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
@@ -13,23 +21,32 @@ const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export class AIPipeline {
 
+  _datePromptBounds(lobby) {
+    return deriveDatePromptBounds(lobby?.photos?.map(photo => photo.captureDate) || []);
+  }
+
   _initAIPipeline() {
     this.predictions = new Map();
     this.photoLocations = new Map();
     this.predictionLocations = new Map();
     this.visionCommentaries = new Map();
     this.imageTitles = new Map();
+    this.datePredictions = new Map();
 
     this._inflightPredictions = new Map();
     this._inflightPhotoLocations = new Map();
     this._inflightPredictionLocations = new Map();
     this._inflightVisions = new Map();
     this._inflightTitles = new Map();
+    this._inflightDates = new Map();
     this._preprocessedImages = new Map();
 
     this._predictionAttempted = new Set();
     this._visionAttempted = new Set();
     this._autoNamingAttempted = new Set();
+    this._datePredictionAttempted = new Set();
+    this._visionRevisions = new Map();
+    this._titleRevisions = new Map();
 
     this.geoActive = 0;
     this.geoQueue = [];
@@ -74,11 +91,15 @@ export class AIPipeline {
   }
 
   _invalidatePhotoCaches(photoId) {
+    this._visionRevisions.set(photoId, (this._visionRevisions.get(photoId) || 0) + 1);
+    this._titleRevisions.set(photoId, (this._titleRevisions.get(photoId) || 0) + 1);
     for (const cache of [
       this.predictions, this.photoLocations, this.predictionLocations,
       this.visionCommentaries, this.imageTitles,
+      this.datePredictions,
       this._inflightPredictions, this._inflightPhotoLocations,
       this._inflightPredictionLocations, this._inflightVisions, this._inflightTitles,
+      this._inflightDates,
       this._preprocessedImages,
     ]) {
       cache.delete(photoId);
@@ -86,6 +107,7 @@ export class AIPipeline {
     this._predictionAttempted.delete(photoId);
     this._visionAttempted.delete(photoId);
     this._autoNamingAttempted.delete(photoId);
+    this._datePredictionAttempted.delete(photoId);
   }
 
   _invalidateLocationCaches(photoId) {
@@ -95,6 +117,26 @@ export class AIPipeline {
     ]) {
       cache.delete(photoId);
     }
+  }
+
+  _invalidateVisionCommentary(photoId) {
+    this._visionRevisions.set(photoId, (this._visionRevisions.get(photoId) || 0) + 1);
+    this.visionCommentaries.delete(photoId);
+    this._inflightVisions.delete(photoId);
+    this._visionAttempted.delete(photoId);
+  }
+
+  _invalidateModeDependentCaches(photo) {
+    this._invalidateVisionCommentary(photo.id);
+    const generated = this.imageTitles.get(photo.id);
+    if (generated && photo.title === generated.title) {
+      photo.title = '';
+      if (photo.hint === generated.hint) photo.hint = '';
+    }
+    this.imageTitles.delete(photo.id);
+    this._inflightTitles.delete(photo.id);
+    this._autoNamingAttempted.delete(photo.id);
+    this._titleRevisions.set(photo.id, (this._titleRevisions.get(photo.id) || 0) + 1);
   }
 
   _normalizeLanguage(language) {
@@ -132,7 +174,9 @@ export class AIPipeline {
       try { return await inflight.get(key); } catch { return null; }
     }
 
-    const promise = factory().finally(() => inflight.delete(key));
+    const promise = factory().finally(() => {
+      if (inflight.get(key) === promise) inflight.delete(key);
+    });
     inflight.set(key, promise);
     try { return await promise; } catch { return null; }
   }
@@ -231,17 +275,30 @@ export class AIPipeline {
 
   /* ─── Vision commentary ─── */
 
-  async ensureVisionCommentary(photo, lobbyId, { timeoutMs = 120000 } = {}) {
+  async ensureVisionCommentary(photo, lobbyId, { timeoutMs = 120000, guessedUploaderId = null } = {}) {
     const lobby = this.lobbies.get(lobbyId);
+    const revision = this._visionRevisions.get(photo.id) || 0;
 
     return this._dedupedAsync(this.visionCommentaries, this._inflightVisions, photo.id, async () => {
       // GeoCLIP and preprocessing run before acquiring the vision slot so the
       // slot is not held while waiting on unrelated geo/disk work.
-      const pred = await this.ensurePrediction(photo, { timeoutMs: 15000 }).catch(err => { handleError(err, 'AI prediction'); return null; });
+      const isDateMode = lobby?.settings?.gameType === 'date';
+      const isUploaderMode = lobby?.settings?.gameType === 'uploader';
+      const datePromptBounds = isDateMode ? this._datePromptBounds(lobby) : null;
+      const datePrediction = isDateMode
+        ? await this.ensureDatePrediction(photo, {
+          timeoutMs,
+          earliestDate: datePromptBounds?.start || '1900-01-01',
+          latestDate: datePromptBounds?.end || todayUtcDate(),
+        }).catch(err => { handleError(err, 'AI date prediction'); return null; })
+        : null;
+      const pred = isDateMode || isUploaderMode
+        ? null
+        : await this.ensurePrediction(photo, { timeoutMs: 15000 }).catch(err => { handleError(err, 'AI prediction'); return null; });
 
       // Look up the photo's actual location (what the AI will compare its guess against)
       let actualRegion = null, actualCountry = null;
-      if (typeof photo.lat === 'number' && typeof photo.lon === 'number') {
+      if (!isDateMode && !isUploaderMode && typeof photo.lat === 'number' && typeof photo.lon === 'number') {
         ({ region: actualRegion, country: actualCountry } = await this.ensurePhotoLocation(photo.lat, photo.lon, photo.id).catch(err => {
           handleError(err, `actual-location lookup for photo ${photo.id}`);
           return {};
@@ -262,17 +319,45 @@ export class AIPipeline {
       const release = await this._acquire('vision');
       try {
         const language = this._normalizeLanguage(lobby?.settings?.language);
-        const resp = await queryVisionModel(imageB64, actualRegion, actualCountry, guessedRegion, guessedCountry, timeoutMs, language);
+        let effectiveGuessedDate = datePrediction?.date;
+        if (effectiveGuessedDate && lobby.settings.dateTimelineStart
+          && effectiveGuessedDate < lobby.settings.dateTimelineStart) {
+          effectiveGuessedDate = lobby.settings.dateTimelineStart;
+        }
+        if (effectiveGuessedDate && lobby.settings.dateTimelineEnd
+          && effectiveGuessedDate > lobby.settings.dateTimelineEnd) {
+          effectiveGuessedDate = lobby.settings.dateTimelineEnd;
+        }
+        const actualUploader = lobby?.players.get(photo.uploaderId);
+        const guessedUploader = lobby?.players.get(guessedUploaderId);
+        const resp = isUploaderMode
+          ? await queryVisionModelForUploaderCommentary(
+            imageB64,
+            actualUploader?.nickname || 'the actual uploader',
+            guessedUploader?.nickname || 'a random player',
+            timeoutMs,
+            language,
+          )
+          : isDateMode
+          ? await queryVisionModelForDateCommentary(
+            imageB64, photo.captureDate, effectiveGuessedDate, timeoutMs, language
+          )
+          : await queryVisionModel(
+            imageB64, actualRegion, actualCountry, guessedRegion, guessedCountry, timeoutMs, language
+          );
 
         const commentary = resp?.commentary || '';
         if (!commentary) return null;
+        if ((this._visionRevisions.get(photo.id) || 0) !== revision) return null;
 
         const entry = { commentary, timestamp: Date.now() };
         this.visionCommentaries.set(photo.id, entry);
         return entry;
       } finally {
         release();
-        this._visionAttempted.add(photo.id);
+        if ((this._visionRevisions.get(photo.id) || 0) === revision) {
+          this._visionAttempted.add(photo.id);
+        }
       }
     });
   }
@@ -281,11 +366,14 @@ export class AIPipeline {
 
   async ensureImageTitleAndHint(photo, lobbyId, { timeoutMs = 120000 } = {}) {
     const lobby = this.lobbies.get(lobbyId);
+    const revision = this._titleRevisions.get(photo.id) || 0;
 
     return this._dedupedAsync(this.imageTitles, this._inflightTitles, photo.id, async () => {
       // Location lookup and preprocessing run before acquiring the vision slot.
       let region = null, country = null;
-      if (typeof photo.lat === 'number' && typeof photo.lon === 'number' && !isNaN(photo.lat) && !isNaN(photo.lon)) {
+      if (lobby?.settings?.gameType === 'spot'
+        && typeof photo.lat === 'number' && typeof photo.lon === 'number'
+        && !isNaN(photo.lat) && !isNaN(photo.lon)) {
         ({ region, country } = await this.ensurePhotoLocation(photo.lat, photo.lon, photo.id).catch(err => {
           handleError(err, 'location lookup for title/hint'); return {};
         }));
@@ -296,11 +384,20 @@ export class AIPipeline {
       const release = await this._acquire('vision');
       try {
         const language = this._normalizeLanguage(lobby?.settings?.language);
-        const resp = await queryVisionModelForTitleAndHint(imageB64, region, country, timeoutMs, language);
+        const resp = await queryVisionModelForTitleAndHint(
+          imageB64,
+          region,
+          country,
+          timeoutMs,
+          language,
+          lobby?.settings?.gameType,
+          lobby?.settings?.gameType === 'date' ? photo.captureDate : null,
+        );
 
         const title = resp?.title || '';
         const hint = resp?.hint || '';
         if (!title) return null;
+        if ((this._titleRevisions.get(photo.id) || 0) !== revision) return null;
 
         const entry = { title, hint, timestamp: Date.now() };
         this.imageTitles.set(photo.id, entry);
@@ -319,6 +416,7 @@ export class AIPipeline {
     if (this._inflightTitles.has(photoId)) return;
     if (this._autoNamingAttempted.has(photoId)) return;
 
+    const revision = this._titleRevisions.get(photoId) || 0;
     try {
       const result = await this.ensureImageTitleAndHint(photo, lobbyId);
       if (result?.title) {
@@ -330,7 +428,9 @@ export class AIPipeline {
     } catch (err) {
       console.warn(`[auto-naming] Failed for photo ${photoId}:`, err.message);
     } finally {
-      this._autoNamingAttempted.add(photoId);
+      if ((this._titleRevisions.get(photoId) || 0) === revision) {
+        this._autoNamingAttempted.add(photoId);
+      }
     }
 
     this.io.to(lobbyId).emit('ai_processing_status', this.getAIProcessingStatus(lobbyId));
@@ -344,13 +444,65 @@ export class AIPipeline {
 
     try {
       this._emitAIStatus(lobbyId);
-      await this.ensurePrediction(photo);
+      if (lobby.settings.gameType === 'date') {
+        const bounds = this._datePromptBounds(lobby);
+        if (!bounds) return;
+        await this.ensureDatePrediction(photo, {
+          earliestDate: bounds.start,
+          latestDate: bounds.end,
+        });
+      }
+      else if (lobby.settings.gameType === 'spot') await this.ensurePrediction(photo);
       if (!lobby.settings.visionCommentary) {
         this.io.to(lobbyId).emit('ai_processing_status', this.getAIProcessingStatus(lobbyId));
       }
     } catch (err) {
       console.warn(`AI prefetch failed for photo ${photoId}:`, err.message ?? err);
     }
+  }
+
+  async ensureDatePrediction(photo, {
+    timeoutMs = 120000,
+    earliestDate = '1900-01-01',
+    latestDate = todayUtcDate(),
+  } = {}) {
+    const cached = this.datePredictions.get(photo.id);
+    if (this._isFresh(cached)
+      && cached.earliestDate === earliestDate
+      && cached.latestDate === latestDate) {
+      return cached;
+    }
+    const inflightKey = `${photo.id}:${earliestDate}:${latestDate}`;
+    if (this._inflightDates.has(inflightKey)) {
+      try { return await this._inflightDates.get(inflightKey); } catch { return null; }
+    }
+    const promise = (async () => {
+      const release = await this._acquire('vision');
+      try {
+        const imageB64 = await this._ensurePreprocessed(photo);
+        if (!imageB64) return null;
+        const response = await queryVisionModelForDate(
+          imageB64,
+          timeoutMs,
+          earliestDate,
+          latestDate,
+        );
+        let date = normalizePhotoDate(response?.date);
+        if (!date) return null;
+        if (date < earliestDate) date = earliestDate;
+        if (date > latestDate) date = latestDate;
+        const entry = { date, earliestDate, latestDate, timestamp: Date.now() };
+        this.datePredictions.set(photo.id, entry);
+        return entry;
+      } finally {
+        this._datePredictionAttempted.add(photo.id);
+        release();
+      }
+    })().finally(() => {
+      if (this._inflightDates.get(inflightKey) === promise) this._inflightDates.delete(inflightKey);
+    });
+    this._inflightDates.set(inflightKey, promise);
+    try { return await promise; } catch { return null; }
   }
 
   async prefetchLocation(photoId, photo) {
@@ -371,8 +523,25 @@ export class AIPipeline {
 
     try {
       this._emitAIStatus(lobbyId);
-      await this.ensurePrediction(photo);
-      await this.prefetchLocation(photoId, photo);
+      if (lobby.settings.gameType === 'uploader') {
+        // The random AI vote is intentionally chosen only when the round starts,
+        // so its commentary cannot be prefetched with a fabricated identity.
+        this.io.to(lobbyId).emit('ai_processing_status', this.getAIProcessingStatus(lobbyId));
+        return;
+      } else if (lobby.settings.gameType === 'date') {
+        const bounds = this._datePromptBounds(lobby);
+        if (!bounds) {
+          this.io.to(lobbyId).emit('ai_processing_status', this.getAIProcessingStatus(lobbyId));
+          return;
+        }
+        await this.ensureDatePrediction(photo, {
+          earliestDate: bounds.start,
+          latestDate: bounds.end,
+        });
+      } else {
+        await this.ensurePrediction(photo);
+        await this.prefetchLocation(photoId, photo);
+      }
       await this.ensureVisionCommentary(photo, lobbyId);
     } catch (err) {
       console.warn(`Vision commentary prefetch failed for photo ${photoId}:`, err.message ?? err);
@@ -429,22 +598,26 @@ export class AIPipeline {
 
     const tasks = [];
 
-    if (enableAIGuessing) {
+    if (enableAIGuessing && lobby.settings.gameType !== 'uploader') {
       tasks.push({
         name: 'predictions',
         total,
         processed: lobby.photos.filter(p =>
-          this._isFresh(this.predictions.get(p.id)) || this._predictionAttempted.has(p.id)
+          lobby.settings.gameType === 'date'
+            ? this._isFresh(this.datePredictions.get(p.id))
+              || this._datePredictionAttempted.has(p.id)
+            : this._isFresh(this.predictions.get(p.id)) || this._predictionAttempted.has(p.id)
         ).length,
       });
     }
 
-    if (visionCommentary) {
+    if (visionCommentary && lobby.settings.gameType !== 'uploader') {
       tasks.push({
         name: 'commentary',
         total,
         processed: lobby.photos.filter(p =>
-          this._isFresh(this.visionCommentaries.get(p.id)) || this._visionAttempted.has(p.id)
+          this._isFresh(this.visionCommentaries.get(p.id))
+          || this._visionAttempted.has(p.id)
         ).length,
       });
     }

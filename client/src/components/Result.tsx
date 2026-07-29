@@ -445,7 +445,7 @@ export default function ResultComponent({
         const teamResults = results.filter(r =>
           lobby.players.find(p => p.id === r.playerId)?.team === id
         );
-        roundPoints = teamResults.reduce((sum, r) => sum + r.points, 0);
+        roundPoints = Math.max(0, ...teamResults.map(result => result.points));
         roundResult = teamResults[0];
       } else {
         roundResult = results.find(r => r.playerId === id);
@@ -577,7 +577,7 @@ export default function ResultComponent({
             {revealedResults.map(r => (
               <Marker
                 key={r.playerId}
-                position={[r.lat, r.lon]}
+                position={[r.lat!, r.lon!]}
                 icon={playerIcons[r.playerId]}
                 eventHandlers={{
                   add: (e) => {
@@ -597,7 +597,7 @@ export default function ResultComponent({
             {revealedResults.map(r => (
               <Polyline
                 key={r.playerId}
-                positions={[[r.lat, r.lon], center]}
+                positions={[[r.lat!, r.lon!], center]}
                 color={r.color} weight={2} opacity={0.6} dashArray="5, 10"
                 eventHandlers={{
                   add: (e) => {

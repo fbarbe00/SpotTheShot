@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ALL_ACHIEVEMENTS, getAchievementById } from './achievementsData';
 import type { Achievement, PlayerStats } from './achievementTypes';
 import { logger } from './logger';
+import type { GameType } from './gameModes';
 
 const ACHIEVEMENT_STORAGE_KEY = 'spottheshot-achievements';
 const STATS_STORAGE_KEY = 'spottheshot-player-stats';
@@ -83,6 +84,10 @@ function createInitialStats(): PlayerStats {
     lastPlayDate: '',
     earnedAchievementsCount: 0,
     hasPlayedFirstGame: false,
+    correctUploaderGuesses: 0,
+    consecutiveCorrectUploaderGuesses: 0,
+    dateGuesses: 0,
+    closeDateGuesses: 0,
   };
 }
 
@@ -199,6 +204,10 @@ export function useAchievements() {
           lastPlayDate: p.lastPlayDate ?? '',
           earnedAchievementsCount: p.earnedAchievementsCount ?? 0,
           hasPlayedFirstGame: p.hasPlayedFirstGame ?? false,
+          correctUploaderGuesses: p.correctUploaderGuesses ?? 0,
+          consecutiveCorrectUploaderGuesses: p.consecutiveCorrectUploaderGuesses ?? 0,
+          dateGuesses: p.dateGuesses ?? 0,
+          closeDateGuesses: p.closeDateGuesses ?? 0,
         });
       }
     } catch (error) {
@@ -325,6 +334,7 @@ export function useAchievements() {
     gameResult: 'win' | 'loss',
     isPerfectGame = false,
     isSoloGame = false,
+    gameType: GameType = 'spot',
   ) => {
     setStats(prev => {
       const updated = cloneStats(prev);
@@ -332,21 +342,25 @@ export function useAchievements() {
 
       // Solo games don't count towards stats, but do unlock first_game once.
       if (isSoloGame) {
-        if (!prev.hasPlayedFirstGame) {
+        if (gameType === 'spot' && !prev.hasPlayedFirstGame) {
           updated.hasPlayedFirstGame = true;
           toUnlock.push('first_game');
-          unlockAchievements(toUnlock);
         }
+        if (gameType === 'date') toUnlock.push('first_date_game');
+        if (gameType === 'uploader') toUnlock.push('first_uploader_game');
+        if (toUnlock.length) unlockAchievements(toUnlock);
         return updated;
       }
 
       updated.gamesPlayed += 1;
 
-      // first_game: unlock exactly once, on the first game ever (solo or multiplayer)
-      if (!prev.hasPlayedFirstGame) {
+      // First Steps is specifically the first completed location-guessing game.
+      if (gameType === 'spot' && !prev.hasPlayedFirstGame) {
         updated.hasPlayedFirstGame = true;
         toUnlock.push('first_game');
       }
+      if (gameType === 'date') toUnlock.push('first_date_game');
+      if (gameType === 'uploader') toUnlock.push('first_uploader_game');
 
       if (gameResult === 'win') {
         updated.gamesWon += 1;
@@ -395,6 +409,54 @@ export function useAchievements() {
       return updated;
     });
   }, [unlockAchievements]);
+
+  const trackDateGuess = useCallback((distanceDays: number, targetDate: string, score: number) => {
+    if (distanceDays === 0) unlockAchievement('date_bullseye');
+    if (distanceDays <= 7) updateAchievementProgress('date_detective');
+    updateAchievementProgress('date_marathon');
+    if (distanceDays <= 30) updateAchievementProgress('calendar_regular');
+    const cutoff = new Date();
+    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 75);
+    if (targetDate <= cutoff.toISOString().slice(0, 10) && distanceDays <= 366) {
+      unlockAchievement('archive_explorer');
+    }
+    if (score === 5000) unlockAchievement('five_k');
+    if (score >= 4500) updateAchievementProgress('ten_k_score');
+    setStats(prev => {
+      const updated = cloneStats(prev);
+      updated.dateGuesses += 1;
+      if (distanceDays <= 30) updated.closeDateGuesses += 1;
+      if (score >= 3000) {
+        updated.consecutiveHighScoreRounds += 1;
+        updated.maxConsecutiveHighScoreRounds = Math.max(
+          updated.maxConsecutiveHighScoreRounds,
+          updated.consecutiveHighScoreRounds,
+        );
+        if (updated.consecutiveHighScoreRounds >= 10) unlockAchievement('consistent_scoring');
+      } else {
+        updated.consecutiveHighScoreRounds = 0;
+      }
+      return updated;
+    });
+  }, [unlockAchievement, updateAchievementProgress]);
+
+  const trackUploaderGuess = useCallback((correct: boolean) => {
+    if (correct) {
+      updateAchievementProgress('uploader_detective');
+      updateAchievementProgress('uploader_expert');
+    }
+    setStats(prev => {
+      const updated = cloneStats(prev);
+      if (correct) {
+        updated.correctUploaderGuesses += 1;
+        updated.consecutiveCorrectUploaderGuesses += 1;
+        if (updated.consecutiveCorrectUploaderGuesses >= 3) unlockAchievement('identity_streak');
+      } else {
+        updated.consecutiveCorrectUploaderGuesses = 0;
+      }
+      return updated;
+    });
+  }, [unlockAchievement, updateAchievementProgress]);
 
   // ── Guess tracking ─────────────────────────────────────────────────────────
 
@@ -723,6 +785,8 @@ export function useAchievements() {
     trackPhotoUploadFromCountry,
     trackRoundWin,
     trackPhotoFinish,
+    trackDateGuess,
+    trackUploaderGuess,
     getEarnedAchievements,
     getNextAchievements,
     startGame,

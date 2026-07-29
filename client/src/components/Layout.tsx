@@ -1,20 +1,23 @@
 import { ReactNode } from "react";
-import { Map, Info, Trophy } from "lucide-react";
+import { CalendarDays, Map, Info, Trophy, Users } from "lucide-react";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { useState } from "react";
 import { useI18n } from "../contexts/I18nContext";
 import { LanguageSelector } from "./LanguageSelector";
+import type { GameType } from "../lib/gameModes";
 
 // Main page layout wrapper - provides header, styling, and connection status indicator
 // Uses: OpenStreetMap, GeoCLIP, and Ministral models
 export default function Layout({
   children,
   onShowAchievements,
-  hasAchievements = true
+  hasAchievements = true,
+  gameType = 'spot',
 }: {
   children: ReactNode;
   onShowAchievements?: () => void;
   hasAchievements?: boolean;
+  gameType?: GameType;
 }) {
   const [showCredits, setShowCredits] = useState(false);
   const { t } = useI18n();
@@ -27,9 +30,13 @@ export default function Layout({
         <div className="pointer-events-none absolute -bottom-6 -right-4 h-24 w-24 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="flex items-center justify-between mb-2 md:mb-3 px-1">
           <div className="flex items-center gap-1.5">
-            <Map className="text-primary-dark w-5 h-5 md:w-6 md:h-6" size={24} />
+            {gameType === 'date'
+              ? <CalendarDays className="text-primary-dark w-5 h-5 md:w-6 md:h-6" size={24} />
+              : gameType === 'uploader'
+                ? <Users className="text-primary-dark w-5 h-5 md:w-6 md:h-6" size={24} />
+                : <Map className="text-primary-dark w-5 h-5 md:w-6 md:h-6" size={24} />}
             <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-primary">
-              SpotTheShot
+              {gameType === 'date' ? 'DateTheShot' : gameType === 'uploader' ? 'WhoTookTheShot' : 'SpotTheShot'}
             </h1>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
@@ -71,7 +78,7 @@ export default function Layout({
                 {t('common.madeWithLove')} Fabio Barbero
               </a>
             </div>
-            <div>
+            {gameType === 'spot' && <div>
               🗺️ Map tiles:{" "}
               <a
                 href="https://www.openstreetmap.org/copyright"
@@ -82,8 +89,8 @@ export default function Layout({
                 OpenStreetMap contributors
               </a>{" "}
               (using Leaflet)
-            </div>
-            <div>
+            </div>}
+            {gameType === 'spot' && <div>
               📍 Geolocation:{" "}
               <a
                 href="https://github.com/fbarbe00/FastGeoCLIP"
@@ -94,7 +101,7 @@ export default function Layout({
                 FastGeoCLIP
               </a>{" "}
               (running on the server)
-            </div>
+            </div>}
             <div>
               🤖 Image analysis:{" "}
               <a
@@ -107,7 +114,7 @@ export default function Layout({
               </a>{" "}
               (running on the server)
             </div>
-            <div>
+            {gameType === 'spot' && <div>
               🇺🇳 Geographical boundaries data:{" "}
               <a href="https://www.geoboundaries.org/"
               target="_blank"
@@ -117,7 +124,7 @@ export default function Layout({
                 Geoboundaries.org
               </a>{" "}
               (running on the server)
-            </div>
+            </div>}
           </div>
         )}
         <div className="bg-surface/90 backdrop-blur-md rounded-xl shadow-2xl shadow-black/50 p-2 md:p-3 border border-primary/20">

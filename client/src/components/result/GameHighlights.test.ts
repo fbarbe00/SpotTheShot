@@ -233,6 +233,39 @@ describe('GameHighlights', () => {
         expect(speedMoment.params.player).toBe('Human');
       }
     });
+
+    it('uses date-specific moments without location-only sharpshooter text', () => {
+      const round = createMockRound({
+        results: createMockRound().results.map((result, index) => ({
+          ...result,
+          distanceDays: index === 0 ? 0 : 40 + index,
+          guessedDate: index === 0 ? '2020-01-01' : '2019-11-01',
+        })),
+      });
+      const moments = pickGameMoments([round], mockT, 'en', 'date');
+      const labels = moments.map(moment => moment.label);
+      expect(labels).toContain('highlights.dateClosest');
+      expect(labels).toContain('highlights.dateExact');
+      expect(labels).toContain('highlights.dateHardest');
+      expect(labels).not.toContain('Sharpshooter');
+    });
+
+    it('adds perfect-record and most-voted moments for uploader games', () => {
+      const makeRound = (roundIndex: number): RoundResults => createMockRound({
+        roundIndex,
+        photo: { ...createMockRound().photo, id: `photo-${roundIndex}` },
+        results: createMockRound().results.map((result, index) => ({
+          ...result,
+          guessedUploaderId: index === 0 ? 'player-2' : 'player-1',
+          correctUploader: index === 0,
+        })),
+      });
+      const moments = pickGameMoments([makeRound(0), makeRound(1)], mockT, 'en', 'uploader');
+      const labels = moments.map(moment => moment.label);
+      expect(labels).toContain('highlights.uploaderDetective');
+      expect(labels).toContain('highlights.uploaderPerfect');
+      expect(labels).toContain('highlights.uploaderMostVoted');
+    });
   });
 
   describe('Template rendering integrity', () => {

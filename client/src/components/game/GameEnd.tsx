@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, Fragment } from "react";
 import type { Lobby, Player, RoundResults } from "../../lib/types";
 import { MomentCard, pickGameMoments } from "../result/GameHighlights";
-import { Crown, LogOut, Map as MapIcon } from "lucide-react";
+import { CalendarRange, Crown, LogOut, Map as MapIcon, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { getOrdinal } from "../../lib/utils";
 import { useI18n } from "../../contexts/I18nContext";
@@ -197,11 +197,11 @@ function EndScreenMap({
     const points: [number, number][] = [];
     for (const round of gameResults) {
       if (Number.isFinite(round.photo.lat) && Number.isFinite(round.photo.lon)) {
-        points.push([round.photo.lat, round.photo.lon]);
+        points.push([round.photo.lat!, round.photo.lon!]);
       }
       for (const result of round.results) {
         if (Number.isFinite(result.lat) && Number.isFinite(result.lon)) {
-          points.push([result.lat, result.lon]);
+          points.push([result.lat!, result.lon!]);
         }
       }
     }
@@ -260,7 +260,7 @@ function EndScreenMap({
 
         {gameResults.map((round, roundIndex) => {
           const photoPos: [number, number] | null = Number.isFinite(round.photo.lat) && Number.isFinite(round.photo.lon)
-            ? [round.photo.lat, round.photo.lon]
+            ? [round.photo.lat!, round.photo.lon!]
             : null;
 
           return (
@@ -294,7 +294,7 @@ function EndScreenMap({
                 return (
                   <Marker
                     key={`guess-${roundIndex}-${result.playerId}`}
-                    position={[result.lat, result.lon]}
+                    position={[result.lat!, result.lon!]}
                     icon={createPlayerMarker(result)}
                   >
                     <Tooltip>
@@ -352,6 +352,83 @@ function FitBoundsComponent({ points }: { points: [number, number][] }) {
   return null;
 }
 
+const DAY_MS = 86_400_000;
+const dayNumber = (date: string) => Date.parse(`${date}T12:00:00Z`) / DAY_MS;
+
+function EndScreenDateTimeline({ gameResults }: { gameResults: RoundResults[] }) {
+  const values = gameResults.flatMap(round => [
+    round.photo.captureDate,
+    ...round.results.map(result => result.guessedDate),
+  ]).filter((value): value is string => !!value);
+  if (!values.length) return null;
+  const days = values.map(dayNumber);
+  const low = Math.min(...days);
+  const high = Math.max(...days);
+  const padding = Math.max(30, Math.ceil(Math.max(1, high - low) * 0.08));
+  const start = low - padding;
+  const end = high + padding;
+  const position = (date?: string) => date ? ((dayNumber(date) - start) / Math.max(1, end - start)) * 100 : 0;
+  const label = (day: number) => new Date(day * DAY_MS).toISOString().slice(0, 10);
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-surface/60 p-4 text-left">
+      <div className="mb-3 flex justify-between text-xs font-bold text-text-darker"><span>{label(start)}</span><span>{label(end)}</span></div>
+      <div className="space-y-5">
+        {gameResults.map((round, index) => (
+          <div key={`${round.photo.id}-${round.roundIndex}`}>
+            <div className="mb-1 text-xs font-bold text-primary">{`#${index + 1} · ${round.photo.captureDate}`}</div>
+            <div className="relative h-10">
+              <div className="absolute left-0 right-0 top-4 h-1 rounded bg-gradient-to-r from-amber-900 via-violet-700 to-primary" />
+              <span className="absolute top-1 -translate-x-1/2 text-white" style={{ left: `${position(round.photo.captureDate)}%` }}>◆</span>
+              {round.results.map(result => (
+                <span key={result.playerId} title={`${result.nickname}: ${result.guessedDate}`}
+                  className="absolute top-2 flex h-7 w-7 -translate-x-1/2 items-center justify-center rounded-full border-2 bg-surface text-sm"
+                  style={{ left: `${position(result.guessedDate)}%`, borderColor: result.color || '#a78bfa' }}>
+                  {result.icon || '👤'}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EndScreenUploaderStats({ gameResults, players }: { gameResults: RoundResults[]; players: Player[] }) {
+  const stats = players
+    .filter(player => !player.isAI && !String(player.id).startsWith('ai-'))
+    .map(player => {
+      let totalVotes = 0, correctVotes = 0, incorrectVotes = 0, correctGuesses = 0;
+      for (const round of gameResults) {
+        for (const result of round.results) {
+          if (result.guessedUploaderId === player.id) {
+            totalVotes++;
+            if (round.photo.uploaderId === player.id) correctVotes++;
+            else incorrectVotes++;
+          }
+          if (result.playerId === player.id && result.correctUploader) correctGuesses++;
+        }
+      }
+      return { player, totalVotes, correctVotes, incorrectVotes, correctGuesses };
+    })
+    .sort((a, b) => b.totalVotes - a.totalVotes);
+  const { t } = useI18n();
+  return (
+    <div className="overflow-x-auto rounded-xl border border-primary/20 bg-surface/60">
+      <div className="grid min-w-[620px] grid-cols-[1fr_repeat(4,minmax(58px,auto))] gap-2 border-b border-primary/20 p-3 text-[10px] font-black uppercase text-text-darker">
+        <span>{t('game.uploader.player')}</span><span>{t('game.uploader.votes')}</span><span>{t('game.uploader.correctVotes')}</span><span>{t('game.uploader.wrongVotes')}</span><span>{t('game.uploader.correctGuesses')}</span>
+      </div>
+      {stats.map(({ player, totalVotes, correctVotes, incorrectVotes, correctGuesses }) => (
+        <div key={player.id} className="grid min-w-[620px] grid-cols-[1fr_repeat(4,minmax(58px,auto))] gap-2 border-b border-white/5 p-3 text-sm last:border-0">
+          <span className="min-w-0 truncate font-bold">{player.icon} {player.nickname}</span>
+          <span>{totalVotes}</span><span className="text-emerald-400">{correctVotes}</span><span className="text-rose-400">{incorrectVotes}</span><span className="text-primary">{correctGuesses}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────
    GameEnd Component
 ───────────────────────────────────────── */
@@ -370,8 +447,11 @@ export function GameEnd({ lobby, gameResults, onExitLobby, mapStyle = 'osm', map
   const sorted = buildLeaderboard(lobby.players, isTeamMode, gameResults, t);
   const top3 = sorted.slice(0, 3);
   const rest = sorted.slice(3);
-  const gameMoments = useMemo(() => pickGameMoments(gameResults, t, language), [gameResults, t, language]);
-  const [showMap, setShowMap] = useState(false);
+  const gameMoments = useMemo(
+    () => pickGameMoments(gameResults, t, language, lobby.settings.gameType),
+    [gameResults, t, language, lobby.settings.gameType],
+  );
+  const [showOverview, setShowOverview] = useState(false);
 
   // Podium reveal delays: 2nd place reveals first (left), then 1st (centre), then 3rd (right).
   // We key delays by sorted rank (0-indexed) so they're stable regardless of how many
@@ -446,24 +526,30 @@ export function GameEnd({ lobby, gameResults, onExitLobby, mapStyle = 'osm', map
       {/* Map toggle and display */}
       <div className="max-w-4xl mx-auto px-4">
         <button
-          onClick={() => setShowMap(!showMap)}
+          onClick={() => setShowOverview(!showOverview)}
           className="w-full px-4 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-text-darker hover:text-primary transition-colors flex items-center justify-center gap-2 font-semibold"
         >
-          <MapIcon size={18} />
-          {showMap ? t('game.hideMap') : t('game.showAllGuessesMap')}
+          {lobby.settings.gameType === 'spot' ? <MapIcon size={18} /> : lobby.settings.gameType === 'date' ? <CalendarRange size={18} /> : <Users size={18} />}
+          {showOverview
+            ? t('game.hideOverview')
+            : t(lobby.settings.gameType === 'spot'
+              ? 'game.showAllGuessesMap'
+              : lobby.settings.gameType === 'date'
+                ? 'game.showAllGuessesTimeline'
+                : 'game.showUploaderStats')}
         </button>
         
-        {showMap && (
+        {showOverview && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="mt-4"
           >
-            <EndScreenMap
-              gameResults={gameResults}
-              mapStyle={mapStyle}
-              mapLanguage={mapLanguage}
-            />
+            {lobby.settings.gameType === 'spot'
+              ? <EndScreenMap gameResults={gameResults} mapStyle={mapStyle} mapLanguage={mapLanguage} />
+              : lobby.settings.gameType === 'date'
+                ? <EndScreenDateTimeline gameResults={gameResults} />
+                : <EndScreenUploaderStats gameResults={gameResults} players={lobby.players} />}
           </motion.div>
         )}
       </div>

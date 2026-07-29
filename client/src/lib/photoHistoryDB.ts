@@ -77,6 +77,16 @@ async function _patchEntryLocation(entry: HistoryEntry, lat: number, lon: number
   });
 }
 
+async function _patchEntryDate(entry: HistoryEntry, captureDate: string): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put({ ...entry, captureDate });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function updateEntryLocation(serverPhotoId: string, lat: number, lon: number): Promise<void> {
   try {
     const all = await getHistory();
@@ -92,6 +102,22 @@ export async function updateEntryLocationById(id: string, lat: number, lon: numb
     const entry = all.find(e => e.id === id);
     if (!entry) return;
     await _patchEntryLocation(entry, lat, lon);
+  } catch { /* silently fail */ }
+}
+
+export async function updateEntryDate(serverPhotoId: string, captureDate: string): Promise<void> {
+  try {
+    const all = await getHistory();
+    const entry = all.find(e => e.serverPhotoId === serverPhotoId);
+    if (entry) await _patchEntryDate(entry, captureDate);
+  } catch { /* silently fail */ }
+}
+
+export async function updateEntryDateById(id: string, captureDate: string): Promise<void> {
+  try {
+    const all = await getHistory();
+    const entry = all.find(e => e.id === id);
+    if (entry) await _patchEntryDate(entry, captureDate);
   } catch { /* silently fail */ }
 }
 

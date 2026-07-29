@@ -8,6 +8,8 @@ import { useI18n } from "../contexts/I18nContext";
 const GameBoard = lazy(() => import("./game/GameBoard").then(m => ({ default: m.GameBoard })));
 const GameEnd = lazy(() => import("./game/GameEnd").then(m => ({ default: m.GameEnd })));
 const ResultComponent = lazy(() => import("./Result"));
+const DateResult = lazy(() => import("./DateResult"));
+const UploaderResult = lazy(() => import("./UploaderResult"));
 
 const LoadingFallback = () => (
   <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -36,7 +38,7 @@ type GameProps = {
   timerMs: number;
   timerStarted?: boolean;
   results: RoundResults | null;
-  onSubmitGuess: (p: { lat: number; lon: number }) => Promise<boolean>;
+  onSubmitGuess: (p: { lat: number; lon: number } | { date: string } | { uploaderId: string }) => Promise<boolean>;
   onExitLobby: () => void;
   serverAiTipIndex?: number | null;
 };
@@ -90,6 +92,28 @@ export default function Game(props: GameProps) {
       return;
     }
 
+    if (lobby.settings.gameType === 'date') {
+      if (playerResult?.distanceDays != null && photo.captureDate && achievements.trackDateGuess) {
+        achievements.trackDateGuess(playerResult.distanceDays, photo.captureDate, playerResult.points);
+      }
+      if (achievements.trackRoundWin) achievements.trackRoundWin(!!didWinRound);
+      if (playerResult && achievements.trackFastGuess && playerResult.timeTakenMs) {
+        achievements.trackFastGuess(playerResult.timeTakenMs);
+      }
+      return;
+    }
+
+    if (lobby.settings.gameType === 'uploader') {
+      if (playerResult && achievements.trackUploaderGuess) {
+        achievements.trackUploaderGuess(!!playerResult.correctUploader);
+      }
+      if (achievements.trackRoundWin) achievements.trackRoundWin(!!didWinRound);
+      if (playerResult?.timeTakenMs && achievements.trackFastGuess) {
+        achievements.trackFastGuess(playerResult.timeTakenMs);
+      }
+      return;
+    }
+
     if (achievements.trackRoundWin) {
       achievements.trackRoundWin(!!didWinRound);
     }
@@ -129,8 +153,8 @@ export default function Game(props: GameProps) {
         achievements.trackCorrectGuess(
           playerResult.country || '',
           playerResult.region || '',
-          playerResult.lat,
-          playerResult.lon
+          playerResult.lat!,
+          playerResult.lon!
         );
       }
 
@@ -148,7 +172,7 @@ export default function Game(props: GameProps) {
         achievements.trackAIBeat(distanceDiff);
       }
     }
-  }, [isSoloHumanGame, props.playerId, achievements]);
+  }, [isSoloHumanGame, props.playerId, achievements, lobby.settings.gameType]);
 
   const trackGameCompletionAchievements = useCallback(() => {
     if (!achievements.trackGameCompletion) return;
@@ -178,7 +202,7 @@ export default function Game(props: GameProps) {
     // In team games, a perfect game means the player's team won every round.
     const playerWonAllRounds = gameResults.length > 0 && gameResults.every(round => {
       if (lobby.settings.gameMode !== 'teams') {
-        const roundWinner = [...round.results].sort((a, b) => a.distanceKm - b.distanceKm)[0];
+        const roundWinner = [...round.results].sort((a, b) => b.points - a.points)[0];
         return roundWinner?.playerId === props.playerId;
       }
       const bestByTeam = new Map<string, number>();
@@ -210,7 +234,7 @@ export default function Game(props: GameProps) {
           const lowestScore = Math.min(...firstScores.values());
           wasLastInFirstRound = !!playerTeam && firstScores.get(playerTeam) === lowestScore;
         } else {
-          const firstRoundResults = [...firstRound.results].sort((a, b) => a.distanceKm - b.distanceKm);
+          const firstRoundResults = [...firstRound.results].sort((a, b) => b.points - a.points);
           wasLastInFirstRound = firstRoundResults[firstRoundResults.length - 1]?.playerId === props.playerId;
         }
 
@@ -223,10 +247,14 @@ export default function Game(props: GameProps) {
     if (achievements.trackPhotoWithMostCorrectGuesses) {
       const correctCounts = gameResults.map(round => ({
         uploaderId: round.photo.uploaderId,
-        count: round.results.filter(result =>
-          !result.isAI && !String(result.playerId).startsWith('ai-') &&
-          !!round.photo.country && result.country === round.photo.country
-        ).length,
+        count: round.results.filter(result => {
+          if (result.isAI || String(result.playerId).startsWith('ai-')) return false;
+          return lobby.settings.gameType === 'date'
+            ? result.distanceDays != null && result.distanceDays <= 30
+            : lobby.settings.gameType === 'uploader'
+              ? !!result.correctUploader
+              : !!round.photo.country && result.country === round.photo.country;
+        }).length,
       }));
       const bestCount = Math.max(...correctCounts.map(entry => entry.count), 0);
       if (bestCount > 0 && correctCounts.some(entry => entry.uploaderId === props.playerId && entry.count === bestCount)) {
@@ -235,8 +263,13 @@ export default function Game(props: GameProps) {
     }
 
     // Track game completion - solo games (vs AI) don't count towards achievement progress
-    achievements.trackGameCompletion(isWinner ? 'win' : 'loss', playerWonAllRounds, isSoloHumanGame);
-  }, [achievements, lobby.players, props.playerId, gameResults, lobby.settings.gameMode, isSoloHumanGame]);
+    achievements.trackGameCompletion(
+      isWinner ? 'win' : 'loss',
+      playerWonAllRounds,
+      isSoloHumanGame,
+      lobby.settings.gameType || 'spot',
+    );
+  }, [achievements, lobby.players, props.playerId, gameResults, lobby.settings.gameMode, lobby.settings.gameType, isSoloHumanGame]);
 
   useEffect(() => {
     if (phase === "results" && results) {
@@ -297,15 +330,21 @@ export default function Game(props: GameProps) {
         <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <Suspense fallback={<LoadingFallback />}>
             {/* Pass prior rounds so moments can detect streaks, comebacks, etc. */}
-            <ResultComponent
-              data={props.results}
-              timerMs={props.timerMs}
-              lobby={props.lobby}
-              playerId={props.playerId}
-              allPriorRounds={gameResults.slice(0, -1)}
-              mapStyle={props.lobby.settings.mapStyle || 'osm'}
-              mapLanguage={props.lobby.settings.mapLanguage || 'local'}
-            />
+            {lobby.settings.gameType === 'date' ? (
+              <DateResult data={props.results} lobby={props.lobby} playerId={props.playerId} />
+            ) : lobby.settings.gameType === 'uploader' ? (
+              <UploaderResult data={props.results} lobby={props.lobby} playerId={props.playerId} />
+            ) : (
+              <ResultComponent
+                data={props.results}
+                timerMs={props.timerMs}
+                lobby={props.lobby}
+                playerId={props.playerId}
+                allPriorRounds={gameResults.slice(0, -1)}
+                mapStyle={props.lobby.settings.mapStyle || 'osm'}
+                mapLanguage={props.lobby.settings.mapLanguage || 'local'}
+              />
+            )}
           </Suspense>
         </motion.div>
       )}

@@ -1,8 +1,16 @@
-# SpotTheShot - geolocation guessing game
+# SpotTheShot — three ways to guess photos
 
-Create a lobby, invite your friends, everyone uploads a handful of photos, and you take turns guessing on a map where each photo was taken. Closer guesses score more points; round-by-round and end-of-game highlights keep score across the lobby. Includes achievements and other fun gamification things.
+Create a lobby, invite your friends, and let everyone upload a handful of photos. Choose one of three game types:
 
-Optionally drop in an **on-device "AI" player** that guesses for itself and auto-names everyone's photos with one-line commentary. The AI runs entirely on your machine, no API keys, no external services.
+- **SpotTheShot** (the default): guess on a map where each photo was taken.
+- **DateTheShot**: use a draggable timeline to guess when each photo was taken.
+- **WhoTookTheShot**: vote for the lobby member who uploaded each photo.
+
+Closer guesses score more points in the location and date games; correct uploader votes score 5,000 points. Every round uses one combined leaderboard that shows each answer, the points earned that round, and the running total. The result view also explains the exact mode formula, uploader penalty, and team contribution rule. Individual/team play and fixed/progressive timers work with every game.
+
+The host chooses the game from a compact dropdown while creating a lobby and can change it later in lobby settings. Existing photos are revalidated on every switch, their uploaders are prompted only for newly required dates or locations, and player readiness is reset. Invitation links expose only the lobby's game type so invitees can see which game they are joining.
+
+Optionally drop in an **on-device "AI" player** that guesses for itself and auto-names everyone's photos with one-line commentary. DateTheShot uses a small constrained vision prompt returning `YYYY-MM-DD`. In WhoTookTheShot, the AI vote is deliberately random and its commentary is explicitly told both the random pick and real uploader. The AI runs entirely on your machine, no API keys, no external services.
 
 **Privacy by design.** Your photos don't leave your server. Server copies live on
 disk only for the active game and are deleted when it finishes. For convenient
@@ -174,6 +182,30 @@ npm test
 Player sessions use a private browser-stored credential for reconnects, uploads,
 and photo access. Clearing site data signs that browser out of its active lobby;
 the player can immediately join again as a new participant.
+
+## DateTheShot details
+
+- Photo dates are read from EXIF metadata when available and can be edited by the uploader in the lobby.
+- PNG `Creation Time` metadata and dates embedded in common screenshot filenames are also detected. If no usable date is found, a required date-entry dialog opens after upload.
+- Date and GPS metadata are extracted from the original file before the browser resizes it. On mobile, the metadata-preserving file browser is the default; the optional quick photo-library picker may provide a privacy-sanitized copy without EXIF data, in which case the lobby asks for the missing date or location.
+- Every photo needs a valid date before a DateTheShot game can start.
+- Dates after the server's current day are rejected on upload, edit, and guess submission.
+- At game start, the server derives the timeline from the photo collection: a random 1–20 years before the oldest photo and 1–20 years after the newest, capped at today. Month/year landmarks and precise date controls make long ranges usable.
+- The vision model receives a tighter collection-aware range: ten years before the oldest uploaded photo through ten years after the newest, capped at today.
+- Date scoring is `round(5000 × e^(-daysAway / 3652.5))`: an exact date earns 5,000 points and the score decreases smoothly with absolute calendar-day error.
+- The AI date prompt receives the exact playable start and end dates. When vision commentary is enabled, it compares its submitted date with the real date and jokes about reading the era clues correctly—or getting them wrong.
+- DateTheShot uses the vision model directly and does not run GeoCLIP prediction, reverse-geocoding, map, or location-assistance work. Switching back to SpotTheShot prompts uploaders to locate any photos that need coordinates.
+- Round results place the real date and every player's labeled icon on one normalized shared timeline. The final view combines all date rounds in one timeline.
+- Date-specific achievements reward completing the mode, exact guesses, repeated week- and month-close guesses, sustained play, and accurately dating archival photos. The original First Steps achievement now specifically requires completing a location-guessing game.
+
+## WhoTookTheShot details
+
+- Round payloads replace the real photo ID with a public round token and withhold uploader ownership until results, preventing the answer from being recovered from lobby state.
+- Human players vote for any human lobby member. Correct votes score 5,000 points and incorrect votes score 0; the configured uploader penalty is then applied to the uploader's own photo.
+- The AI samples uniformly from human players and never invokes GeoCLIP or an identity-recognition prompt.
+- Round results reveal every vote. The final view summarizes total votes received, correctly attributed votes, incorrect attributions, and each player's correct guesses.
+- Mode-specific achievements reward completing a game, repeated correct identifications, and correct-answer streaks. End-of-game moments cover perfect records, the most-voted player, the strongest detective, and photos that fooled everyone.
+- The optional capture-date display can be enabled for this mode without turning the date into required upload metadata.
 
 ## Supported languages
 

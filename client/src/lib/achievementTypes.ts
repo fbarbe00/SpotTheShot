@@ -79,4 +79,8 @@ export type PlayerStats = {
 
   // Track if player has played their first game
   hasPlayedFirstGame: boolean;
+  correctUploaderGuesses: number;
+  consecutiveCorrectUploaderGuesses: number;
+  dateGuesses: number;
+  closeDateGuesses: number;
 };

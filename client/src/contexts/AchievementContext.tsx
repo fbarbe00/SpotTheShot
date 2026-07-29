@@ -1,4 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react'
+import type { GameType } from '../lib/gameModes'
 
 /**
  * Achievement tracking context
@@ -8,7 +9,7 @@ import React, { createContext, useContext, ReactNode } from 'react'
 
 interface AchievementContextType {
   // Core tracking functions - passed directly to the context provider
-  trackGameCompletion: (result: 'win' | 'loss', isPerfectGame?: boolean, onlyFirstGame?: boolean) => void
+  trackGameCompletion: (result: 'win' | 'loss', isPerfectGame?: boolean, onlyFirstGame?: boolean, gameType?: GameType) => void
   trackCorrectGuess: (country: string, region: string, lat: number, lon: number) => void
   trackScore: (score: number, distanceKm: number) => void
   trackAIBeat: (distanceDifferenceKm: number) => void
@@ -26,6 +27,8 @@ interface AchievementContextType {
   trackPhotoUploadFromCountry: (country: string) => void
   trackRoundWin: (wonRound: boolean) => void
   trackPhotoFinish: (marginKm: number) => void
+  trackDateGuess: (distanceDays: number, targetDate: string, score: number) => void
+  trackUploaderGuess: (correct: boolean) => void
 }
 
 const AchievementContext = createContext<AchievementContextType | undefined>(undefined)

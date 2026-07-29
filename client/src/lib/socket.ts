@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client';
 import { logger } from './logger';
+import type { GameType } from './gameModes';
 
 // Derive server URL from current window location at runtime
 // This eliminates the need to rebuild the client when the server URL changes
@@ -30,6 +31,9 @@ export function clearPlayerSessionToken(): void {
 
 // Settings type for lobby creation
 interface LobbySettings {
+  gameType?: GameType;
+  dateTimelineStart?: string;
+  dateTimelineEnd?: string;
   roundDurationSec?: number;
   gameMode?: 'individual' | 'teams';
   timerMode?: 'fixed' | 'progressive';
@@ -140,6 +144,11 @@ export const api = {
   },
   validateToken: async (secret: string) => {
     const r = await fetch(`${SERVER_URL}/api/token/validate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret }) });
+    return r.json();
+  },
+  getLobbyPublic: async (lobbyId: string) => {
+    const r = await fetch(`${SERVER_URL}/api/lobbies/${encodeURIComponent(lobbyId)}/public`);
+    if (!r.ok) return null;
     return r.json();
   },
   joinLobby: async (lobbyId: string, nickname: string, clientSessionId?: string | null) => {

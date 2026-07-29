@@ -21,7 +21,6 @@ import {
   UserX,
   LogOut,
   Map,
-  HelpCircle,
   QrCode,
   Info,
 } from 'lucide-react'
@@ -29,6 +28,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useI18n } from '../contexts/I18nContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { AVATAR_ICONS } from '../lib/avatarIcons';
+import { normalizeCaptureDate } from '../lib/photoProcessing';
+import { gameModeDefinition } from '../lib/gameModes';
 
 // AI processing status type
 interface AIProcessingStatus {
@@ -60,6 +61,18 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
   const isTeamMode = lobby?.settings.gameMode === 'teams'
   const myPhotos = lobby?.photos.filter(p => p.uploaderId === playerId) || []
   const myPhotosLocated = myPhotos.filter(p => p.lat !== null && p.lon !== null).length
+  // Only count an explicit server-side completeness result. An absent date can
+  // also mean private metadata belonging to another player.
+  const photosMissingDates = lobby?.photos.filter(photo => photo.hasCaptureDate === false).length ?? 0
+  const photosInvalidDates = lobby?.settings.gameType === 'date'
+    ? lobby.photos.filter(photo => photo.hasCaptureDate !== false && photo.captureDate && (
+      !normalizeCaptureDate(photo.captureDate)
+      || photo.captureDate > new Date().toISOString().slice(0, 10)
+    )).length
+    : 0
+  // The server is authoritative for start requirements. Keeping this button
+  // available avoids privacy-redacted metadata becoming a false client block.
+  const canStart = (lobby?.photos.length ?? 0) > 0
   const hasAIPlayer = !!lobby?.players.some(p => p.id.startsWith('ai-'))
   const aiFeaturesEnabled = !!(lobby?.settings.enableAIGuessing || lobby?.settings.visionCommentary || lobby?.settings.autoNameImages)
 
@@ -148,12 +161,18 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
     if (aiProcessingStatus.stage === 'waiting_for_photos') return t('lobby.aiWaitingPhotos');
     if (aiProcessingStatus.isReady) return t('lobby.aiReady');
     const stageMap: Record<string, string> = {
-      predictions: t('lobby.aiGeneratingGuesses'),
+      predictions: t(lobby?.settings.gameType === 'date'
+        ? 'lobby.aiEstimatingDates'
+        : 'lobby.aiGeneratingGuesses'),
       commentary: t('lobby.aiCreatingCommentary'),
       'auto-naming': t('lobby.aiGeneratingTitles')
     };
     return stageMap[aiProcessingStatus.stage || ''] || t('lobby.aiProcessingTasks');
-  }, [hasAIPlayer, aiFeaturesEnabled, aiProcessingStatus, t]);
+  }, [hasAIPlayer, aiFeaturesEnabled, aiProcessingStatus, lobby?.settings.gameType, t]);
+
+  useEffect(() => {
+    if (lobby?.settings.gameType !== 'spot') setShowMap(false)
+  }, [lobby?.settings.gameType])
 
   const aiPlayerStatusLabel = useMemo(() => {
     if (!hasAIPlayer || !aiFeaturesEnabled) return t('lobby.notReady');
@@ -270,9 +289,9 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                 <p>
                   <strong className="text-text">{t('lobby.aiGuessing')}:</strong> {t('lobby.aiGuessingDesc')}
                 </p>
-                <p>
+                {lobby.settings.gameType === 'spot' && <p>
                   <strong className="text-text">{t('lobby.locationSearch')}:</strong> {t('lobby.locationSearchDesc')}
-                </p>
+                </p>}
               </div>
 
               <button
@@ -312,7 +331,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                 ))}
               </div>
             </button>
-            <div className="text-xs text-text-darker">{lobby.settings.gameMode === 'teams' ? t('settings.modeTeams') : t('settings.modeIndividual')} • {lobby.settings.timerMode === 'progressive' ? t('settings.duelShort') : t('settings.fixedShort')}</div>
+            <div className="text-xs text-text-darker">{gameModeDefinition(lobby.settings.gameType).name} • {lobby.settings.gameMode === 'teams' ? t('settings.modeTeams') : t('settings.modeIndividual')} • {lobby.settings.timerMode === 'progressive' ? t('settings.duelShort') : t('settings.fixedShort')}</div>
           </div>
           <div className="flex gap-1 flex-shrink-0">
             <button
@@ -591,7 +610,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
               {me?.ready ? t('lobby.unready') : t('lobby.ready')}
             </button>
             {isHost ? (
-              <button disabled={lobby.photos.length === 0} onClick={requestStartGame} className="md:ml-auto px-4 py-3 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base md:text-sm">
+              <button disabled={!canStart} onClick={requestStartGame} className="md:ml-auto px-4 py-3 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base md:text-sm">
                 <Swords size={20} className="md:!w-[18px] md:!h-[18px]" /> {t('lobby.startGame')}
               </button>
             ) : (
@@ -601,6 +620,8 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
           {isHost && (
             <div className="mt-2 text-xs text-text-darker text-right">
               {lobby.photos.length === 0 && t('lobby.minOnePhoto')}
+              {lobby.settings.gameType === 'date' && photosMissingDates > 0 && t('lobby.missingPhotoDates', { count: photosMissingDates })}
+              {lobby.settings.gameType === 'date' && photosInvalidDates > 0 && t('lobby.invalidPhotoDates', { count: photosInvalidDates })}
               {lobby.photos.length > 0 && lobby.players.some(p => !p.ready) && t('lobby.notAllReadyCanStart')}
             </div>
           )}
@@ -619,7 +640,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
               >
                 <ImageIcon size={18} className="flex-shrink-0" /> {t('lobby.photos')}
               </button>
-              <button
+              {lobby.settings.gameType === 'spot' && <button
                 onClick={() => setShowMap(true)}
                 className={`flex-1 md:flex-none px-3 md:px-4 py-2.5 md:py-2 rounded-lg font-bold transition-colors flex items-center justify-center md:justify-start gap-2 text-sm md:text-base ${showMap
                   ? 'bg-primary text-black'
@@ -627,11 +648,11 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                   }`}
               >
                 <Map size={18} className="flex-shrink-0" /> {t('lobby.map')} ({myPhotosLocated}/{myPhotos.length})
-              </button>
+              </button>}
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {showMap && myPhotos.length > 0 ? (
+            {showMap && lobby.settings.gameType === 'spot' && myPhotos.length > 0 ? (
               <div className="h-full">
                 <LobbyMap
                   lobby={lobby}
@@ -796,8 +817,15 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
           <button onClick={() => onSetReady(!me?.ready)} className={`flex-1 px-3 py-2 rounded font-bold text-xs transition-colors ${me?.ready ? 'bg-red-500/80 text-white' : 'bg-green-500/80 text-black'}`}>
             {me?.ready ? t('lobby.unready') : t('lobby.ready')}
           </button>
-          {isHost && <button disabled={lobby.photos.length === 0} onClick={requestStartGame} className="flex-1 px-3 py-2 rounded bg-primary hover:bg-primary-dark text-black font-bold text-xs disabled:opacity-40">{t('lobby.start')}</button>}
+          {isHost && <button disabled={!canStart} onClick={requestStartGame} className="flex-1 px-3 py-2 rounded bg-primary hover:bg-primary-dark text-black font-bold text-xs disabled:opacity-40">{t('lobby.start')}</button>}
         </div>
+        {isHost && lobby.settings.gameType === 'date' && (photosMissingDates > 0 || photosInvalidDates > 0) && (
+          <div className="text-center text-xs text-amber-300">
+            {photosMissingDates > 0
+              ? t('lobby.missingPhotoDates', { count: photosMissingDates })
+              : t('lobby.invalidPhotoDates', { count: photosInvalidDates })}
+          </div>
+        )}
         {!isHost && <div className="text-xs text-text-darker text-center py-1">{t('lobby.waitingHost')}</div>}
       </div>
 

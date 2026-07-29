@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameManager } from './game.js';
+import { computeDateRoundScore, computeUploaderRoundScore, deriveDatePromptBounds, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
 
 function createManager() {
   const sockets = new Map();
@@ -100,6 +101,9 @@ test('waiting lobby withholds other players photo URLs and metadata', async () =
   assert.equal(guestView.photos[0].url, '');
   assert.equal(guestView.photos[0].lat, null);
   assert.equal(guestView.photos[0].title, undefined);
+  assert.equal(guestView.photos[0].captureDate, undefined);
+  assert.equal(guestView.photos[0].hasCaptureDate, true);
+  assert.equal(guestView.photos[0].hasLocation, true);
 
   const hostView = gm.serializeLobby(created.lobby, created.playerId);
   assert.equal(hostView.photos[0].url, '/uploads/secret.jpg');
@@ -145,4 +149,280 @@ test('configured round duration is used when creation settings omit it', async (
     constraints,
   });
   assert.equal(created.lobby.settings.roundDurationSec, 22);
+});
+
+test('DateTheShot derives padded bounds from uploaded photos and rejects future dates', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false, gameType: 'date' },
+    constraints,
+  });
+  const { lobby, playerId } = created;
+  assert.equal(lobby.settings.gameType, 'date');
+  assert.equal(lobby.settings.dateTimelineStart, null);
+
+  lobby.photos.push({ id: 'photo', url: '/uploads/photo.jpg', uploaderId: playerId });
+  assert.throws(
+    () => gm.updatePhotoDate(lobby.id, playerId, 'photo', '2999-01-01'),
+    /future/,
+  );
+  assert.equal(gm.updatePhotoDate(lobby.id, playerId, 'photo', '2001-02-03'), '2001-02-03');
+});
+
+test('DateTheShot accepts calendar guesses and closer dates score more points', async () => {
+  const exact = computeDateRoundScore({
+    guessDate: '2000-01-01', targetDate: '2000-01-01', isUploader: false, settings: {},
+  });
+  const nearby = computeDateRoundScore({
+    guessDate: '2001-01-01', targetDate: '2000-01-01', isUploader: false, settings: {},
+  });
+  assert.equal(exact.total, 5000);
+  assert.ok(nearby.total < exact.total);
+  assert.equal(normalizePhotoDate('2020-02-30'), null);
+  assert.equal(normalizePhotoDate('2020-02-20 extra text'), null);
+  assert.ok(todayUtcDate() >= '2026-01-01');
+
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false, gameType: 'date' },
+    constraints,
+  });
+  const lobby = created.lobby;
+  lobby.players.get(created.playerId).socketId = 'host-socket';
+  lobby.photos.push({
+    id: 'dated', url: '/uploads/dated.jpg', uploaderId: 'someone-else', captureDate: '1999-12-31',
+  });
+  gm.startGame(lobby.id);
+  assert.deepEqual(
+    gm.submitGuess(lobby.id, created.playerId, { date: '1900-01-01' }),
+    { accepted: false, error: 'Guess date is outside the lobby timeline' },
+  );
+  const accepted = gm.submitGuess(lobby.id, created.playerId, { date: '2000-01-02' });
+  assert.deepEqual(accepted, { accepted: true, duplicate: false });
+  assert.equal(lobby.guesses.get(created.playerId).date, '2000-01-02');
+  clearTimeout(lobby.timers.roundEnd);
+  await gm.endRound(lobby.id);
+  assert.equal(lobby.lastRoundResults.results[0].basePoints, lobby.lastRoundResults.results[0].points);
+  assert.equal(lobby.lastRoundResults.results[0].distanceDays, 2);
+  clearTimeout(lobby.timers.resultsEnd);
+  clearInterval(lobby.timers.ticker);
+});
+
+test('DateTheShot never exposes the answer during an active round', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false, gameType: 'date' },
+    constraints,
+  });
+  const lobby = created.lobby;
+  lobby.players.get(created.playerId).socketId = 'host-socket';
+  lobby.photos.push({
+    id: 'dated', url: '/uploads/dated.jpg', uploaderId: created.playerId, captureDate: '1984-04-01',
+  });
+  gm.startGame(lobby.id);
+
+  const view = gm.serializeLobby(lobby, created.playerId);
+  assert.equal(view.currentRoundPhoto.captureDate, undefined);
+  assert.equal(view.photos[0].captureDate, undefined);
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+});
+
+test('DateTheShot hides future answers while showing results', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false, gameType: 'date' },
+    constraints,
+  });
+  const lobby = created.lobby;
+  lobby.state = 'showing_results';
+  lobby.photos.push(
+    { id: 'current', url: '/uploads/current.jpg', uploaderId: created.playerId, captureDate: '1984-04-01' },
+    { id: 'future-round', url: '/uploads/future.jpg', uploaderId: created.playerId, captureDate: '2002-09-08' },
+  );
+  lobby.lastRoundResults = {
+    photo: { id: 'current', captureDate: '1984-04-01' },
+    results: [],
+  };
+
+  const view = gm.serializeLobby(lobby, created.playerId);
+  assert.equal(view.photos[0].captureDate, undefined);
+  assert.equal(view.photos[1].captureDate, undefined);
+  assert.equal(view.lastRoundResults.photo.captureDate, '1984-04-01');
+});
+
+test('DateTheShot bounds add 1-20 years around the photo collection and cap at today', () => {
+  const earliestPadding = deriveDateTimelineBounds(['2000-05-10', '2025-05-10'], () => 0);
+  assert.equal(earliestPadding.start, '1999-05-10');
+  assert.equal(earliestPadding.end, '2026-05-10');
+  const widestPadding = deriveDateTimelineBounds(['2000-05-10', todayUtcDate()], () => 0.999);
+  assert.equal(widestPadding.start, '1980-05-10');
+  assert.equal(widestPadding.end, todayUtcDate());
+});
+
+test('DateTheShot AI prompt bounds use uploaded photo dates plus ten years', () => {
+  assert.deepEqual(
+    deriveDatePromptBounds(['2005-06-15', '2018-02-20'], '2026-07-29'),
+    { start: '1995-06-15', end: '2026-07-29' },
+  );
+  assert.deepEqual(
+    deriveDatePromptBounds(['1980-01-02', '1990-03-04'], '2026-07-29'),
+    { start: '1970-01-02', end: '2000-03-04' },
+  );
+  assert.equal(deriveDatePromptBounds([], '2026-07-29'), null);
+});
+
+test('WhoTookTheShot validates player votes, scores categorical answers, and hides ownership', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    socketId: 'host-socket',
+    settings: { enableAIGuessing: false, gameType: 'uploader' },
+    constraints,
+  });
+  const guest = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: 'guest-socket' });
+  const lobby = created.lobby;
+  lobby.photos.push({ id: 'secret-photo', url: '/uploads/secret.jpg', uploaderId: created.playerId });
+  gm.startGame(lobby.id);
+
+  assert.notEqual(lobby.currentRoundPhoto.id, 'secret-photo');
+  assert.equal(lobby.currentRoundPhoto.uploaderId, undefined);
+  assert.equal(gm.serializeLobby(lobby, guest.playerId).photos[0].uploaderId, undefined);
+  assert.deepEqual(
+    gm.submitGuess(lobby.id, guest.playerId, { uploaderId: 'not-a-player' }),
+    { accepted: false, error: 'Invalid player vote' },
+  );
+  assert.deepEqual(
+    gm.submitGuess(lobby.id, guest.playerId, { uploaderId: created.playerId }),
+    { accepted: true, duplicate: false },
+  );
+  assert.equal(computeUploaderRoundScore({
+    guessedUploaderId: created.playerId,
+    targetUploaderId: created.playerId,
+    isUploader: false,
+    settings: {},
+  }).total, 5000);
+  assert.equal(computeUploaderRoundScore({
+    guessedUploaderId: guest.playerId,
+    targetUploaderId: created.playerId,
+    isUploader: false,
+    settings: {},
+  }).total, 0);
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+});
+
+test('switching modes applies only the newly selected photo requirements', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    socketId: 'host-socket',
+    settings: { enableAIGuessing: false, gameType: 'spot' },
+    constraints,
+  });
+  const lobby = created.lobby;
+  lobby.photos.push({ id: 'bare', url: '/uploads/bare.jpg', uploaderId: created.playerId });
+  lobby.players.get(created.playerId).ready = true;
+
+  gm.updateSettings(lobby.id, { ...lobby.settings, gameType: 'uploader' });
+  assert.equal(lobby.players.get(created.playerId).ready, false);
+  assert.equal(lobby.settings.dateTimelineStart, null);
+  assert.doesNotThrow(() => gm.startGame(lobby.id));
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+
+  lobby.state = 'waiting';
+  lobby.roundIndex = -1;
+  lobby.currentRoundPhoto = null;
+  lobby.guesses = new Map();
+  gm.updateSettings(lobby.id, { ...lobby.settings, gameType: 'date' });
+  assert.equal(lobby.settings.dateTimelineStart, null);
+  assert.throws(() => gm.startGame(lobby.id), /valid capture date/);
+  gm.updatePhotoDate(lobby.id, created.playerId, 'bare', '2020-01-02');
+  assert.doesNotThrow(() => gm.startGame(lobby.id));
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+
+  lobby.state = 'waiting';
+  lobby.roundIndex = -1;
+  lobby.currentRoundPhoto = null;
+  lobby.guesses = new Map();
+  gm.updateSettings(lobby.id, { ...lobby.settings, gameType: 'spot' });
+  assert.throws(() => gm.startGame(lobby.id), /location data/);
+});
+
+test('date and mode edits invalidate AI output generated for stale settings', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false, gameType: 'spot', showImageDate: true },
+    constraints,
+  });
+  const photo = {
+    id: 'photo', url: '/uploads/photo.jpg', uploaderId: created.playerId,
+    captureDate: '2000-01-01', title: 'Generated title', hint: 'regional hint',
+  };
+  created.lobby.photos.push(photo);
+  gm.visionCommentaries.set(photo.id, { commentary: 'Old location joke', timestamp: Date.now() });
+  gm.imageTitles.set(photo.id, { title: photo.title, hint: photo.hint, timestamp: Date.now() });
+
+  gm.updateSettings(created.lobby.id, { gameType: 'date', showImageDate: true });
+  assert.equal(created.lobby.settings.showImageDate, false);
+  assert.equal(gm.visionCommentaries.has(photo.id), false);
+  assert.equal(gm.imageTitles.has(photo.id), false);
+  assert.equal(photo.title, '');
+  assert.equal(photo.hint, '');
+
+  gm.visionCommentaries.set(photo.id, { commentary: 'Old date joke', timestamp: Date.now() });
+  gm.updatePhotoDate(created.lobby.id, created.playerId, photo.id, '2001-02-03');
+  assert.equal(gm.visionCommentaries.has(photo.id), false);
+});
+
+test('DateTheShot photo prefetch never invokes GeoCLIP location work', async () => {
+  const gm = createManager();
+  const aiConstraints = { ...constraints, allowAIGuessing: true };
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: true, gameType: 'date' },
+    constraints: aiConstraints,
+  });
+  let locationPrefetches = 0;
+  gm.prefetchAIPrediction = async () => ({ date: '2000-01-01' });
+  gm.prefetchLocation = async () => { locationPrefetches += 1; };
+
+  gm.upsertPhoto(created.lobby.id, {
+    id: 'dated-photo',
+    url: '/uploads/dated.jpg',
+    uploaderId: created.playerId,
+    captureDate: '2000-01-01',
+  });
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(locationPrefetches, 0);
+});
+
+test('replaced AI work is not cleared when an older request finishes', async () => {
+  const gm = createManager();
+  const cache = new Map();
+  const inflight = new Map();
+  let finishOld;
+  let finishNew;
+  const oldWork = gm._dedupedAsync(cache, inflight, 'photo', () =>
+    new Promise(resolve => { finishOld = resolve; })
+  );
+  inflight.delete('photo');
+  const newWork = gm._dedupedAsync(cache, inflight, 'photo', () =>
+    new Promise(resolve => { finishNew = resolve; })
+  );
+
+  finishOld('old');
+  assert.equal(await oldWork, 'old');
+  assert.equal(inflight.has('photo'), true);
+  finishNew('new');
+  assert.equal(await newWork, 'new');
+  assert.equal(inflight.has('photo'), false);
 });

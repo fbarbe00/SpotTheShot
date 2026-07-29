@@ -333,6 +333,32 @@ describe('Translations', () => {
           }
         }
       });
+
+      it('should have a dedicated slide for every game mode', () => {
+        const modes = ['modeSpot', 'modeDate', 'modeUploader'];
+        const fields = ['title', 'desc', 'highlight', 'visual'];
+
+        for (const lang of SUPPORTED_LANGUAGES) {
+          for (const mode of modes) {
+            for (const field of fields) {
+              expect(translations[lang][`onboarding.${mode}.${field}`]).toBeDefined();
+            }
+          }
+        }
+      });
+
+      it('should explain game modes and privacy in every language', () => {
+        const slides = ['modes', 'privacy'];
+        const fields = ['title', 'desc', 'highlight', 'visual'];
+
+        for (const lang of SUPPORTED_LANGUAGES) {
+          for (const slide of slides) {
+            for (const field of fields) {
+              expect(translations[lang][`onboarding.${slide}.${field}`]).toBeDefined();
+            }
+          }
+        }
+      });
     });
 
     describe('Achievements', () => {

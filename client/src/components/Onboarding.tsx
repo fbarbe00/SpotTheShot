@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Image as ImageIcon, MapPin, Users, Trophy } from 'lucide-react';
+import { X, Image as ImageIcon, MapPin, Users, Trophy, CalendarDays, Gamepad2, ShieldCheck, Bot } from 'lucide-react';
 import { useI18n } from '../contexts/I18nContext';
 import { LanguageSelector } from './LanguageSelector';
 import { logger } from '../lib/logger';
@@ -21,6 +21,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       image: "🌍",
       highlight: t('onboarding.step1.highlight'),
       visual: t('onboarding.step1.visual'),
+      visualIcon: 'invite',
+    },
+    {
+      title: t('onboarding.modes.title'),
+      description: t('onboarding.modes.desc'),
+      image: "🎮",
+      highlight: t('onboarding.modes.highlight'),
+      visual: t('onboarding.modes.visual'),
+      visualIcon: 'modes',
     },
     {
       title: t('onboarding.step2.title'),
@@ -28,13 +37,31 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       image: "📸",
       highlight: t('onboarding.step2.highlight'),
       visual: t('onboarding.step2.visual'),
+      visualIcon: 'upload',
     },
     {
-      title: t('onboarding.step3.title'),
-      description: t('onboarding.step3.desc'),
-      image: "🎯",
-      highlight: t('onboarding.step3.highlight'),
-      visual: t('onboarding.step3.visual'),
+      title: t('onboarding.modeSpot.title'),
+      description: t('onboarding.modeSpot.desc'),
+      image: "🗺️",
+      highlight: t('onboarding.modeSpot.highlight'),
+      visual: t('onboarding.modeSpot.visual'),
+      visualIcon: 'spot',
+    },
+    {
+      title: t('onboarding.modeDate.title'),
+      description: t('onboarding.modeDate.desc'),
+      image: "🗓️",
+      highlight: t('onboarding.modeDate.highlight'),
+      visual: t('onboarding.modeDate.visual'),
+      visualIcon: 'date',
+    },
+    {
+      title: t('onboarding.modeUploader.title'),
+      description: t('onboarding.modeUploader.desc'),
+      image: "🕵️",
+      highlight: t('onboarding.modeUploader.highlight'),
+      visual: t('onboarding.modeUploader.visual'),
+      visualIcon: 'uploader',
     },
     {
       title: t('onboarding.step4.title'),
@@ -42,6 +69,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       image: "🏆",
       highlight: t('onboarding.step4.highlight'),
       visual: t('onboarding.step4.visual'),
+      visualIcon: 'results',
     },
     {
       title: t('onboarding.step5.title'),
@@ -49,6 +77,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       image: "🤖",
       highlight: t('onboarding.step5.highlight'),
       visual: t('onboarding.step5.visual'),
+      visualIcon: 'ai',
+    },
+    {
+      title: t('onboarding.privacy.title'),
+      description: t('onboarding.privacy.desc'),
+      image: "🔒",
+      highlight: t('onboarding.privacy.highlight'),
+      visual: t('onboarding.privacy.visual'),
+      visualIcon: 'privacy',
     }
   ];
 
@@ -147,10 +184,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 className="flex items-center gap-3 p-4 rounded-lg bg-black/20 border border-white/10 min-h-[72px]"
               >
                 <div className="w-10 h-10 rounded-full bg-primary/30 flex items-center justify-center text-primary">
-                  {step === 1 && <ImageIcon size={18} />}
-                  {step === 2 && <MapPin size={18} />}
-                  {step === 3 && <Trophy size={18} />}
-                  {(step === 0 || step === 4) && <Users size={18} />}
+                  {steps[step]?.visualIcon === 'invite' && <Users size={18} />}
+                  {steps[step]?.visualIcon === 'modes' && <Gamepad2 size={18} />}
+                  {steps[step]?.visualIcon === 'upload' && <ImageIcon size={18} />}
+                  {steps[step]?.visualIcon === 'spot' && <MapPin size={18} />}
+                  {steps[step]?.visualIcon === 'date' && <CalendarDays size={18} />}
+                  {steps[step]?.visualIcon === 'uploader' && <Users size={18} />}
+                  {steps[step]?.visualIcon === 'results' && <Trophy size={18} />}
+                  {steps[step]?.visualIcon === 'ai' && <Bot size={18} />}
+                  {steps[step]?.visualIcon === 'privacy' && <ShieldCheck size={18} />}
                 </div>
                 <p className="text-sm text-text-darker text-left">{steps[step]?.visual}</p>
               </motion.div>

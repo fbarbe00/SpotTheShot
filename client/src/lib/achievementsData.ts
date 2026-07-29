@@ -4,9 +4,84 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'first_game',
     name: 'First Steps',
-    description: 'Complete your first game',
+    description: 'Complete your first location-guessing game',
     emoji: '🎮',
     category: 'getting-started'
+  },
+  {
+    id: 'first_date_game',
+    name: 'Time Traveller',
+    description: 'Complete your first date-guessing game',
+    emoji: '🕰️',
+    category: 'getting-started'
+  },
+  {
+    id: 'first_uploader_game',
+    name: 'Familiar Faces',
+    description: 'Complete your first game of matching photos to players',
+    emoji: '👥',
+    category: 'getting-started'
+  },
+  {
+    id: 'uploader_detective',
+    name: 'Inner Circle',
+    description: 'Correctly match five photos to the players who uploaded them',
+    emoji: '🕵️',
+    category: 'accuracy',
+    target: 5
+  },
+  {
+    id: 'uploader_expert',
+    name: 'People Person',
+    description: 'Correctly match twenty photos to the players who uploaded them',
+    emoji: '🤝',
+    category: 'accuracy',
+    target: 20
+  },
+  {
+    id: 'identity_streak',
+    name: 'I Know You',
+    description: 'Correctly match three photos to their players in a row',
+    emoji: '🧠',
+    category: 'momentum'
+  },
+  {
+    id: 'date_bullseye',
+    name: 'Perfect Timing',
+    description: 'Guess a photo date exactly',
+    emoji: '📅',
+    category: 'accuracy'
+  },
+  {
+    id: 'date_detective',
+    name: 'Date Detective',
+    description: 'Get within 7 days of the photo date five times',
+    emoji: '🔎',
+    category: 'accuracy',
+    target: 5
+  },
+  {
+    id: 'calendar_regular',
+    name: 'Calendar Regular',
+    description: 'Get within 30 days of the photo date ten times',
+    emoji: '🗓️',
+    category: 'accuracy',
+    target: 10
+  },
+  {
+    id: 'date_marathon',
+    name: 'Through the Ages',
+    description: 'Make twenty-five date guesses',
+    emoji: '⌛',
+    category: 'momentum',
+    target: 25
+  },
+  {
+    id: 'archive_explorer',
+    name: 'Archive Explorer',
+    description: 'Get within one year on a photo at least 75 years old',
+    emoji: '🗄️',
+    category: 'accuracy'
   },
   {
     id: 'first_win',

@@ -8,7 +8,7 @@ type HUDProps = {
   timerStarted?: boolean  // Whether timer has started (for progressive mode)
   round: number  // Current round index
   total: number  // Total number of rounds
-  uploaderName: string  // Name of player who uploaded current photo
+  uploaderName?: string  // Hidden in uploader-identification rounds
   title?: string  // Optional photo title
   hint?: string  // Optional hint text shown near end of round
   hintThresholdSec?: number  // Seconds remaining before hint is shown
@@ -40,12 +40,12 @@ export function HUD({ timeMs, timerStarted = true, round, total, uploaderName, t
           {/* Photo source & Title */}
           <div className="flex flex-col min-w-0 leading-none">
             {title && <div className="text-[10px] md:text-xs font-bold text-primary truncate">{title}</div>}
-            <div className="flex items-center gap-1 min-w-0">
+            {uploaderName && <div className="flex items-center gap-1 min-w-0">
               <Camera size={10} className="text-text-darker/60 flex-shrink-0 md:w-3 md:h-3" />
               <div className="text-[9px] md:text-[10px] font-medium text-text-darker truncate">
                 {uploaderName}
               </div>
-            </div>
+            </div>}
           </div>
 
           {showImageDate && captureDate && (

@@ -3,12 +3,19 @@ import type { Lobby, Photo } from "../../lib/types";
 import { buildPhotoUrl, socket } from "../../lib/socket";
 import { HUD } from "../HUD";
 import MapGuess from "../MapGuess";
-import { Maximize, Minimize } from "lucide-react";
+import DateGuess from "../DateGuess";
+import UploaderGuess from "../UploaderGuess";
+import { CalendarDays, Maximize, Minimize } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "../../lib/toast";
 import { useI18n } from "../../contexts/I18nContext";
 import { logger } from "../../lib/logger";
 
+function defaultDateTimelineStart() {
+  const date = new Date();
+  date.setUTCFullYear(date.getUTCFullYear() - 100);
+  return date.toISOString().slice(0, 10);
+}
 
 /**
  * GameBoard Module
@@ -22,7 +29,7 @@ type GameBoardProps = {
   timerMs: number;
   timerStarted?: boolean;
   playerId: string;
-  onSubmitGuess: (p: { lat: number; lon: number }) => Promise<boolean>;
+  onSubmitGuess: (p: { lat: number; lon: number } | { date: string } | { uploaderId: string }) => Promise<boolean>;
   serverAiTipIndex?: number | null;
 };
 
@@ -47,7 +54,10 @@ export function GameBoard({
   }, [lobby.currentGuesses, playerId]);
 
   const [isMapExpanded, setMapExpanded] = useState(false);
-  const [currentPin, setCurrentPin] = useState<{ lat: number; lon: number } | null>(existingGuess || null);
+  const [isDateExpanded, setDateExpanded] = useState(false);
+  const [currentPin, setCurrentPin] = useState<{ lat: number; lon: number } | null>(
+    existingGuess?.lat != null && existingGuess?.lon != null ? { lat: existingGuess.lat, lon: existingGuess.lon } : null
+  );
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number; zoom: number } | null>(null);
   const [isLocked, setIsLocked] = useState(!!existingGuess);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,6 +118,21 @@ export function GameBoard({
     }
   };
 
+  const handleConfirmDate = async (date: string) => {
+    const accepted = await onSubmitGuess({ date });
+    if (accepted) {
+      setIsLocked(true);
+      setDateExpanded(false);
+    }
+    return accepted;
+  };
+
+  const handleConfirmUploader = async (uploaderId: string) => {
+    const accepted = await onSubmitGuess({ uploaderId });
+    if (accepted) setIsLocked(true);
+    return accepted;
+  };
+
   useEffect(() => {
     if (!canGuessThisRound) return;
     if (timerStarted && timerMs < 1000 && !hasSubmittedRef.current && currentPin) {
@@ -128,6 +153,7 @@ export function GameBoard({
       setIsLocked(false);
       setIsSubmitting(false);
       setCurrentPin(null);
+      setDateExpanded(false);
       setImageScale(1);
       setImageOffset({ x: 0, y: 0 });
       setIsDraggingImage(false);
@@ -300,7 +326,7 @@ export function GameBoard({
           timerStarted={timerStarted}
           round={roundInfo.roundIndex}
           total={roundInfo.totalRounds}
-          uploaderName={uploaderName}
+          uploaderName={lobby.settings.gameType === 'uploader' ? undefined : uploaderName}
           title={photoDetails.title}
           hint={photoDetails.hint}
           hintThresholdSec={lobby.settings.hintThresholdSec || 10}
@@ -374,7 +400,18 @@ export function GameBoard({
         </div>
       )}
 
-      {!isMapExpanded && canGuessThisRound && (
+      {lobby.settings.gameType === 'date' && !isDateExpanded && canGuessThisRound && (
+        <button
+          type="button"
+          onClick={() => setDateExpanded(true)}
+          className="absolute bottom-2 right-2 z-[1002] flex h-20 w-28 flex-col items-center justify-center gap-1 rounded-xl border border-primary/30 bg-surface/90 text-primary shadow-xl backdrop-blur-sm hover:bg-surface"
+        >
+          <CalendarDays size={24} />
+          <span className="text-[11px] font-black">{t('game.date.guessPrompt')}</span>
+        </button>
+      )}
+
+      {lobby.settings.gameType === 'spot' && !isMapExpanded && canGuessThisRound && (
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
           onClick={() => setMapExpanded(true)}
@@ -417,7 +454,7 @@ export function GameBoard({
       )}
 
       <AnimatePresence>
-        {isMapExpanded && canGuessThisRound && (
+        {lobby.settings.gameType === 'spot' && isMapExpanded && canGuessThisRound && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center">
             <div className="relative w-[95%] h-[95%] rounded-xl overflow-hidden">
@@ -442,9 +479,52 @@ export function GameBoard({
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {lobby.settings.gameType === 'date' && isDateExpanded && canGuessThisRound && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[1050] flex items-end justify-center bg-black/35 p-3 backdrop-blur-[2px]"
+          >
+            <div className="w-full max-w-3xl">
+              <DateGuess
+                key={photo.id}
+                startDate={lobby.settings.dateTimelineStart || defaultDateTimelineStart()}
+                endDate={lobby.settings.dateTimelineEnd || new Date().toISOString().slice(0, 10)}
+                timerMs={timerMs}
+                timerStarted={timerStarted}
+                disabled={isLocked}
+                existingDate={existingGuess?.date}
+                onConfirm={handleConfirmDate}
+              />
+              <button
+                type="button"
+                onClick={() => setDateExpanded(false)}
+                className="mx-auto mt-2 block rounded-full bg-surface px-4 py-1.5 text-xs font-bold text-text-darker"
+              >
+                {t('common.close')}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {lobby.settings.gameType === 'uploader' && canGuessThisRound && (
+        <UploaderGuess
+          key={photo.id}
+          players={lobby.players.filter(player => !player.isAI && !String(player.id).startsWith('ai-'))}
+          existingUploaderId={existingGuess?.uploaderId}
+          disabled={isLocked}
+          timerMs={timerMs}
+          timerStarted={timerStarted}
+          onConfirm={handleConfirmUploader}
+        />
+      )}
+
       {/* AI tip bubble — right side, middle height, non-blocking */}
       <AnimatePresence>
-        {visibleTip !== null && !isMapExpanded && !isLocked && (
+        {visibleTip !== null && !isMapExpanded && !isDateExpanded && !isLocked && (
           <motion.div
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
@@ -454,7 +534,9 @@ export function GameBoard({
           >
             {/* Speech bubble */}
             <div className="relative bg-surface/90 border border-primary/20 rounded-xl px-2.5 py-2 text-[11px] text-text-darker max-w-[120px] text-right backdrop-blur-sm shadow-lg">
-              {t(`game.aiTip.${visibleTip}`)}
+              {t(lobby.settings.gameType === 'spot'
+                ? `game.aiTip.${visibleTip}`
+                : `game.aiTip.${lobby.settings.gameType}.${visibleTip}`)}
               {/* Tail pointing right */}
               <span className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-l-[6px] border-l-surface/90" />
             </div>
@@ -471,7 +553,7 @@ export function GameBoard({
       </AnimatePresence>
 
       {isLocked && (
-        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-40 backdrop-blur-sm">
+        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center z-[1100] backdrop-blur-sm">
           <h2 className="text-3xl font-bold text-primary">{t("game.guessLocked")}</h2>
           <p className="text-text-darker mt-2">{t("game.waitingOthers")}</p>
         </div>

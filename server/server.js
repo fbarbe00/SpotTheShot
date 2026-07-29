@@ -13,6 +13,8 @@ import { GameManager } from './game.js';
 import { pickAvatarColor, pickAvatarIcon, AVATAR_ICONS, isValidCoordinate } from './utils.js';
 import { SERVER_CONFIG } from './config.js';
 import { validateToken, applyToken, pruneExpiredTokens } from './tokenManager.js';
+import { normalizePhotoDate, todayUtcDate } from './scoring.js';
+import { GAME_TYPES, gameModeDefinition } from './gameModes.js';
 
 dotenv.config();
 
@@ -166,6 +168,7 @@ function validateLobbySettings(settings = {}) {
     if (settings[key] !== undefined && typeof settings[key] !== 'boolean') throw new Error(`${key} must be a boolean`);
   }
   if (settings.gameMode !== undefined && !['individual', 'teams'].includes(settings.gameMode)) throw new Error('Invalid game mode');
+  if (settings.gameType !== undefined && !GAME_TYPES.includes(settings.gameType)) throw new Error('Invalid game type');
   if (settings.timerMode !== undefined && !['fixed', 'progressive'].includes(settings.timerMode)) throw new Error('Invalid timer mode');
   if (settings.language !== undefined && !VALID_LANGUAGES.includes(String(settings.language).toLowerCase())) throw new Error('Invalid language');
   if (settings.minPhotosPerPlayer !== undefined && settings.maxPhotosPerPlayer !== undefined
@@ -447,6 +450,18 @@ app.post('/api/lobbies', rateLimit('create-lobby', 6, 10 * 60 * 1000), async (re
   res.json({ lobby: gm.serializeLobby(lobby, playerId), playerId, sessionToken });
 });
 
+// Minimal public lobby preview used by invitation links. Lobby IDs are already
+// shareable; exposing only the mode lets invitees see which game they are joining.
+app.get('/api/lobbies/:lobbyId/public', rateLimit('lobby-preview', 60, 60 * 1000), (req, res) => {
+  const lobbyId = normalizeLobbyId(req.params.lobbyId);
+  if (!validateInput(lobbyId, 'string', 3, 12)) {
+    return res.status(400).json({ error: 'Invalid lobby ID format' });
+  }
+  const lobby = gm.lobbies.get(lobbyId);
+  if (!lobby) return res.status(404).json({ error: 'Lobby not found' });
+  return res.json({ id: lobby.id, gameType: lobby.settings.gameType });
+});
+
 app.post('/api/lobbies/:lobbyId/join', rateLimit('join-lobby', 30, 60 * 1000), (req, res) => {
   const { nickname: rawNickname, clientSessionId } = req.body || {};
   const nickname = normalizeNickname(rawNickname);
@@ -534,7 +549,7 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
       const metadata = await sharp(file.path, { limitInputPixels: 40_000_000 }).metadata();
       if (!['jpeg', 'png', 'gif', 'webp'].includes(metadata.format)) throw new Error('Unsupported or malformed image');
       let lat = null, lon = null;
-      const gpsRaw = req.body.gps?.[i];
+      const gpsRaw = gameModeDefinition(lobby.settings.gameType).requiresLocation ? req.body.gps?.[i] : null;
       if (gpsRaw) {
         try {
           const parsed = JSON.parse(gpsRaw);
@@ -556,11 +571,14 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
       let captureDate = null;
       const captureDateRaw = req.body.captureDate?.[i];
       if (captureDateRaw && typeof captureDateRaw === 'string') {
-        // Validate that it looks like a reasonable date string
-        const date = new Date(captureDateRaw);
-        if (!isNaN(date.getTime())) {
-          captureDate = captureDateRaw;
+        const normalized = normalizePhotoDate(captureDateRaw);
+        if (!normalized && lobby.settings.gameType === 'date') {
+          throw new Error('Photo date must use YYYY-MM-DD format');
         }
+        if (normalized && normalized > todayUtcDate() && lobby.settings.gameType === 'date') {
+          throw new Error('Photo date cannot be in the future');
+        }
+        if (normalized && normalized <= todayUtcDate()) captureDate = normalized;
       }
       
       const photoData = { id, url, lat, lon, uploaderId: playerId, captureDate };
@@ -568,15 +586,13 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
       gm.upsertPhoto(normalizedLobbyId, photoData);
       results[i] = { ok: true, photo: { id, url, lat, lon, captureDate }, hasGPS: lat !== null };
 
-      if (lobby.settings?.enableAIGuessing) {
-        gm.prefetchAIPrediction(id, photoData, normalizedLobbyId).catch(err =>
-          console.error(`AI prefetch failed for photo ${id}:`, err.message)
-        );
-      }
     } catch (err) {
       console.error('Upload failed:', err);
       await cleanupUploadedFiles([file]);
-      results[i] = { error: 'Failed to process image', filename: file.originalname, details: err.message };
+      const safeError = ['Photo date cannot be in the future', 'Photo date must use YYYY-MM-DD format'].includes(err.message)
+        ? err.message
+        : 'Failed to process image';
+      results[i] = { error: safeError, filename: file.originalname, details: err.message };
     }
   }
 
@@ -602,7 +618,9 @@ async function enforceSingleSessionForClient(clientSessionId, nextSession) {
 
   try {
     const prevSocket = previous.socketId ? io.sockets.sockets.get(previous.socketId) : null;
-    if (prevSocket) {
+    // A create/join action can replace the authenticated session on the same
+    // socket. That is normal navigation, not another browser tab taking over.
+    if (prevSocket && previous.socketId !== nextSession.socketId) {
       prevSocket.emit('error_msg', 'This session moved to another lobby in your latest tab.');
       prevSocket.leave(previous.lobbyId);
       prevSocket.disconnect(true);
@@ -836,12 +854,26 @@ io.on('connection', (socket) => {
       const lobby = gm.lobbies.get(lobbyId);
       if (!lobby) return;
       if (lobby.state !== 'waiting') return;
+      if (!gameModeDefinition(lobby.settings.gameType).requiresLocation) {
+        socket.emit('error_msg', 'Locations are not used in this game mode');
+        return;
+      }
       const photo = lobby.photos.find(p => p.id === photoId && p.uploaderId === playerId);
       if (!photo) return;
       photo.lat = lat;
       photo.lon = lon;
       photo.manualLocation = true;
       gm._invalidateLocationCaches(photoId);
+      gm._invalidateModeDependentCaches(photo);
+      if (lobby.settings.visionCommentary) {
+        gm._markAINotReady(lobbyId);
+        gm.prefetchVisionCommentary(photo.id, photo, lobbyId)
+          .catch(err => console.error(`AI commentary refresh failed for photo ${photo.id}:`, err.message));
+      }
+      if (lobby.settings.autoNameImages) {
+        gm.prefetchAutoNaming(photo.id, photo, lobbyId)
+          .catch(err => console.error(`AI title refresh failed for photo ${photo.id}:`, err.message));
+      }
       gm.broadcastLobby(lobbyId);
       io.to(lobbyId).emit('ai_processing_status', gm.getAIProcessingStatus(lobbyId));
     } catch (e) {
@@ -864,6 +896,16 @@ io.on('connection', (socket) => {
       callback?.({ success: true });
     } catch (e) {
       console.error('Failed to update photo details:', e);
+      callback?.({ success: false, error: e.message });
+    }
+  });
+
+  socket.on('update_photo_date', ({ lobbyId, playerId, photoId, captureDate }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
+    try {
+      const normalized = gm.updatePhotoDate(lobbyId, playerId, photoId, captureDate);
+      callback?.({ success: true, captureDate: normalized });
+    } catch (e) {
       callback?.({ success: false, error: e.message });
     }
   });
@@ -901,11 +943,18 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon }, callback) => {
+  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon, date, uploaderId }, callback) => {
     if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     try {
-      if (!isValidCoordinate(lat, lon)) return callback?.({ success: false, error: 'Invalid guess location' });
-      const result = gm.submitGuess(lobbyId, playerId, { lat, lon });
+      const lobby = gm.lobbies.get(normalizeLobbyId(lobbyId));
+      const guessKind = gameModeDefinition(lobby?.settings.gameType).guessKind;
+      if (guessKind === 'location' && !isValidCoordinate(lat, lon)) {
+        return callback?.({ success: false, error: 'Invalid guess location' });
+      }
+      const guess = guessKind === 'date' ? { date }
+        : guessKind === 'player' ? { uploaderId }
+          : { lat, lon };
+      const result = gm.submitGuess(lobbyId, playerId, guess);
       callback?.({ success: result.accepted, duplicate: result.duplicate, error: result.error });
     } catch (e) {
       console.error('Submit guess error:', e);
@@ -948,9 +997,15 @@ io.on('connection', (socket) => {
       if (!validateSocket(normalizedLobbyId, playerId)) return callback({ success: false, error: 'Invalid socket' });
       const lobby = gm.lobbies.get(normalizedLobbyId);
       if (!lobby) return callback({ success: false, error: 'Lobby not found' });
-      if (lobby.hostId !== playerId) {
-        return callback({ success: false, error: 'Only host can reset lobby' });
+      // Returning is a shared transition: the first player performs the reset
+      // and concurrent clicks simply wait for the same lobby update.
+      if (lobby.state === 'waiting' || lobby.isResetting) {
+        return callback({ success: true });
       }
+      if (lobby.state !== 'finished') {
+        return callback({ success: false, error: 'The game must be finished before returning to the lobby' });
+      }
+      lobby.isResetting = true;
       await gm.resetLobby(normalizedLobbyId);
       callback({ success: true });
     } catch (error) {

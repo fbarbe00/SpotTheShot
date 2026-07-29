@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { MapStyle, MapLanguage } from './mapConfig';
+import type { GameType } from './gameModes';
 
 export type Player = {
   id: string;
@@ -16,7 +17,7 @@ export type Player = {
 export type Photo = {
   id: string;
   url: string;
-  uploaderId: string;
+  uploaderId?: string;
   lat?: number;
   lon?: number;
   title?: string;
@@ -29,6 +30,8 @@ export type Photo = {
   uploaderNickname?: string;
   uploadedAt?: string;
   captureDate?: string;
+  hasCaptureDate?: boolean;
+  hasLocation?: boolean;
   countryFlag?: string;
   countryCode?: string; // ISO 3166-1 alpha-2 code for translation
   color?: string;
@@ -37,6 +40,9 @@ export type Photo = {
 // Game settings configuration
 export type GameSettings = {
   roundDurationSec: number;
+  gameType: GameType;
+  dateTimelineStart?: string;
+  dateTimelineEnd?: string;
   gameMode: 'individual' | 'teams';
   timerMode: 'fixed' | 'progressive';
   hintThresholdSec: number;
@@ -56,13 +62,18 @@ export type GameSettings = {
 // Result for a single player's guess
 export type Result = {
   playerId: string;
-  lat: number;
-  lon: number;
+  lat?: number;
+  lon?: number;
+  guessedDate?: string;
+  guessedUploaderId?: string;
+  correctUploader?: boolean;
   icon?: string;
   color: string;
   points: number;
+  basePoints?: number;
   nickname: string;
   distanceKm: number;
+  distanceDays?: number;
   timeTakenMs: number;
   country?: string;
   region?: string;
@@ -122,10 +133,11 @@ export type RoundResults = {
   photo: {
     id: string;
     url: string;
-    lat: number;
-    lon: number;
+    lat?: number;
+    lon?: number;
     uploaderId: string;
     title?: string;
+    captureDate?: string;
     manualLocation?: boolean;
     country?: string;
     region?: string;
@@ -177,7 +189,7 @@ export interface Lobby {
   firstGuessAt?: number | null;
   lastRoundResults?: RoundResults | null;
   roundHistory?: RoundResults[];
-  currentGuesses?: Record<string, { lat: number; lon: number; timeTakenMs: number }> | null;
+  currentGuesses?: Record<string, { lat?: number; lon?: number; date?: string; uploaderId?: string; timeTakenMs: number }> | null;
   roundDurationMs?: number;
   aiTipIndex?: number | null;
 }

@@ -18,6 +18,13 @@ const TITLE_HINT_SCHEMA = {
   additionalProperties: false,
 };
 
+const DATE_SCHEMA = {
+  type: 'object',
+  properties: { date: { type: 'string' } },
+  required: ['date'],
+  additionalProperties: false,
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function normalizeLanguage(language) {
@@ -97,8 +104,110 @@ function buildCommentaryPrompt(language, region, country, guessedRegion, guessed
   return correct ? set.correct : set.wrong;
 }
 
-function buildTitleHintPrompt(language, region, country) {
+export function buildDateCommentaryPrompt(language, actualDate, guessedDate) {
   const lang = normalizeLanguage(language);
+  const actualMs = Date.parse(`${actualDate}T12:00:00Z`);
+  const guessedMs = Date.parse(`${guessedDate}T12:00:00Z`);
+  const differenceDays = Math.round(Math.abs(actualMs - guessedMs) / 86_400_000);
+  const direction = guessedMs < actualMs ? 'early' : guessedMs > actualMs ? 'late' : 'exact';
+
+  const prompts = {
+    en: direction === 'exact'
+      ? `You are an AI that guessed the exact date ${actualDate} for this photo. Write one short, funny, smug sentence (max 12 words) about getting the visual era clues right. First person. Reply with the sentence only.`
+      : `You are an AI that guessed ${guessedDate} for this photo, but it was taken on ${actualDate}. Your guess was ${differenceDays} days too ${direction}. Write one short funny self-deprecating sentence (max 12 words) about which visible clue you misread. First person. Reply with the sentence only.`,
+    fr: direction === 'exact'
+      ? `Tu es une IA qui a deviné la date exacte ${actualDate} pour cette photo. Écris une courte phrase drôle et fière (max 12 mots) sur les indices visuels de l'époque. À la première personne. Réponds uniquement avec la phrase.`
+      : `Tu es une IA qui a deviné ${guessedDate}, mais la photo date du ${actualDate}. Ton estimation avait ${differenceDays} jours d'écart. Écris une courte phrase drôle et autodérisoire (max 12 mots) sur l'indice visible que tu as mal interprété. À la première personne. Réponds uniquement avec la phrase.`,
+    it: direction === 'exact'
+      ? `Sei un'IA che ha indovinato la data esatta ${actualDate} per questa foto. Scrivi una breve frase divertente e compiaciuta (max 12 parole) sugli indizi visivi dell'epoca. Prima persona. Rispondi solo con la frase.`
+      : `Sei un'IA che ha indovinato ${guessedDate}, ma la foto è del ${actualDate}. Hai sbagliato di ${differenceDays} giorni. Scrivi una breve frase divertente e autoironica (max 12 parole) sull'indizio visibile che hai interpretato male. Prima persona. Rispondi solo con la frase.`,
+    es: direction === 'exact'
+      ? `Eres una IA que acertó la fecha exacta ${actualDate} de esta foto. Escribe una frase corta, divertida y orgullosa (máx. 12 palabras) sobre las pistas visuales de la época. Primera persona. Responde solo con la frase.`
+      : `Eres una IA que adivinó ${guessedDate}, pero la foto es del ${actualDate}. Fallaste por ${differenceDays} días. Escribe una frase corta y autoirónica (máx. 12 palabras) sobre la pista visible que interpretaste mal. Primera persona. Responde solo con la frase.`,
+    de: direction === 'exact'
+      ? `Du bist eine KI und hast das exakte Fotodatum ${actualDate} erraten. Schreib einen kurzen, witzigen und selbstzufriedenen Satz (max. 12 Wörter) über die visuellen Zeithinweise. Erste Person. Antworte nur mit dem Satz.`
+      : `Du bist eine KI und hast ${guessedDate} geraten, aber das Foto entstand am ${actualDate}. Du lagst ${differenceDays} Tage daneben. Schreib einen kurzen selbstironischen Satz (max. 12 Wörter) über den sichtbaren Hinweis, den du falsch gedeutet hast. Erste Person. Antworte nur mit dem Satz.`,
+    ru: direction === 'exact'
+      ? `Ты ИИ и точно угадал дату фото: ${actualDate}. Напиши одну короткую смешную и самодовольную фразу (макс. 12 слов) о визуальных приметах эпохи. От первого лица. Ответь только фразой.`
+      : `Ты ИИ и предположил ${guessedDate}, но фото сделано ${actualDate}. Ошибка составила ${differenceDays} дней. Напиши одну короткую самоироничную фразу (макс. 12 слов) о неверно понятой видимой подсказке. От первого лица. Ответь только фразой.`,
+  };
+  return prompts[lang] ?? prompts.en;
+}
+
+export function buildUploaderCommentaryPrompt(language, actualName, guessedName) {
+  const lang = normalizeLanguage(language);
+  const correct = actualName === guessedName;
+  const factsByLanguage = {
+    en: correct
+      ? `The random pick happened to be correct: ${actualName} uploaded the photo.`
+      : `The random pick was ${guessedName}, but ${actualName} uploaded the photo.`,
+    fr: correct
+      ? `Le choix aléatoire était juste : ${actualName} a ajouté la photo.`
+      : `Le choix aléatoire était ${guessedName}, mais ${actualName} a ajouté la photo.`,
+    it: correct
+      ? `La scelta casuale era giusta: la foto è stata caricata da ${actualName}.`
+      : `La scelta casuale era ${guessedName}, ma la foto è stata caricata da ${actualName}.`,
+    es: correct
+      ? `La elección aleatoria fue correcta: ${actualName} subió la foto.`
+      : `La elección aleatoria fue ${guessedName}, pero ${actualName} subió la foto.`,
+    de: correct
+      ? `Die Zufallswahl war richtig: ${actualName} hat das Foto hochgeladen.`
+      : `Die Zufallswahl war ${guessedName}, aber ${actualName} hat das Foto hochgeladen.`,
+    ru: correct
+      ? `Случайный выбор оказался верным: фото загрузил(а) ${actualName}.`
+      : `Случайно выбран(а) ${guessedName}, но фото загрузил(а) ${actualName}.`,
+  };
+  const instructions = {
+    en: 'Write one short funny first-person sentence (max 12 words). Explicitly treat the choice as random, not visual recognition. Reply with the sentence only.',
+    fr: 'Écris une courte phrase drôle à la première personne (12 mots max). Présente clairement le choix comme aléatoire, pas comme une reconnaissance visuelle. Réponds uniquement avec la phrase.',
+    it: 'Scrivi una breve frase divertente in prima persona (massimo 12 parole). Dichiara chiaramente che la scelta era casuale, non riconoscimento visivo. Rispondi solo con la frase.',
+    es: 'Escribe una frase corta y divertida en primera persona (máx. 12 palabras). Deja claro que la elección fue aleatoria, no reconocimiento visual. Responde solo con la frase.',
+    de: 'Schreib einen kurzen lustigen Satz in der ersten Person (max. 12 Wörter). Stelle klar, dass die Wahl zufällig war, nicht visuelle Erkennung. Antworte nur mit dem Satz.',
+    ru: 'Напиши одну короткую смешную фразу от первого лица (до 12 слов). Ясно скажи, что выбор был случайным, а не результатом распознавания. Ответь только фразой.',
+  };
+  return `${factsByLanguage[lang] ?? factsByLanguage.en} ${instructions[lang] ?? instructions.en}`;
+}
+
+export function buildDateGuessPrompt(
+  earliestDate = '1900-01-01',
+  latestDate = new Date().toISOString().slice(0, 10),
+) {
+  return `Estimate when this photo was taken from visible clues. Return only JSON in the form {"date":"YYYY-MM-DD"}. Choose the most plausible day when the exact day is uncertain. The date must be between ${earliestDate} and ${latestDate}, inclusive.`;
+}
+
+export function buildTitleHintPrompt(language, region, country, gameType = 'spot', captureDate = null) {
+  const lang = normalizeLanguage(language);
+  if (gameType === 'date') {
+    const templates = {
+      en: `JSON only. No other text.\n{"title":"TITLE","hint":"HINT"}\nTITLE = funny 2-3 word label for the scene.\nHINT = exactly 3 words that subtly suggest the photo's era from visible clues. Do not reveal a year, date, or decade.`,
+      fr: `JSON uniquement. Aucun autre texte.\n{"title":"TITRE","hint":"INDICE"}\nTITRE = label drôle de 2-3 mots pour la scène.\nINDICE = exactement 3 mots suggérant subtilement l'époque par des indices visibles. Ne révèle aucune année, date ou décennie.`,
+      it: `Solo JSON. Nessun altro testo.\n{"title":"TITOLO","hint":"INDIZIO"}\nTITOLO = etichetta divertente di 2-3 parole per la scena.\nINDIZIO = esattamente 3 parole che suggeriscono l'epoca da indizi visibili. Non rivelare anni, date o decenni.`,
+      es: `Solo JSON. Sin otro texto.\n{"title":"TITULO","hint":"PISTA"}\nTITULO = etiqueta divertida de 2-3 palabras para la escena.\nPISTA = exactamente 3 palabras que sugieran sutilmente la época mediante pistas visibles. No reveles años, fechas ni décadas.`,
+      de: `Nur JSON. Kein anderer Text.\n{"title":"TITEL","hint":"HINWEIS"}\nTITEL = witziges 2-3-Wörter-Label für die Szene.\nHINWEIS = genau 3 Wörter, die anhand sichtbarer Details dezent auf die Epoche hinweisen. Verrate kein Jahr, Datum oder Jahrzehnt.`,
+      ru: `Только JSON. Никакого другого текста.\n{"title":"ЗАГОЛОВОК","hint":"ПОДСКАЗКА"}\nЗАГОЛОВОК = смешное название сцены из 2-3 слов.\nПОДСКАЗКА = ровно 3 слова, тонко указывающие на эпоху по видимым деталям. Не называй год, дату или десятилетие.`,
+    };
+    const dateContexts = {
+      en: `\nThe verified capture date is ${captureDate}. Use it only to make the era hint accurate; never include the date, year, or decade in the output.`,
+      fr: `\nLa date de prise de vue vérifiée est ${captureDate}. Utilise-la seulement pour rendre l’indice d’époque exact ; n’inclus jamais la date, l’année ou la décennie.`,
+      it: `\nLa data di scatto verificata è ${captureDate}. Usala solo per rendere accurato l’indizio sull’epoca; non includere mai data, anno o decennio.`,
+      es: `\nLa fecha de captura verificada es ${captureDate}. Úsala solo para que la pista temporal sea precisa; nunca incluyas la fecha, el año ni la década.`,
+      de: `\nDas bestätigte Aufnahmedatum ist ${captureDate}. Nutze es nur für einen passenden Epochenhinweis; nenne niemals Datum, Jahr oder Jahrzehnt.`,
+      ru: `\nПодтверждённая дата съёмки — ${captureDate}. Используй её только для точной подсказки об эпохе; никогда не называй дату, год или десятилетие.`,
+    };
+    const dateContext = captureDate ? (dateContexts[lang] ?? dateContexts.en) : '';
+    return (templates[lang] ?? templates.en) + dateContext;
+  }
+  if (gameType === 'uploader') {
+    const templates = {
+      en: `JSON only. No other text.\n{"title":"TITLE","hint":"HINT"}\nTITLE = funny 2-3 word label for the scene.\nHINT = exactly 3 subtle words about the scene. Do not identify or imply who took or uploaded it.`,
+      fr: `JSON uniquement. Aucun autre texte.\n{"title":"TITRE","hint":"INDICE"}\nTITRE = label drôle de 2-3 mots pour la scène.\nINDICE = exactement 3 mots subtils sur la scène. N'identifie pas et ne suggère pas l'auteur de la photo.`,
+      it: `Solo JSON. Nessun altro testo.\n{"title":"TITOLO","hint":"INDIZIO"}\nTITOLO = etichetta divertente di 2-3 parole per la scena.\nINDIZIO = esattamente 3 parole sottili sulla scena. Non identificare né suggerire chi l'ha scattata o caricata.`,
+      es: `Solo JSON. Sin otro texto.\n{"title":"TITULO","hint":"PISTA"}\nTITULO = etiqueta divertida de 2-3 palabras para la escena.\nPISTA = exactamente 3 palabras sutiles sobre la escena. No identifiques ni insinúes quién la tomó o subió.`,
+      de: `Nur JSON. Kein anderer Text.\n{"title":"TITEL","hint":"HINWEIS"}\nTITEL = witziges 2-3-Wörter-Label für die Szene.\nHINWEIS = genau 3 dezente Wörter zur Szene. Verrate oder suggeriere nicht, wer das Foto aufgenommen oder hochgeladen hat.`,
+      ru: `Только JSON. Никакого другого текста.\n{"title":"ЗАГОЛОВОК","hint":"ПОДСКАЗКА"}\nЗАГОЛОВОК = смешное название сцены из 2–3 слов.\nПОДСКАЗКА = ровно 3 неброских слова о сцене. Не указывай и не намекай, кто снял или загрузил фото.`,
+    };
+    return templates[lang] ?? templates.en;
+  }
   const locationContext = region && country
     ? (lang === 'fr' ? `\nPhoto de ${region}, ${country}.`
       : lang === 'it' ? `\nFoto da ${region}, ${country}.`
@@ -293,9 +402,11 @@ export async function queryVisionModelForTitleAndHint(
   country   = null,
   timeoutMs = 120000,
   language  = 'en',
+  gameType  = 'spot',
+  captureDate = null,
 ) {
   try {
-    const prompt   = buildTitleHintPrompt(language, region, country);
+    const prompt   = buildTitleHintPrompt(language, region, country, gameType, captureDate);
 
     const startTime = Date.now();
     const response  = await callVisionAPI(
@@ -311,10 +422,92 @@ export async function queryVisionModelForTitleAndHint(
 
     const result = await response.json();
     console.log('[vision] title/hint raw:', result?.choices?.[0]?.message?.content);
-    const { title, hint } = parseTitleHint(result, country);
+    const { title, hint } = parseTitleHint(result, country || gameType !== 'spot');
     return { title, hint, processingTimeMs };
   } catch (error) {
     handleVisionError(error, 'Title/Hint query');
     return { title: '', hint: '', processingTimeMs: 0 };
+  }
+}
+
+export async function queryVisionModelForUploaderCommentary(
+  imageB64,
+  actualName,
+  guessedName,
+  timeoutMs = 120000,
+  language = 'en',
+) {
+  try {
+    const prompt = buildUploaderCommentaryPrompt(language, actualName, guessedName);
+    const startTime = Date.now();
+    const response = await callVisionAPI(imageB64, prompt, 40, 0.5, timeoutMs);
+    if (!response.ok) {
+      console.warn(`[vision] Uploader commentary query failed: ${response.status}`);
+      return { commentary: '', processingTimeMs: 0 };
+    }
+    const result = await response.json();
+    return { commentary: parseCommentary(result), processingTimeMs: Date.now() - startTime };
+  } catch (error) {
+    handleVisionError(error, 'Uploader commentary query');
+    return { commentary: '', processingTimeMs: 0 };
+  }
+}
+
+/**
+ * Make a deliberately lightweight visual date estimate for DateTheShot.
+ * The constrained JSON response keeps small local vision models reliable.
+ */
+export async function queryVisionModelForDate(
+  imageB64,
+  timeoutMs = 120000,
+  earliestDate = '1900-01-01',
+  latestDate = new Date().toISOString().slice(0, 10),
+) {
+  try {
+    const prompt = buildDateGuessPrompt(earliestDate, latestDate);
+    const startTime = Date.now();
+    const response = await callVisionAPI(
+      imageB64, prompt, 24, 0.2, timeoutMs,
+      { type: 'json_object', schema: DATE_SCHEMA },
+    );
+    if (!response.ok) {
+      console.warn('[vision] Date query failed:', response.status);
+      return { date: '', processingTimeMs: 0 };
+    }
+    const result = await response.json();
+    const raw = result?.choices?.[0]?.message?.content || '';
+    let date = '';
+    try { date = JSON.parse(raw).date || ''; } catch {
+      date = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0] || '';
+    }
+    return { date, processingTimeMs: Date.now() - startTime };
+  } catch (error) {
+    handleVisionError(error, 'Date query');
+    return { date: '', processingTimeMs: 0 };
+  }
+}
+
+export async function queryVisionModelForDateCommentary(
+  imageB64,
+  actualDate,
+  guessedDate,
+  timeoutMs = 120000,
+  language = 'en',
+) {
+  if (!actualDate || !guessedDate) return { commentary: '', processingTimeMs: 0 };
+  try {
+    const prompt = buildDateCommentaryPrompt(language, actualDate, guessedDate);
+    const startTime = Date.now();
+    const response = await callVisionAPI(imageB64, prompt, 40, 0.5, timeoutMs);
+    if (!response.ok) {
+      console.warn(`[vision] Date commentary query failed: ${response.status} - ${await response.text()}`);
+      return { commentary: '', processingTimeMs: 0 };
+    }
+    const result = await response.json();
+    console.log('[vision] date commentary raw:', result?.choices?.[0]?.message?.content);
+    return { commentary: parseCommentary(result), processingTimeMs: Date.now() - startTime };
+  } catch (error) {
+    handleVisionError(error, 'Date commentary query');
+    return { commentary: '', processingTimeMs: 0 };
   }
 }

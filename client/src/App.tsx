@@ -25,12 +25,16 @@ import {
   isVersionNewer,
   type VersionLogEntry,
 } from './lib/version'
+import type { GameType } from './lib/gameModes'
 
 // Socket response types
 interface SocketResponse { success?: boolean; error?: string; lobby?: Lobby; playerId?: string; duplicate?: boolean }
 
 // Lobby settings update type
 interface LobbySettingsUpdate {
+  gameType?: GameType;
+  dateTimelineStart?: string;
+  dateTimelineEnd?: string;
   timerMode?: 'fixed' | 'progressive';
   roundDurationSec?: number;
   duelRaceTimeSec?: number;
@@ -52,6 +56,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
   const { t } = useI18n()
   const { addToast } = useToast()
   const [lobby, setLobby] = useState<Lobby | null>(null)
+  const [previewGameType, setPreviewGameType] = useState<GameType>('spot')
   const [playerId, setPlayerId] = useState('')
   const [nickname, setNickname] = useState('')
   const [joinLobbyId, setJoinLobbyId] = useState('')
@@ -545,14 +550,18 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
   }, [])
   /* eslint-enable react-hooks/exhaustive-deps */
 
-  async function createLobby(p: { nickname: string, roundDuration: number }) {
+  async function createLobby(p: { nickname: string, roundDuration: number, gameType: GameType }) {
     if (!p.nickname) return
     if (isJoining) return // Prevent multiple concurrent join attempts
     setIsJoining(true)
     try {
       const language = (window.localStorage.getItem('geo-snap-language') || 'en').toLowerCase()
       const clientSessionId = getClientSessionId()
-      const res = await api.createLobby(p.nickname, { roundDurationSec: p.roundDuration, language }, clientSessionId, getStoredToken())
+      const res = await api.createLobby(p.nickname, {
+        roundDurationSec: p.roundDuration,
+        gameType: p.gameType,
+        language,
+      }, clientSessionId, getStoredToken())
       if (!res.lobby || !res.playerId || !res.sessionToken) throw new Error(res.error || 'Invalid server response')
       setPlayerSessionToken(res.sessionToken)
       socket.emit('join_lobby', { lobbyId: res.lobby.id, nickname: p.nickname, playerId: res.playerId, sessionToken: res.sessionToken, clientSessionId })
@@ -654,13 +663,13 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
     socket.emit('set_team', { lobbyId: lobby.id, playerId, team })
   }
 
-  async function submitGuess(p: {lat:number,lon:number}): Promise<boolean> {
+  async function submitGuess(p: {lat:number,lon:number} | {date:string} | {uploaderId:string}): Promise<boolean> {
     if (!lobby || !playerId) return false
 
     const attempt = () => new Promise<boolean>(resolve => {
       socket.timeout(6000).emit(
         'submit_guess',
-        { lobbyId: lobby.id, playerId, lat: p.lat, lon: p.lon },
+        { lobbyId: lobby.id, playerId, ...p },
         (error: Error | null, response?: SocketResponse) => resolve(!error && !!response?.success),
       )
     })
@@ -713,7 +722,11 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
   }
 
   return (
-    <Layout onShowAchievements={() => setShowAchievements(true)} hasAchievements={hasAchievements}>
+    <Layout
+      onShowAchievements={() => setShowAchievements(true)}
+      hasAchievements={hasAchievements}
+      gameType={lobby?.settings.gameType || previewGameType}
+    >
       <AnimatePresence mode="wait">
         <motion.div
           key={viewKey}
@@ -731,6 +744,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
                 isJoining={isJoining}
                 onSetNickname={setNickname}
                 onCreateLobby={createLobby}
+                onPreviewGameType={setPreviewGameType}
                 onJoinLobby={joinLobby}
                 onSetReady={setReady}
                 onStartGame={startGame}
@@ -870,6 +884,8 @@ function AppContentWrapper() {
         trackPhotoUploadFromCountry: achievements.trackPhotoUploadFromCountry,
         trackRoundWin: achievements.trackRoundWin,
         trackPhotoFinish: achievements.trackPhotoFinish,
+        trackUploaderGuess: achievements.trackUploaderGuess,
+        trackDateGuess: achievements.trackDateGuess,
       }}
     >
       <AppContent achievementsApi={achievements} />

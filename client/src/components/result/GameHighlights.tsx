@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import type { ReactNode } from 'react';
 import type { RoundResults } from "../../lib/types";
 import { getCountryName, getCountryGender, type Language } from "../../lib/countryNames";
+import type { GameType } from "../../lib/gameModes";
 
 /**
  * GameHighlights Module
@@ -547,6 +548,7 @@ export function pickGameMoments(
   allRounds: RoundResults[],
   t: (key: string, vars?: Record<string, string | number>) => string = (key: string) => key,
   language: Language = 'en',
+  gameType: GameType = 'spot',
 ): StatMoment[] {
   if (allRounds.length === 0) return [];
 
@@ -557,6 +559,105 @@ export function pickGameMoments(
 
   const all = uniqueRounds.flatMap(r => r.results.map(g => ({ ...g, roundIndex: r.roundIndex })));
   if (all.length === 0) return [];
+
+  if (gameType === 'date') {
+    const humans = all.filter(result => !result.isAI && result.distanceDays != null);
+    const byPlayer = new Map<string, { nickname: string; color?: string; total: number; count: number }>();
+    for (const result of humans) {
+      const entry = byPlayer.get(result.playerId) ?? { nickname: result.nickname, color: result.color, total: 0, count: 0 };
+      entry.total += result.distanceDays ?? 0;
+      entry.count += 1;
+      byPlayer.set(result.playerId, entry);
+    }
+    const best = [...byPlayer.values()].sort((a, b) => a.total / a.count - b.total / b.count)[0];
+    const exact = humans.filter(result => result.distanceDays === 0).length;
+    const toughestRound = uniqueRounds
+      .map(round => {
+        const guesses = round.results.filter(result => !result.isAI && result.distanceDays != null);
+        return {
+          round: round.roundIndex + 1,
+          average: guesses.length
+            ? Math.round(guesses.reduce((sum, result) => sum + (result.distanceDays ?? 0), 0) / guesses.length)
+            : -1,
+        };
+      })
+      .filter(entry => entry.average >= 0)
+      .sort((a, b) => b.average - a.average)[0];
+    const moments: StatMoment[] = [];
+    if (best) {
+      const days = Math.round(best.total / best.count);
+      moments.push(createMoment('🕰️', t('highlights.dateClosest'), t('highlights.dateClosestTemplate'),
+        { player: best.nickname, days }, [
+          { key: 'player', type: 'player', value: best.nickname, color: best.color },
+          { key: 'days', type: 'count', value: String(days) },
+        ]));
+    }
+    if (exact > 0) {
+      moments.push(createMoment('📅', t('highlights.dateExact'), t('highlights.dateExactTemplate'),
+        { count: exact }, [{ key: 'count', type: 'points', value: String(exact) }]));
+    }
+    if (toughestRound) {
+      moments.push(createMoment('🌀', t('highlights.dateHardest'), t('highlights.dateHardestTemplate'),
+        { round: toughestRound.round, days: toughestRound.average }, [
+          { key: 'round', type: 'count', value: String(toughestRound.round) },
+          { key: 'days', type: 'count', value: String(toughestRound.average) },
+        ]));
+    }
+    return moments;
+  }
+
+  if (gameType === 'uploader') {
+    const humans = all.filter(result => !result.isAI);
+    const byPlayer = new Map<string, { nickname: string; color?: string; correct: number; total: number }>();
+    for (const result of humans) {
+      const entry = byPlayer.get(result.playerId) ?? { nickname: result.nickname, color: result.color, correct: 0, total: 0 };
+      entry.total += 1;
+      if (result.correctUploader) entry.correct += 1;
+      byPlayer.set(result.playerId, entry);
+    }
+    const detective = [...byPlayer.values()].sort((a, b) => b.correct - a.correct)[0];
+    const fooledRounds = uniqueRounds.filter(round => !round.results.some(result => !result.isAI && result.correctUploader)).length;
+    const perfect = [...byPlayer.values()]
+      .filter(entry => entry.total >= 2 && entry.correct === entry.total)
+      .sort((a, b) => b.total - a.total)[0];
+    const voteCounts = new Map<string, number>();
+    for (const result of humans) {
+      if (result.guessedUploaderId) {
+        voteCounts.set(result.guessedUploaderId, (voteCounts.get(result.guessedUploaderId) ?? 0) + 1);
+      }
+    }
+    const mostVotedEntry = [...voteCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    const mostVotedPlayer = mostVotedEntry
+      ? humans.find(result => result.playerId === mostVotedEntry[0])
+      : undefined;
+    const moments: StatMoment[] = [];
+    if (detective) {
+      moments.push(createMoment('🕵️', t('highlights.uploaderDetective'), t('highlights.uploaderDetectiveTemplate'),
+        { player: detective.nickname, count: detective.correct }, [
+          { key: 'player', type: 'player', value: detective.nickname, color: detective.color },
+          { key: 'count', type: 'count', value: String(detective.correct) },
+        ]));
+    }
+    if (fooledRounds > 0) {
+      moments.push(createMoment('🎭', t('highlights.uploaderFooled'), t('highlights.uploaderFooledTemplate'),
+        { count: fooledRounds }, [{ key: 'count', type: 'count', value: String(fooledRounds) }]));
+    }
+    if (perfect) {
+      moments.push(createMoment('💯', t('highlights.uploaderPerfect'), t('highlights.uploaderPerfectTemplate'),
+        { player: perfect.nickname, count: perfect.total }, [
+          { key: 'player', type: 'player', value: perfect.nickname, color: perfect.color },
+          { key: 'count', type: 'count', value: String(perfect.total) },
+        ]));
+    }
+    if (mostVotedEntry && mostVotedPlayer) {
+      moments.push(createMoment('🗳️', t('highlights.uploaderMostVoted'), t('highlights.uploaderMostVotedTemplate'),
+        { player: mostVotedPlayer.nickname, count: mostVotedEntry[1] }, [
+          { key: 'player', type: 'player', value: mostVotedPlayer.nickname, color: mostVotedPlayer.color },
+          { key: 'count', type: 'count', value: String(mostVotedEntry[1]) },
+        ]));
+    }
+    return moments;
+  }
 
   const humans = all.filter(g => !g.isAI);
   const moments: StatMoment[] = [];

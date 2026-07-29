@@ -1,4 +1,5 @@
 import type { GameSettings, Lobby, LobbyConstraints } from '../../lib/types'
+import type { GameType } from '../../lib/gameModes'
 
 export const DEFAULT_ROUND_DURATION_SEC = 45
 export const DEFAULT_HINT_THRESHOLD_SEC = 25
@@ -20,7 +21,8 @@ export type LobbyProps = {
   joinLobbyId?: string
   isJoining?: boolean
   onSetNickname: (name: string) => void
-  onCreateLobby: (params: { nickname: string; roundDuration: number }) => void
+  onCreateLobby: (params: { nickname: string; roundDuration: number; gameType: GameType }) => void
+  onPreviewGameType?: (gameType: GameType) => void
   onJoinLobby: (params: { nickname: string; lobbyId: string }) => void
   onSetReady: (ready: boolean) => void
   onStartGame: () => void

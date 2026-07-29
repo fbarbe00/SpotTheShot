@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, Check, Clock, Eye, Lock, Map, Settings, Users2, X } from 'lucide-react'
+import { AlertCircle, CalendarDays, Check, Clock, Eye, Lock, Map, MapPin, Settings, Users, Users2, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { GameSettings, Lobby } from '../../lib/types'
 import { useToast } from '../../lib/toast'
 import { useI18n } from '../../contexts/I18nContext'
 import { getPreviewTileUrl, supportsLanguageVariants, type MapLanguage } from '../../lib/mapConfig'
 import { DEFAULT_HINT_THRESHOLD_SEC, DEFAULT_ROUND_DURATION_SEC, OPEN_CONSTRAINTS } from './types'
+import { isDateModeNew, isUploaderModeNew } from '../../lib/gameModes'
+import type { GameType } from '../../lib/gameModes'
 
 export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby, onClose: () => void, onSave: (settings: GameSettings) => Promise<boolean> }) {
   const { addToast } = useToast()
   const { t } = useI18n()
   const [roundDurationSec, setRoundDurationSec] = useState(lobby.settings.roundDurationSec)
+  const [gameType, setGameType] = useState<GameType>(lobby.settings.gameType || 'spot')
   const [gameMode, setGameMode] = useState<'individual' | 'teams'>(lobby.settings.gameMode || 'individual')
   const [timerMode, setTimerMode] = useState<'fixed' | 'progressive'>(lobby.settings.timerMode || 'fixed')
   const [hintThresholdSec, setHintThresholdSec] = useState(lobby.settings.hintThresholdSec || DEFAULT_HINT_THRESHOLD_SEC)
@@ -45,9 +48,15 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
       return
     }
     setIsSaving(true)
+    // Timeline bounds are server-derived when a DateTheShot game starts.
+    // Do not echo bounds from a previous game back as editable settings.
+    const editableSettings = { ...lobby.settings }
+    delete editableSettings.dateTimelineStart
+    delete editableSettings.dateTimelineEnd
     const saved = await onSave({
-      ...lobby.settings,
+      ...editableSettings,
       roundDurationSec,
+      gameType,
       gameMode,
       timerMode,
       hintThresholdSec,
@@ -90,6 +99,57 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
         </div>
 
         <div className="space-y-6">
+          <div className="bg-white/5 rounded-xl p-5 border border-primary/10">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarDays size={20} className="text-primary" />
+              <h3 className="text-lg font-bold text-primary">{t('settings.gameType')}</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => setGameType('spot')}
+                className={`p-3 rounded-lg border-2 transition-all ${gameType === 'spot' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
+              >
+                <MapPin size={20} className="mx-auto mb-1" />
+                <div className="text-sm font-bold">SpotTheShot</div>
+                <div className="text-xs text-text-darker">{t('settings.spotTypeDesc')}</div>
+              </button>
+              <button
+                onClick={() => setGameType('uploader')}
+                className={`relative p-3 rounded-lg border-2 transition-all ${gameType === 'uploader' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
+              >
+                {isUploaderModeNew() && (
+                  <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-black">
+                    {t('common.new')}
+                  </span>
+                )}
+                <Users size={20} className="mx-auto mb-1" />
+                <div className="text-[11px] font-bold leading-tight tracking-tight">
+                  WhoTook<wbr />TheShot
+                </div>
+                <div className="text-xs text-text-darker">{t('settings.uploaderTypeDesc')}</div>
+              </button>
+              <button
+                onClick={() => setGameType('date')}
+                className={`relative p-3 rounded-lg border-2 transition-all ${gameType === 'date' ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5 hover:border-primary/40'}`}
+              >
+                {isDateModeNew() && (
+                  <span className="absolute right-1.5 top-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-black">
+                    {t('common.new')}
+                  </span>
+                )}
+                <CalendarDays size={20} className="mx-auto mb-1" />
+                <div className="text-sm font-bold">DateTheShot</div>
+                <div className="text-xs text-text-darker">{t('settings.dateTypeDesc')}</div>
+              </button>
+            </div>
+            {gameType !== lobby.settings.gameType && gameType !== 'uploader' && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-xs text-amber-100">
+                <AlertCircle size={15} className="mt-0.5 flex-shrink-0 text-amber-300" />
+                <span>{t(gameType === 'date' ? 'settings.switchNeedsDates' : 'settings.switchNeedsLocations')}</span>
+              </div>
+            )}
+          </div>
+
           {/* Timer Mode Selection */}
           <div className="bg-white/5 rounded-xl p-5 border border-primary/10">
             <div className="flex items-center gap-2 mb-4">
@@ -244,7 +304,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
             ) : (
               <div className="text-xs text-text-darker/70 italic p-3">{t('settings.enableAIGuessingForMore')}</div>
             )}
-            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-white/5 transition-colors">
+            {gameType !== 'date' && <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-white/5 transition-colors">
               <input
                 type="checkbox"
                 checked={showImageDate}
@@ -255,7 +315,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
                 <div className="text-sm font-medium">{t('settings.showImageDate')}</div>
                 <div className="text-xs text-text-darker">{t('settings.showImageDateHelp')}</div>
               </div>
-            </label>
+            </label>}
             <div className="space-y-4">
               <div>
                 <label className="flex justify-between items-center mb-2">
@@ -310,7 +370,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
           </div>
 
           {/* Map Settings Section */}
-          <div className="bg-white/5 rounded-xl p-5 border border-primary/10">
+          {gameType === 'spot' && <div className="bg-white/5 rounded-xl p-5 border border-primary/10">
             <div className="flex items-center gap-2 mb-4">
               <Map size={20} className="text-primary" />
               <h3 className="text-lg font-bold text-primary">{t('settings.mapStyle')}</h3>
@@ -365,7 +425,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
                 )}
               </div>
             </div>
-          </div>
+          </div>}
         </div>
 
         <div className="mt-6 md:mt-8 flex justify-end gap-2 md:gap-3">

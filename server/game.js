@@ -2,7 +2,8 @@ import { v4 as uuid } from 'uuid';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { computeRoundScore } from './scoring.js';
+import { computeDateRoundScore, computeRoundScore, computeUploaderRoundScore, deriveDatePromptBounds, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
+import { gameModeDefinition, normalizeGameType } from './gameModes.js';
 import { isValidCoordinate } from './utils.js';
 import { batchLookup } from './geoclipClient.js';
 import { isoToFlag } from './countryFlags.js';
@@ -121,12 +122,16 @@ export class GameManager extends AIPipeline {
       constraints,
       settings: {
         roundDurationSec,
+        gameType: normalizeGameType(settings?.gameType),
+        dateTimelineStart: null,
+        dateTimelineEnd: todayUtcDate(),
         gameMode: settings?.gameMode || 'individual',
         timerMode,
         hintThresholdSec: settings?.hintThresholdSec || 15,
         enableAIGuessing: (settings?.enableAIGuessing ?? true) && constraints.allowAIGuessing,
         visionCommentary: (settings?.visionCommentary || false) && constraints.allowVisionCommentary,
         autoNameImages: (settings?.autoNameImages || false) && constraints.allowAutoNaming,
+        showImageDate: normalizeGameType(settings?.gameType) !== 'date' ? (settings?.showImageDate || false) : false,
         uploaderPenaltyPercent: settings?.uploaderPenaltyPercent ?? 10,
         minPhotosPerPlayer: settings?.minPhotosPerPlayer ?? 0,
         maxPhotosPerPlayer: Math.min(settings?.maxPhotosPerPlayer ?? constraints.maxPhotosPerPlayer, constraints.maxPhotosPerPlayer),
@@ -174,6 +179,7 @@ export class GameManager extends AIPipeline {
     if (!lobby) return;
     if (lobby.state !== 'waiting') throw new Error('Settings cannot be changed after the game starts');
     const s = lobby.settings;
+    const previousLanguage = s.language;
 
     if (newSettings.timerMode === 'fixed' || newSettings.timerMode === 'progressive') {
       s.timerMode = newSettings.timerMode;
@@ -193,6 +199,32 @@ export class GameManager extends AIPipeline {
     if (newSettings.gameMode === 'individual' || newSettings.gameMode === 'teams') {
       s.gameMode = newSettings.gameMode;
     }
+    if (newSettings.gameType && normalizeGameType(newSettings.gameType) === newSettings.gameType) {
+      const changedGameType = s.gameType !== newSettings.gameType;
+      s.gameType = newSettings.gameType;
+      if (s.gameType === 'date') s.showImageDate = false;
+      if (changedGameType) {
+        // Date bounds belong to one concrete round order and are regenerated
+        // from the current photo collection only when a Date game starts.
+        s.dateTimelineStart = null;
+        s.dateTimelineEnd = todayUtcDate();
+        for (const player of lobby.players.values()) {
+          if (!player.isAI) player.ready = false;
+        }
+        this._markAINotReady(lobbyId);
+        for (const photo of lobby.photos) {
+          this._invalidateModeDependentCaches(photo);
+          if (s.visionCommentary) {
+            this.prefetchVisionCommentary(photo.id, photo, lobbyId)
+              .catch(err => handleError(err, 'AI mode-change commentary'));
+          } else if (s.enableAIGuessing) {
+            this.prefetchAIPrediction(photo.id, photo, lobbyId)
+              .catch(err => handleError(err, 'AI mode-change prefetch'));
+          }
+          if (s.autoNameImages) this.prefetchAutoNaming(photo.id, photo, lobbyId);
+        }
+      }
+    }
     if (newSettings.gameMode === 'teams') {
       for (const player of lobby.players.values()) {
         this._assignPlayerToLeastPopulatedTeam(lobby, player.id);
@@ -209,7 +241,8 @@ export class GameManager extends AIPipeline {
     }
 
     if (typeof newSettings.language === 'string') {
-      s.language = this._normalizeLanguage(newSettings.language);
+      const language = this._normalizeLanguage(newSettings.language);
+      s.language = language;
       const aiPlayer = lobby.players.get(`ai-${lobbyId}`);
       if (aiPlayer) aiPlayer.nickname = this._aiNicknameForLanguage(s.language);
     }
@@ -225,7 +258,7 @@ export class GameManager extends AIPipeline {
         this._markAINotReady(lobbyId);
         for (const photo of lobby.photos) {
           this.prefetchAIPrediction(photo.id, photo, lobbyId)
-            .then(() => this.prefetchLocation(photo.id, photo))
+            .then(() => s.gameType === 'spot' ? this.prefetchLocation(photo.id, photo) : undefined)
             .catch(err => handleError(err, 'AI prefetch'));
         }
       }
@@ -242,7 +275,7 @@ export class GameManager extends AIPipeline {
             if (!this.visionCommentaries.has(photo.id)) {
               try {
                 await this.prefetchAIPrediction(photo.id, photo, lobbyId);
-                await this.prefetchLocation(photo.id, photo);
+                if (s.gameType === 'spot') await this.prefetchLocation(photo.id, photo);
                 await this.prefetchVisionCommentary(photo.id, photo, lobbyId);
               } catch (err) {
                 handleError(err, 'vision prefetch');
@@ -263,7 +296,7 @@ export class GameManager extends AIPipeline {
     }
 
     if (typeof newSettings.showImageDate === 'boolean') {
-      s.showImageDate = newSettings.showImageDate;
+      s.showImageDate = s.gameType !== 'date' ? newSettings.showImageDate : false;
     }
 
     // Map settings — if allowAllMaps is false, only osm is permitted
@@ -273,6 +306,21 @@ export class GameManager extends AIPipeline {
     // Only these languages have working tile servers for OSM style
     if (['en', 'fr', 'de', 'local'].includes(newSettings.mapLanguage)) {
       s.mapLanguage = newSettings.mapLanguage;
+    }
+
+    if (s.language !== previousLanguage) {
+      this._markAINotReady(lobbyId);
+      for (const photo of lobby.photos) {
+        this._invalidateModeDependentCaches(photo);
+        if (s.visionCommentary) {
+          this.prefetchVisionCommentary(photo.id, photo, lobbyId)
+            .catch(err => handleError(err, 'AI language-change commentary'));
+        } else if (s.enableAIGuessing) {
+          this.prefetchAIPrediction(photo.id, photo, lobbyId)
+            .catch(err => handleError(err, 'AI language-change prefetch'));
+        }
+        if (s.autoNameImages) this.prefetchAutoNaming(photo.id, photo, lobbyId);
+      }
     }
 
     this.broadcastLobby(lobbyId);
@@ -288,7 +336,7 @@ export class GameManager extends AIPipeline {
       return;
     }
 
-    if (lobby.settings.enableAIGuessing) {
+    if (lobby.settings.enableAIGuessing && lobby.settings.gameType === 'spot') {
       const missingPredictions = lobby.photos.filter(p => !this._isFresh(this.predictions.get(p.id)));
       await Promise.all(
         missingPredictions.map(p =>
@@ -363,7 +411,7 @@ export class GameManager extends AIPipeline {
       this.prefetchVisionCommentary(photo.id, photo, lobbyId).catch(() => { });
     } else if (lobby.settings.enableAIGuessing) {
       this.prefetchAIPrediction(photo.id, photo, lobbyId)
-        .then(() => this.prefetchLocation(photo.id, photo))
+        .then(() => lobby.settings.gameType === 'spot' ? this.prefetchLocation(photo.id, photo) : undefined)
         .catch(() => { });
     }
 
@@ -372,6 +420,26 @@ export class GameManager extends AIPipeline {
     }
 
     this.broadcastLobby(lobbyId);
+  }
+
+  updatePhotoDate(lobbyId, playerId, photoId, captureDate) {
+    const lobby = this.lobbies.get(lobbyId);
+    if (!lobby) throw new Error('Lobby not found');
+    if (lobby.state !== 'waiting') throw new Error('Photo dates are locked after the game starts');
+    const photo = lobby.photos.find(p => p.id === photoId && p.uploaderId === playerId);
+    if (!photo) throw new Error('Photo not found');
+    const normalized = normalizePhotoDate(captureDate);
+    if (!normalized) throw new Error('Use a valid date in YYYY-MM-DD format');
+    if (normalized > todayUtcDate()) throw new Error('Photo date cannot be in the future');
+    photo.captureDate = normalized;
+    this._invalidateVisionCommentary(photoId);
+    if (lobby.settings.visionCommentary) {
+      this._markAINotReady(lobbyId);
+      this.prefetchVisionCommentary(photo.id, photo, lobbyId)
+        .catch(err => handleError(err, 'AI photo-date commentary refresh'));
+    }
+    this.broadcastLobby(lobbyId);
+    return normalized;
   }
 
   async deletePhoto(lobbyId, playerId, photoId) {
@@ -418,10 +486,33 @@ export class GameManager extends AIPipeline {
       }
     }
 
-    const photosWithLocation = lobby.photos.filter(p => typeof p.lat === 'number' && typeof p.lon === 'number');
-    if (photosWithLocation.length === 0) throw new Error('No photos with location data available');
+    const mode = gameModeDefinition(lobby.settings.gameType);
+    const eligiblePhotos = mode.requiresDate
+      ? lobby.photos.filter(p => normalizePhotoDate(p.captureDate) && p.captureDate <= todayUtcDate())
+      : mode.requiresLocation
+        ? lobby.photos.filter(p => typeof p.lat === 'number' && typeof p.lon === 'number')
+        : [...lobby.photos];
+    if (eligiblePhotos.length === 0) {
+      throw new Error(mode.requiresDate
+        ? 'No photos with a valid capture date available'
+        : mode.requiresLocation
+          ? 'No photos with location data available'
+          : 'No photos available');
+    }
+    if (lobby.settings.gameType === 'date' && eligiblePhotos.length !== lobby.photos.length) {
+      throw new Error('Every photo needs a valid date before DateTheShot can start');
+    }
+    if (mode.requiresDate) {
+      const bounds = deriveDateTimelineBounds(eligiblePhotos.map(photo => photo.captureDate));
+      lobby.settings.dateTimelineStart = bounds.start;
+      lobby.settings.dateTimelineEnd = bounds.end;
+      for (const photo of eligiblePhotos) {
+        this.datePredictions.delete(photo.id);
+        this._invalidateVisionCommentary(photo.id);
+      }
+    }
 
-    lobby.roundOrder = photosWithLocation.map(p => p.id);
+    lobby.roundOrder = eligiblePhotos.map(p => p.id);
     for (let i = lobby.roundOrder.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [lobby.roundOrder[i], lobby.roundOrder[j]] = [lobby.roundOrder[j], lobby.roundOrder[i]];
@@ -461,14 +552,18 @@ export class GameManager extends AIPipeline {
     const photo = this.currentPhoto(lobby);
     if (!photo) return this._finishGame(lobbyId, lobby);
 
+    const mode = gameModeDefinition(lobby.settings.gameType);
     lobby.currentRoundPhoto = {
-      id: photo.id, url: photo.url, uploaderId: photo.uploaderId,
+      id: mode.hidesUploaderDuringRound ? lobby.roundToken : photo.id,
+      url: photo.url,
+      uploaderId: mode.hidesUploaderDuringRound ? undefined : photo.uploaderId,
       title: photo.title || '', hint: photo.hint || '',
-      captureDate: photo.captureDate,
+      captureDate: mode.requiresDate ? undefined : photo.captureDate,
     };
 
-    lobby.aiTipIndex = lobby.settings.enableAIGuessing && Math.random() < 0.6
-      ? Math.floor(Math.random() * 50)
+    lobby.aiTipIndex = lobby.settings.enableAIGuessing
+      && Math.random() < 0.6
+      ? Math.floor(Math.random() * mode.aiTipCount)
       : null;
 
     this.io.to(lobbyId).emit('round_start', {
@@ -481,7 +576,12 @@ export class GameManager extends AIPipeline {
     });
 
     if (lobby.settings.enableAIGuessing) {
-      this.queryGeoCLIP(lobbyId, photo, lobby.roundToken).catch(err => handleError(err, 'GeoCLIP query'));
+      const task = mode.guessKind === 'date'
+        ? this.queryDateVision(lobbyId, photo, lobby.roundToken)
+        : mode.guessKind === 'player'
+          ? this.queryRandomUploader(lobbyId, photo, lobby.roundToken)
+          : this.queryGeoCLIP(lobbyId, photo, lobby.roundToken);
+      task.catch(err => handleError(err, 'AI guess query'));
     }
 
     clearTimeout(lobby.timers.roundEnd);
@@ -531,6 +631,7 @@ export class GameManager extends AIPipeline {
           humanPlayerCount: [...lobby.players.values()].filter(p => !p.isAI && !String(p.id).startsWith('ai-')).length,
           totalRounds: lobby.roundOrder.length,
           settings: {
+            gameType: lobby.settings.gameType,
             gameMode: lobby.settings.gameMode,
             timerMode: lobby.settings.timerMode,
             roundDurationSec: lobby.settings.roundDurationSec,
@@ -545,7 +646,7 @@ export class GameManager extends AIPipeline {
     }
   }
 
-  submitGuess(lobbyId, playerId, { lat, lon }) {
+  submitGuess(lobbyId, playerId, guess) {
     const lobby = this.lobbies.get(lobbyId);
     if (!lobby) return { accepted: false, error: 'Lobby not found' };
     if (lobby.state !== 'in_round') {
@@ -557,7 +658,22 @@ export class GameManager extends AIPipeline {
     const photo = this.currentPhoto(lobby);
     if (!photo) return { accepted: false, error: 'Round photo not found' };
     if (!lobby.players.has(playerId)) return { accepted: false, error: 'Player not found' };
-    if (!isValidCoordinate(lat, lon)) return { accepted: false, error: 'Invalid guess location' };
+    const mode = gameModeDefinition(lobby.settings.gameType);
+    if (mode.guessKind === 'date') {
+      const guessDate = normalizePhotoDate(guess?.date);
+      if (!guessDate || guessDate > (lobby.settings.dateTimelineEnd || todayUtcDate()) || guessDate < lobby.settings.dateTimelineStart) {
+        return { accepted: false, error: 'Guess date is outside the lobby timeline' };
+      }
+      guess = { date: guessDate };
+    } else if (mode.guessKind === 'player') {
+      const guessedPlayer = lobby.players.get(guess?.uploaderId);
+      if (!guessedPlayer || guessedPlayer.isAI || String(guessedPlayer.id).startsWith('ai-')) {
+        return { accepted: false, error: 'Invalid player vote' };
+      }
+      guess = { uploaderId: guessedPlayer.id };
+    } else if (!isValidCoordinate(guess?.lat, guess?.lon)) {
+      return { accepted: false, error: 'Invalid guess location' };
+    }
 
     // Submission is idempotent: retries caused by a lost acknowledgement must
     // not overwrite the original guess or restart progressive timers.
@@ -565,7 +681,7 @@ export class GameManager extends AIPipeline {
 
     const isAI = playerId.startsWith('ai-');
     const now = Date.now();
-    lobby.guesses.set(playerId, { lat, lon, timeTakenMs: now - lobby.roundStartAt });
+    lobby.guesses.set(playerId, { ...guess, timeTakenMs: now - lobby.roundStartAt });
 
     if (!isAI && lobby.settings.timerMode === 'progressive' && !lobby.firstGuessAt) {
       lobby.firstGuessAt = now;
@@ -604,39 +720,69 @@ export class GameManager extends AIPipeline {
     if (lobby.settings.enableAIGuessing && !lobby.guesses.has(aiPlayerId)) {
       await new Promise(resolve => setTimeout(resolve, Math.min(2000, lobby.roundDurationMs * 0.05)));
     }
+    if ((lobby.settings.gameType === 'date' || lobby.settings.gameType === 'uploader')
+      && lobby.settings.visionCommentary
+      && lobby.guesses.has(aiPlayerId)
+      && !this.visionCommentaries.has(this.currentPhoto(lobby)?.id)) {
+      const commentaryPhoto = this.currentPhoto(lobby);
+      if (commentaryPhoto) {
+        await Promise.race([
+          this.ensureVisionCommentary(commentaryPhoto, lobbyId, {
+            guessedUploaderId: lobby.settings.gameType === 'uploader'
+              ? lobby.guesses.get(aiPlayerId)?.uploaderId
+              : undefined,
+          }),
+          new Promise(resolve => setTimeout(resolve, 3000)),
+        ]);
+      }
+    }
 
     lobby.state = 'showing_results';
     const photo = this.currentPhoto(lobby);
+    const mode = gameModeDefinition(lobby.settings.gameType);
     const results = [];
 
     for (const p of lobby.players.values()) {
       const g = lobby.guesses.get(p.id);
       if (!g) continue;
       const isUploader = p.id === photo.uploaderId;
-      const score = computeRoundScore({
-        guess: g, target: { lat: photo.lat, lon: photo.lon },
-        timeTakenMs: g.timeTakenMs, roundDurationMs: lobby.roundDurationMs,
-        isUploader, settings: lobby.settings,
-      });
+      const score = lobby.settings.gameType === 'date'
+        ? computeDateRoundScore({
+          guessDate: g.date, targetDate: photo.captureDate, isUploader, settings: lobby.settings,
+        })
+        : lobby.settings.gameType === 'uploader'
+          ? computeUploaderRoundScore({
+            guessedUploaderId: g.uploaderId, targetUploaderId: photo.uploaderId, isUploader, settings: lobby.settings,
+          })
+        : computeRoundScore({
+          guess: g, target: { lat: photo.lat, lon: photo.lon },
+          timeTakenMs: g.timeTakenMs, roundDurationMs: lobby.roundDurationMs,
+          isUploader, settings: lobby.settings,
+        });
       p.score += score.total;
       results.push({
         playerId: p.id, nickname: p.nickname, color: p.color, icon: p.icon,
-        lat: g.lat, lon: g.lon,
+        lat: g.lat, lon: g.lon, guessedDate: g.date, guessedUploaderId: g.uploaderId,
         timeTakenMs: g.timeTakenMs,
         points: score.total,
-        distanceKm: Number(score.distanceKm.toFixed(2)),
+        basePoints: score.base,
+        distanceKm: score.distanceKm != null ? Number(score.distanceKm.toFixed(2)) : 0,
+        distanceDays: score.distanceDays,
+        correctUploader: score.correct,
         isUploader,
         isAI: p.isAI ?? p.id.startsWith('ai-'),
       });
     }
 
-    const sorted = [...results].sort((a, b) => a.distanceKm - b.distanceKm);
+    const sorted = [...results].sort((a, b) => b.points - a.points);
 
-    const photoCountry = await this.ensurePhotoLocation(photo.lat, photo.lon, photo.id).catch(err => {
+    const photoCountry = lobby.settings.gameType !== 'spot'
+      ? { country: null, region: null, isoCode: null }
+      : await this.ensurePhotoLocation(photo.lat, photo.lon, photo.id).catch(err => {
       handleError(err, 'photo location lookup'); return { country: null, region: null, isoCode: null };
     });
 
-    const guessCountries = results.length > 0
+    const guessCountries = lobby.settings.gameType === 'spot' && results.length > 0
       ? await batchLookup(results.map(r => ({ lat: r.lat, lon: r.lon }))).catch(err => {
         handleError(err, 'batch location lookup'); return [];
       })
@@ -666,19 +812,24 @@ export class GameManager extends AIPipeline {
       photo: {
         id: photo.id, uploaderId: photo.uploaderId, lat: photo.lat, lon: photo.lon,
         title: photo.title, manualLocation: photo.manualLocation,
+        captureDate: photo.captureDate,
         country: photoCountry.country, region: photoCountry.region,
         countryCode: photoCountry.isoCode,
       },
       guesses: results.map(r => ({
         playerId: r.playerId, nickname: r.nickname, distanceKm: r.distanceKm,
+        distanceDays: r.distanceDays, guessedDate: r.guessedDate,
+        guessedUploaderId: r.guessedUploaderId, correctUploader: r.correctUploader,
         points: r.points, country: r.country, isUploader: r.isUploader,
       })),
     });
 
     lobby.lastRoundResults = {
       photo: {
-        id: photo.id, url: photo.url, lat: photo.lat, lon: photo.lon, uploaderId: photo.uploaderId,
+        id: mode.hidesUploaderDuringRound ? lobby.roundToken : photo.id,
+        url: photo.url, lat: photo.lat, lon: photo.lon, uploaderId: photo.uploaderId,
         title: photo.title, manualLocation: photo.manualLocation,
+        captureDate: photo.captureDate,
         country: photoCountry.country, region: photoCountry.region, countryFlag: isoToFlag(photoCountry.isoCode),
         countryCode: photoCountry.isoCode,
       },
@@ -730,6 +881,7 @@ export class GameManager extends AIPipeline {
     // During a round, hide all photo coordinates (they're revealed via lastRoundResults).
     // In the lobby (waiting), hide other players' coordinates to prevent peeking.
     const hideAll = lobby.state === 'in_round' || lobby.state === 'showing_results';
+    const hideUploaderAnswers = hideAll && gameModeDefinition(lobby.settings.gameType).hidesUploaderDuringRound;
 
     // Reconcile host: if hostId no longer refers to a present member (e.g. due
     // to a race between disconnect timeouts and rejoins), reassign to a real
@@ -760,13 +912,19 @@ export class GameManager extends AIPipeline {
         // Before play, other members only need counts/uploader ownership. Do
         // not send the original URL: a CSS blur can always be removed locally.
         const showPhotoDetails = lobby.state !== 'waiting' || isOwnPhoto;
-        const serialized = { id, url: showPhotoDetails ? url : '', uploaderId,
+        const normalizedCaptureDate = normalizePhotoDate(captureDate);
+        const serialized = { id, url: showPhotoDetails ? url : '',
+          uploaderId: hideUploaderAnswers ? undefined : uploaderId,
+          hasLocation: typeof lat === 'number' && typeof lon === 'number',
+          hasCaptureDate: !!normalizedCaptureDate && normalizedCaptureDate <= todayUtcDate(),
           lat: showCoords ? lat : null,
           lon: showCoords ? lon : null,
           title: showPhotoDetails ? title : undefined,
           hint: showPhotoDetails ? hint : undefined,
           manualLocation: showPhotoDetails ? manualLocation : undefined,
-          captureDate: showPhotoDetails ? captureDate : undefined };
+          captureDate: showPhotoDetails && !(lobby.settings.gameType === 'date' && hideAll)
+            ? captureDate
+            : undefined };
         const prediction = this.predictions.get(id);
         if (!hideAll && uploaderId === viewerPlayerId && prediction) {
           serialized.predictionLat = prediction.lat;
@@ -826,6 +984,7 @@ export class GameManager extends AIPipeline {
     lobby.roundHistory = [];
     lobby.roundToken = null;
     lobby.roundStatistics = [];
+    lobby.isResetting = false;
     clearTimeout(lobby.timers.roundEnd);
     clearTimeout(lobby.timers.resultsEnd);
     clearInterval(lobby.timers.ticker);
@@ -1041,6 +1200,52 @@ export class GameManager extends AIPipeline {
       }
     } catch (err) {
       if (err?.name !== 'AbortError') console.error('GeoCLIP query error:', err?.message ?? err);
+    }
+  }
+
+  async queryDateVision(lobbyId, photo, roundToken) {
+    const lobby = this.lobbies.get(lobbyId);
+    if (!lobby?.settings.enableAIGuessing) return;
+    const aiPlayerId = `ai-${lobbyId}`;
+    if (lobby.guesses.has(aiPlayerId)) return;
+    try {
+      const promptBounds = deriveDatePromptBounds(lobby.photos.map(candidate => candidate.captureDate));
+      if (!promptBounds) return;
+      const prediction = await this.ensureDatePrediction(photo, {
+        earliestDate: promptBounds.start,
+        latestDate: promptBounds.end,
+      });
+      if (!prediction?.date) return;
+      const currentLobby = this.lobbies.get(lobbyId);
+      if (!currentLobby || currentLobby.roundToken !== roundToken || currentLobby.state !== 'in_round') return;
+      if (currentLobby.settings.visionCommentary && !this.visionCommentaries.has(photo.id)) {
+        this.ensureVisionCommentary(photo, lobbyId)
+          .catch(err => handleError(err, 'AI date commentary'));
+      }
+      const date = prediction.date < currentLobby.settings.dateTimelineStart
+        ? currentLobby.settings.dateTimelineStart
+        : prediction.date > currentLobby.settings.dateTimelineEnd
+          ? currentLobby.settings.dateTimelineEnd
+          : prediction.date;
+      this.submitGuess(lobbyId, aiPlayerId, { date });
+    } catch (err) {
+      if (err?.name !== 'AbortError') console.error('Vision date query error:', err?.message ?? err);
+    }
+  }
+
+  async queryRandomUploader(lobbyId, photo, roundToken) {
+    const lobby = this.lobbies.get(lobbyId);
+    if (!lobby?.settings.enableAIGuessing) return;
+    const candidates = [...lobby.players.values()]
+      .filter(player => !player.isAI && !String(player.id).startsWith('ai-'));
+    const guessed = candidates[Math.floor(Math.random() * candidates.length)];
+    const currentLobby = this.lobbies.get(lobbyId);
+    if (!guessed || !currentLobby || currentLobby.roundToken !== roundToken || currentLobby.state !== 'in_round') return;
+
+    this.submitGuess(lobbyId, `ai-${lobbyId}`, { uploaderId: guessed.id });
+    if (currentLobby.settings.visionCommentary && !this.visionCommentaries.has(photo.id)) {
+      this.ensureVisionCommentary(photo, lobbyId, { guessedUploaderId: guessed.id })
+        .catch(err => handleError(err, 'AI uploader commentary'));
     }
   }
 }

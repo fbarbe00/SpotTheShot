@@ -1,4 +1,4 @@
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.2.0';
 export const VERSION_STORAGE_KEY = 'spottheshot-last-seen-version';
 
 export type VersionLogEntry = {
@@ -8,6 +8,33 @@ export type VersionLogEntry = {
 };
 
 export const VERSION_LOG: VersionLogEntry[] = [
+  {
+    version: '2.2.0',
+    date: '2026-07-29',
+    notes: [
+      '👥 WhoTookTheShot adds a third game: vote for the friend who uploaded each photo.',
+      '🎲 The AI votes randomly and openly jokes about its random choice after the uploader is revealed.',
+      '🧩 Game modes now use shared capability definitions, with safe prompts when an existing lobby changes mode.',
+      '🗓️ DateTheShot now opens from a compact launcher and uses automatic photo-aware timeline bounds.',
+      '📊 Every mode has a combined round leaderboard with answers, round points, totals, and transparent scoring rules.',
+      '↩️ Every player can return a finished game to the shared lobby without losing or replacing their session.',
+      '🏆 New translated achievements reward date accuracy, sustained play, uploader identification, and correct streaks.',
+      '🔗 Invitation links preview the lobby mode in the logo and mode-specific description.',
+    ],
+  },
+  {
+    version: '2.1.0',
+    date: '2026-07-29',
+    notes: [
+      '📅 DateTheShot is here — guess when a photo was taken on a polished, adjustable timeline.',
+      '⚙️ Choose SpotTheShot or DateTheShot when creating a lobby, or switch in lobby settings.',
+      '🖼️ Capture dates can be corrected before play, with future dates blocked.',
+      '🗓️ Missing dates now open a dedicated date dialog, with PNG and screenshot-date detection.',
+      '🤖 The local vision AI now estimates photo dates and jokes about the era clues it got right or wrong.',
+      '📊 Date results now place every player and score directly on the timeline.',
+      '🏆 Date achievements have been added, and First Steps now specifically rewards a location-guessing game.',
+    ],
+  },
   {
     version: '2.0.0',
     date: '2026-05-17',
