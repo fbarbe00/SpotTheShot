@@ -2,7 +2,7 @@ import { v4 as uuid } from 'uuid';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { computeDateRoundScore, computeRoundScore, computeUploaderRoundScore, deriveDatePromptBounds, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
+import { clampDateToRange, computeDateRoundScore, computeRoundScore, computeUploaderRoundScore, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
 import { gameModeDefinition, normalizeGameType } from './gameModes.js';
 import { isValidCoordinate } from './utils.js';
 import { batchLookup } from './geoclipClient.js';
@@ -520,7 +520,6 @@ export class GameManager extends AIPipeline {
       lobby.settings.dateTimelineStart = bounds.start;
       lobby.settings.dateTimelineEnd = bounds.end;
       for (const photo of eligiblePhotos) {
-        this.datePredictions.delete(photo.id);
         this._invalidateVisionCommentary(photo.id);
       }
     }
@@ -594,7 +593,12 @@ export class GameManager extends AIPipeline {
         : mode.guessKind === 'player'
           ? this.queryRandomUploader(lobbyId, photo, lobby.roundToken)
           : this.queryGeoCLIP(lobbyId, photo, lobby.roundToken);
-      task.catch(err => handleError(err, 'AI guess query'));
+      const trackedTask = task.catch(err => handleError(err, 'AI guess query'));
+      const trackedRoundToken = lobby.roundToken;
+      lobby.aiGuessTask = { roundToken: trackedRoundToken, promise: trackedTask };
+      trackedTask.finally(() => {
+        if (lobby.aiGuessTask?.roundToken === trackedRoundToken) lobby.aiGuessTask = null;
+      });
     }
 
     clearTimeout(lobby.timers.roundEnd);
@@ -730,8 +734,28 @@ export class GameManager extends AIPipeline {
     clearInterval(lobby.timers.ticker);
 
     const aiPlayerId = `ai-${lobbyId}`;
-    if (lobby.settings.enableAIGuessing && !lobby.guesses.has(aiPlayerId)) {
-      await new Promise(resolve => setTimeout(resolve, Math.min(2000, lobby.roundDurationMs * 0.05)));
+    const pendingAI = lobby.aiGuessTask?.roundToken === lobby.roundToken
+      ? lobby.aiGuessTask.promise
+      : null;
+    if (lobby.settings.enableAIGuessing && !lobby.guesses.has(aiPlayerId) && pendingAI) {
+      const graceMs = Math.min(2000, lobby.roundDurationMs * 0.05);
+      console.log(
+        `[ai] Waiting up to ${graceMs}ms for ${lobby.settings.gameType} guess `
+        + `(lobby ${lobbyId}, round ${lobby.roundIndex + 1})`,
+      );
+      let graceTimer;
+      const outcome = await Promise.race([
+        pendingAI.then(() => 'completed'),
+        new Promise(resolve => {
+          graceTimer = setTimeout(() => resolve('timed out'), graceMs);
+        }),
+      ]);
+      clearTimeout(graceTimer);
+      console.log(
+        `[ai] Pending ${lobby.settings.gameType} guess ${outcome}; `
+        + `accepted=${lobby.guesses.has(aiPlayerId)} `
+        + `(lobby ${lobbyId}, round ${lobby.roundIndex + 1})`,
+      );
     }
     if ((lobby.settings.gameType === 'date' || lobby.settings.gameType === 'uploader')
       && lobby.settings.visionCommentary
@@ -1218,29 +1242,72 @@ export class GameManager extends AIPipeline {
 
   async queryDateVision(lobbyId, photo, roundToken) {
     const lobby = this.lobbies.get(lobbyId);
-    if (!lobby?.settings.enableAIGuessing) return;
+    if (!lobby?.settings.enableAIGuessing) {
+      console.log(`[vision] Date guess skipped for photo ${photo.id}: AI guessing is disabled`);
+      return;
+    }
     const aiPlayerId = `ai-${lobbyId}`;
-    if (lobby.guesses.has(aiPlayerId)) return;
+    if (lobby.guesses.has(aiPlayerId)) {
+      console.log(`[vision] Date guess skipped for photo ${photo.id}: AI already submitted this round`);
+      return;
+    }
     try {
-      const promptBounds = deriveDatePromptBounds(lobby.photos.map(candidate => candidate.captureDate));
-      if (!promptBounds) return;
+      const promptBounds = this._datePromptBounds(lobby);
+      if (!promptBounds) {
+        console.warn(`[vision] Date guess skipped for photo ${photo.id}: no valid timeline bounds`);
+        return;
+      }
+      console.log(
+        `[vision] Starting DateTheShot guess for photo ${photo.id} using ${promptBounds.source}: `
+        + `${promptBounds.start}..${promptBounds.end}`,
+      );
       const prediction = await this.ensureDatePrediction(photo, {
         earliestDate: promptBounds.start,
         latestDate: promptBounds.end,
       });
-      if (!prediction?.date) return;
+      if (!prediction?.date) {
+        console.warn(`[vision] Date guess unavailable for photo ${photo.id}: prediction returned no date`);
+        return;
+      }
       const currentLobby = this.lobbies.get(lobbyId);
-      if (!currentLobby || currentLobby.roundToken !== roundToken || currentLobby.state !== 'in_round') return;
+      if (!currentLobby || currentLobby.roundToken !== roundToken || currentLobby.state !== 'in_round') {
+        console.warn(
+          `[vision] Discarding date ${prediction.date} for photo ${photo.id}: `
+          + `round is no longer active (exists=${!!currentLobby}, `
+          + `tokenMatches=${currentLobby?.roundToken === roundToken}, state=${currentLobby?.state || 'missing'})`,
+        );
+        return;
+      }
       if (currentLobby.settings.visionCommentary && !this.visionCommentaries.has(photo.id)) {
         this.ensureVisionCommentary(photo, lobbyId)
           .catch(err => handleError(err, 'AI date commentary'));
       }
-      const date = prediction.date < currentLobby.settings.dateTimelineStart
-        ? currentLobby.settings.dateTimelineStart
-        : prediction.date > currentLobby.settings.dateTimelineEnd
-          ? currentLobby.settings.dateTimelineEnd
-          : prediction.date;
-      this.submitGuess(lobbyId, aiPlayerId, { date });
+      const date = clampDateToRange(
+        prediction.date,
+        currentLobby.settings.dateTimelineStart,
+        currentLobby.settings.dateTimelineEnd,
+      );
+      if (!date) {
+        console.warn(
+          `[vision] Discarding invalid date prediction for photo ${photo.id}: `
+          + `${prediction.date} (lobby range ${currentLobby.settings.dateTimelineStart}`
+          + `..${currentLobby.settings.dateTimelineEnd})`,
+        );
+        return;
+      }
+      if (date !== prediction.date) {
+        console.warn(
+          `[vision] Clamped AI round guess for photo ${photo.id}: ${prediction.date} -> ${date} `
+          + `(lobby range ${currentLobby.settings.dateTimelineStart}..${currentLobby.settings.dateTimelineEnd})`,
+        );
+      }
+      const submission = this.submitGuess(lobbyId, aiPlayerId, { date });
+      const log = submission.accepted ? console.log : console.warn;
+      log(
+        `[vision] AI date guess submission for photo ${photo.id}: date=${date}, `
+        + `accepted=${submission.accepted}, duplicate=${!!submission.duplicate}`
+        + `${submission.error ? `, error=${submission.error}` : ''}`,
+      );
     } catch (err) {
       if (err?.name !== 'AbortError') console.error('Vision date query error:', err?.message ?? err);
     }

@@ -12,7 +12,7 @@ import {
 } from './visionClient.js';
 import { handleError, handleAIOperationError, mimeTypeForFile } from './gameHelpers.js';
 import { isValidCoordinate } from './utils.js';
-import { deriveDatePromptBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
+import { clampDateToRange, deriveDatePromptBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
 
 const GEOCLIP_URL = process.env.GEOCLIP_URL || 'http://geoclip:8000';
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
@@ -22,7 +22,13 @@ const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 export class AIPipeline {
 
   _datePromptBounds(lobby) {
-    return deriveDatePromptBounds(lobby?.photos?.map(photo => photo.captureDate) || []);
+    const configuredStart = normalizePhotoDate(lobby?.settings?.dateTimelineStart);
+    const configuredEnd = normalizePhotoDate(lobby?.settings?.dateTimelineEnd);
+    if (configuredStart && configuredEnd && configuredStart <= configuredEnd) {
+      return { start: configuredStart, end: configuredEnd, source: 'lobby timeline' };
+    }
+    const derived = deriveDatePromptBounds(lobby?.photos?.map(photo => photo.captureDate) || []);
+    return derived ? { ...derived, source: 'uploaded photo dates' } : null;
   }
 
   _initAIPipeline() {
@@ -327,15 +333,13 @@ export class AIPipeline {
       const release = await this._acquire('vision');
       try {
         const language = this._normalizeLanguage(lobby?.settings?.language);
-        let effectiveGuessedDate = datePrediction?.date;
-        if (effectiveGuessedDate && lobby.settings.dateTimelineStart
-          && effectiveGuessedDate < lobby.settings.dateTimelineStart) {
-          effectiveGuessedDate = lobby.settings.dateTimelineStart;
-        }
-        if (effectiveGuessedDate && lobby.settings.dateTimelineEnd
-          && effectiveGuessedDate > lobby.settings.dateTimelineEnd) {
-          effectiveGuessedDate = lobby.settings.dateTimelineEnd;
-        }
+        const effectiveGuessedDate = datePrediction?.date
+          ? clampDateToRange(
+            datePrediction.date,
+            lobby.settings.dateTimelineStart,
+            lobby.settings.dateTimelineEnd,
+          ) || datePrediction.date
+          : null;
         const actualUploader = lobby?.players.get(photo.uploaderId);
         const guessedUploader = lobby?.players.get(guessedUploaderId);
         const resp = isUploaderMode
@@ -475,13 +479,37 @@ export class AIPipeline {
     latestDate = todayUtcDate(),
   } = {}) {
     const cached = this.datePredictions.get(photo.id);
-    if (this._isFresh(cached)
-      && cached.earliestDate === earliestDate
-      && cached.latestDate === latestDate) {
-      return cached;
+    if (this._isFresh(cached)) {
+      const clampedCachedDate = clampDateToRange(cached.date, earliestDate, latestDate);
+      if (clampedCachedDate) {
+        const rangeChanged = cached.earliestDate !== earliestDate || cached.latestDate !== latestDate;
+        if (rangeChanged || clampedCachedDate !== cached.date) {
+          console.log(
+            `[vision] Reusing prefetched date for photo ${photo.id}: ${cached.date} -> ${clampedCachedDate} `
+            + `(final range ${earliestDate}..${latestDate})`,
+          );
+        } else {
+          console.log(
+            `[vision] Date prediction cache hit for photo ${photo.id}: ${cached.date} `
+            + `(range ${earliestDate}..${latestDate})`,
+          );
+        }
+        const entry = {
+          ...cached,
+          date: clampedCachedDate,
+          earliestDate,
+          latestDate,
+        };
+        this.datePredictions.set(photo.id, entry);
+        return entry;
+      }
     }
     const inflightKey = `${photo.id}:${earliestDate}:${latestDate}`;
     if (this._inflightDates.has(inflightKey)) {
+      console.log(
+        `[vision] Awaiting in-flight date prediction for photo ${photo.id} `
+        + `(range ${earliestDate}..${latestDate})`,
+      );
       try {
         return await this._inflightDates.get(inflightKey);
       } catch (error) {
@@ -494,7 +522,14 @@ export class AIPipeline {
       const release = await this._acquire('vision');
       try {
         const imageB64 = await this._ensurePreprocessed(photo);
-        if (!imageB64) return null;
+        if (!imageB64) {
+          console.warn(`[vision] Date prediction skipped for photo ${photo.id}: image preprocessing returned no data`);
+          return null;
+        }
+        console.log(
+          `[vision] Requesting date prediction for photo ${photo.id} `
+          + `(allowed range ${earliestDate}..${latestDate})`,
+        );
         let date = null;
         for (let attempt = 1; attempt <= 2; attempt++) {
           const response = await queryVisionModelForDate(
@@ -514,8 +549,26 @@ export class AIPipeline {
           return null;
         }
         if ((this._dateRevisions.get(photo.id) || 0) !== revision) return null;
-        if (date < earliestDate) date = earliestDate;
-        if (date > latestDate) date = latestDate;
+        const returnedDate = date;
+        date = clampDateToRange(date, earliestDate, latestDate);
+        if (!date) {
+          console.warn(
+            `[vision] Date prediction for photo ${photo.id} could not be clamped `
+            + `(value ${returnedDate}, range ${earliestDate}..${latestDate})`,
+          );
+          return null;
+        }
+        if (date !== returnedDate) {
+          console.warn(
+            `[vision] Clamped date prediction for photo ${photo.id}: `
+            + `${returnedDate} -> ${date} (range ${earliestDate}..${latestDate})`,
+          );
+        } else {
+          console.log(
+            `[vision] Accepted date prediction for photo ${photo.id}: ${date} `
+            + `(range ${earliestDate}..${latestDate})`,
+          );
+        }
         const entry = { date, earliestDate, latestDate, timestamp: Date.now() };
         this.datePredictions.set(photo.id, entry);
         return entry;

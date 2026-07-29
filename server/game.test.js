@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameManager } from './game.js';
-import { computeDateRoundScore, computeUploaderRoundScore, deriveDatePromptBounds, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
+import { clampDateToRange, computeDateRoundScore, computeUploaderRoundScore, deriveDatePromptBounds, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
 
 function createManager() {
   const sockets = new Map();
@@ -171,6 +171,10 @@ test('DateTheShot derives padded bounds from uploaded photos and rejects future 
 });
 
 test('DateTheShot accepts calendar guesses and closer dates score more points', async () => {
+  assert.equal(clampDateToRange('1890-01-01', '1900-01-01', '2020-12-31'), '1900-01-01');
+  assert.equal(clampDateToRange('2030-01-01', '1900-01-01', '2020-12-31'), '2020-12-31');
+  assert.equal(clampDateToRange('2000-06-15', '1900-01-01', '2020-12-31'), '2000-06-15');
+  assert.equal(clampDateToRange('not-a-date', '1900-01-01', '2020-12-31'), null);
   const exact = computeDateRoundScore({
     guessDate: '2000-01-01', targetDate: '2000-01-01', isUploader: false, settings: {},
   });
@@ -274,6 +278,84 @@ test('DateTheShot AI prompt bounds use uploaded photo dates plus ten years', () 
     { start: '1970-01-02', end: '2000-03-04' },
   );
   assert.equal(deriveDatePromptBounds([], '2026-07-29'), null);
+
+  const gm = createManager();
+  assert.deepEqual(
+    gm._datePromptBounds({
+      settings: { dateTimelineStart: '1990-01-01', dateTimelineEnd: '2020-12-31' },
+      photos: [{ captureDate: '2005-06-15' }],
+    }),
+    { start: '1990-01-01', end: '2020-12-31', source: 'lobby timeline' },
+  );
+});
+
+test('DateTheShot reuses and clamps a completed lobby prefetch after final bounds are chosen', async () => {
+  const gm = createManager();
+  const photo = { id: 'prefetched-date', captureDate: '2005-06-15' };
+  gm.datePredictions.set(photo.id, {
+    date: '1985-04-03',
+    earliestDate: '1970-01-01',
+    latestDate: '2030-01-01',
+    timestamp: Date.now(),
+  });
+
+  const prediction = await gm.ensureDatePrediction(photo, {
+    earliestDate: '1990-01-01',
+    latestDate: '2020-12-31',
+  });
+
+  assert.equal(prediction.date, '1990-01-01');
+  assert.equal(prediction.earliestDate, '1990-01-01');
+  assert.equal(prediction.latestDate, '2020-12-31');
+});
+
+test('DateTheShot waits for a tracked AI guess before building visible round results', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    socketId: 'host-socket',
+    settings: { enableAIGuessing: false, gameType: 'date' },
+    constraints,
+  });
+  const lobby = created.lobby;
+  lobby.photos.push({
+    id: 'dated-ai-photo',
+    url: '/uploads/dated-ai.jpg',
+    uploaderId: created.playerId,
+    captureDate: '2001-02-03',
+  });
+  gm.startGame(lobby.id);
+  const aiPlayerId = `ai-${lobby.id}`;
+  lobby.players.set(aiPlayerId, {
+    id: aiPlayerId,
+    nickname: 'AI',
+    score: 0,
+    ready: true,
+    color: '#888888',
+    icon: '🤖',
+    socketId: null,
+    isAI: true,
+    team: null,
+    wins: 0,
+  });
+  lobby.settings.enableAIGuessing = true;
+
+  const promise = new Promise(resolve => {
+    setImmediate(() => {
+      gm.submitGuess(lobby.id, aiPlayerId, { date: lobby.settings.dateTimelineStart });
+      resolve();
+    });
+  });
+  lobby.aiGuessTask = { roundToken: lobby.roundToken, promise };
+
+  clearTimeout(lobby.timers.roundEnd);
+  await gm.endRound(lobby.id);
+
+  assert.equal(lobby.lastRoundResults.results.some(result => result.playerId === aiPlayerId), true);
+  assert.equal(lobby.lastRoundResults.results.find(result => result.playerId === aiPlayerId)?.guessedDate,
+    lobby.settings.dateTimelineStart);
+  clearTimeout(lobby.timers.resultsEnd);
+  clearInterval(lobby.timers.ticker);
 });
 
 test('WhoTookTheShot validates player votes, scores categorical answers, and hides ownership', async () => {

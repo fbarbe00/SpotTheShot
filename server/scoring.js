@@ -50,6 +50,14 @@ export function todayUtcDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function clampDateToRange(date, minDate, maxDate) {
+  const normalized = normalizePhotoDate(date);
+  const min = normalizePhotoDate(minDate);
+  const max = normalizePhotoDate(maxDate);
+  if (!normalized || !min || !max || min > max) return null;
+  return normalized < min ? min : normalized > max ? max : normalized;
+}
+
 export function defaultTimelineStart() {
   const date = new Date();
   date.setUTCFullYear(date.getUTCFullYear() - 100);
