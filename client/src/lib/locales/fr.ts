@@ -272,6 +272,7 @@ const fr: Record<string, string> = {
   "lobby.waitingHostStart": "En attente que l'hôte lance la partie...",
   "lobby.waitingHost": "En attente de l'hôte...",
   "lobby.minOnePhoto": "Chargez au moins une photo avant de démarrer.",
+  "lobby.minThreePlayers": "WhoTookTheShot nécessite au moins 3 joueurs·euses. L'IA ne compte pas.",
   "lobby.notAllReadyCanStart": "Tous·tes les joueurs·euses ne sont pas prêt·e·s, mais vous pouvez lancer quand même.",
   "lobby.whatsNew": "Nouveautés",
   "lobby.photos": "Photos",

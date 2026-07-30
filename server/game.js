@@ -491,6 +491,12 @@ export class GameManager extends AIPipeline {
     if (lobby.state !== 'waiting') throw new Error('Game already started');
     if (lobby.photos.length === 0) throw new Error('No photos uploaded');
 
+    const humanPlayers = [...lobby.players.values()]
+      .filter(p => !p.isAI && !String(p.id).startsWith('ai-'));
+    if (lobby.settings.gameType === 'uploader' && humanPlayers.length < 3) {
+      throw new Error('WhoTookTheShot requires at least 3 players');
+    }
+
     const realPlayers = [...lobby.players.values()].filter(p => p.socketId !== null && !p.isAI);
     for (const player of realPlayers) {
       const count = lobby.photos.filter(p => p.uploaderId === player.id).length;

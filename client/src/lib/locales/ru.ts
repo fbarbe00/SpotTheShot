@@ -282,6 +282,7 @@ const ru: Record<string, string> = {
   "lobby.waitingHostStart": "Ожидание хоста для старта...",
   "lobby.waitingHost": "Ожидание хоста...",
   "lobby.minOnePhoto": "Загрузите хотя бы одно фото перед началом.",
+  "lobby.minThreePlayers": "Для WhoTookTheShot нужно не менее 3 игроков. ИИ-игроки не учитываются.",
   "lobby.notAllReadyCanStart": "Не все игроки готовы, но вы можете начать в любом случае.",
   "lobby.whatsNew": "Что нового",
   "lobby.photos": "Фото",

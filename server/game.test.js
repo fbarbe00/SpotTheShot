@@ -371,6 +371,7 @@ test('WhoTookTheShot validates player votes, scores categorical answers, and hid
     constraints,
   });
   const guest = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: 'guest-socket' });
+  gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Third', socketId: 'third-socket' });
   const lobby = created.lobby;
   lobby.photos.push({ id: 'secret-photo', url: '/uploads/secret.jpg', uploaderId: created.playerId });
   gm.startGame(lobby.id);
@@ -402,6 +403,30 @@ test('WhoTookTheShot validates player votes, scores categorical answers, and hid
   clearInterval(lobby.timers.ticker);
 });
 
+test('WhoTookTheShot requires three human players and does not count AI', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    socketId: 'host-socket',
+    settings: { enableAIGuessing: false, gameType: 'uploader' },
+    constraints,
+  });
+  const lobby = created.lobby;
+  lobby.photos.push({ id: 'secret-photo', url: '/uploads/secret.jpg', uploaderId: created.playerId });
+  gm.joinLobby({ lobbyId: lobby.id, nickname: 'Guest', socketId: 'guest-socket' });
+  gm.addAIPlayer(lobby.id);
+
+  assert.throws(
+    () => gm.startGame(lobby.id),
+    /WhoTookTheShot requires at least 3 players/,
+  );
+
+  gm.joinLobby({ lobbyId: lobby.id, nickname: 'Third', socketId: 'third-socket' });
+  assert.doesNotThrow(() => gm.startGame(lobby.id));
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+});
+
 test('switching modes applies only the newly selected photo requirements', async () => {
   const gm = createManager();
   const created = await gm.createLobby({
@@ -411,6 +436,8 @@ test('switching modes applies only the newly selected photo requirements', async
     constraints,
   });
   const lobby = created.lobby;
+  gm.joinLobby({ lobbyId: lobby.id, nickname: 'Guest', socketId: 'guest-socket' });
+  gm.joinLobby({ lobbyId: lobby.id, nickname: 'Third', socketId: 'third-socket' });
   lobby.photos.push({ id: 'bare', url: '/uploads/bare.jpg', uploaderId: created.playerId });
   lobby.players.get(created.playerId).ready = true;
 

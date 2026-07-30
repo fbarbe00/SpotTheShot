@@ -72,9 +72,11 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
     : 0
   const hasAIPlayer = !!lobby?.players.some(p => p.id.startsWith('ai-'))
   const aiFeaturesEnabled = !!(lobby?.settings.enableAIGuessing || lobby?.settings.visionCommentary || lobby?.settings.autoNameImages)
+  const humanPlayerCount = lobby?.players.filter(p => !p.isAI && !p.id.startsWith('ai-')).length ?? 0
+  const hasEnoughPlayers = lobby?.settings.gameType !== 'uploader' || humanPlayerCount >= 3
   // AI preparation may continue after the game begins. The server remains
   // authoritative for all start requirements beyond having an uploaded photo.
-  const canStart = (lobby?.photos.length ?? 0) > 0
+  const canStart = (lobby?.photos.length ?? 0) > 0 && hasEnoughPlayers
 
   // Get tooltip text for lobby name
   const lobbyNameTooltip = useMemo(() => {
@@ -620,6 +622,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
           {isHost && (
             <div className="mt-2 text-xs text-text-darker text-right">
               {lobby.photos.length === 0 && t('lobby.minOnePhoto')}
+              {lobby.settings.gameType === 'uploader' && !hasEnoughPlayers && t('lobby.minThreePlayers')}
               {lobby.settings.gameType === 'date' && photosMissingDates > 0 && t('lobby.missingPhotoDates', { count: photosMissingDates })}
               {lobby.settings.gameType === 'date' && photosInvalidDates > 0 && t('lobby.invalidPhotoDates', { count: photosInvalidDates })}
               {lobby.photos.length > 0 && lobby.players.some(p => !p.ready) && t('lobby.notAllReadyCanStart')}
@@ -819,6 +822,11 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
           </button>
           {isHost && <button disabled={!canStart} onClick={requestStartGame} className="flex-1 px-3 py-2 rounded bg-primary hover:bg-primary-dark text-black font-bold text-xs disabled:opacity-40">{t('lobby.start')}</button>}
         </div>
+        {isHost && lobby.settings.gameType === 'uploader' && !hasEnoughPlayers && (
+          <div className="text-center text-xs text-amber-300">
+            {t('lobby.minThreePlayers')}
+          </div>
+        )}
         {isHost && lobby.settings.gameType === 'date' && (photosMissingDates > 0 || photosInvalidDates > 0) && (
           <div className="text-center text-xs text-amber-300">
             {photosMissingDates > 0

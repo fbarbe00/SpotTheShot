@@ -280,6 +280,7 @@ const en: Record<string, string> = {
   "lobby.waitingHostStart": "Waiting for host to start...",
   "lobby.waitingHost": "Waiting for host...",
   "lobby.minOnePhoto": "Upload at least one photo before starting.",
+  "lobby.minThreePlayers": "WhoTookTheShot requires at least 3 players. AI players do not count.",
   "lobby.notAllReadyCanStart": "Not all players are ready, but you can start anyway.",
   "lobby.whatsNew": "What's New",
   "lobby.photos": "Photos",

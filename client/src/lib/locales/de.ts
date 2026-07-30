@@ -272,6 +272,7 @@ const de: Record<string, string> = {
   "lobby.waitingHostStart": "Warten auf den Start durch den Host...",
   "lobby.waitingHost": "Warten auf den Host...",
   "lobby.minOnePhoto": "Lade mindestens ein Foto hoch, bevor du startest.",
+  "lobby.minThreePlayers": "WhoTookTheShot benötigt mindestens 3 Spieler:innen. KI-Spieler:innen zählen nicht.",
   "lobby.notAllReadyCanStart": "Nicht alle sind bereit, aber du kannst trotzdem starten.",
   "lobby.whatsNew": "Neuigkeiten",
   "lobby.photos": "Fotos",
