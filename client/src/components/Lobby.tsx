@@ -72,10 +72,9 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
     : 0
   const hasAIPlayer = !!lobby?.players.some(p => p.id.startsWith('ai-'))
   const aiFeaturesEnabled = !!(lobby?.settings.enableAIGuessing || lobby?.settings.visionCommentary || lobby?.settings.autoNameImages)
-  // The server remains authoritative for photo requirements. When AI features
-  // are enabled, finish their lobby prefetch before beginning the first round.
+  // AI preparation may continue after the game begins. The server remains
+  // authoritative for all start requirements beyond having an uploaded photo.
   const canStart = (lobby?.photos.length ?? 0) > 0
-    && (!hasAIPlayer || !aiFeaturesEnabled || aiProcessingStatus?.isReady === true)
 
   // Get tooltip text for lobby name
   const lobbyNameTooltip = useMemo(() => {

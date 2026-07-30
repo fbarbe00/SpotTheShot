@@ -79,7 +79,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
 
   const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
   const [useFileBrowser, setUseFileBrowser] = useState(
-    isMobileDevice && lobby.settings.gameType === 'spot',
+    isMobileDevice && lobby.settings.gameType !== 'uploader',
   )
 
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
 
   useEffect(() => {
     setEditingPhotoId(null)
-    setUseFileBrowser(isMobileDevice && lobby.settings.gameType === 'spot')
+    setUseFileBrowser(isMobileDevice && lobby.settings.gameType !== 'uploader')
   }, [lobby.settings.gameType, isMobileDevice])
 
   useEffect(() => {

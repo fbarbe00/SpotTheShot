@@ -177,7 +177,7 @@ export function buildDateGuessPrompt(
   earliestDate = '1900-01-01',
   latestDate = new Date().toISOString().slice(0, 10),
 ) {
-  return `Estimate when this photo was taken from visible clues. Return only JSON in the form {"date":"YYYY-MM-DD"}. Choose the most plausible day when the exact day is uncertain. The date must be between ${earliestDate} and ${latestDate}, inclusive.`;
+  return `Estimate when this photo was taken from visible clues. Return only JSON in the form {"date":"YYYY-MM-DD"}. Choose the most plausible day when the exact day is uncertain. The date must be between ${earliestDate} and ${latestDate} (today), inclusive.`;
 }
 
 export function normalizeVisionDateOutput(value) {

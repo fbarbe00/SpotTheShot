@@ -44,6 +44,60 @@
   }
 }
 
+.date-timeline-slider {
+  height: 0.625rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(
+      90deg,
+      theme(colors.primary.DEFAULT) 0%,
+      theme(colors.primary.DEFAULT) var(--timeline-progress),
+      rgb(255 255 255 / 0.12) var(--timeline-progress),
+      rgb(255 255 255 / 0.12) 100%
+    );
+}
+
+.date-timeline-slider::-webkit-slider-runnable-track {
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.date-timeline-slider::-webkit-slider-thumb {
+  width: 1.625rem;
+  height: 1.625rem;
+  margin-top: -0.5rem;
+  appearance: none;
+  border: 4px solid theme(colors.primary.DEFAULT);
+  border-radius: 9999px;
+  background: theme(colors.background);
+  box-shadow: 0 0 0 3px rgb(0 246 255 / 0.18), 0 4px 14px rgb(0 0 0 / 0.45);
+}
+
+.date-timeline-slider::-moz-range-track {
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.date-timeline-slider::-moz-range-thumb {
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 4px solid theme(colors.primary.DEFAULT);
+  border-radius: 9999px;
+  background: theme(colors.background);
+  box-shadow: 0 0 0 3px rgb(0 246 255 / 0.18), 0 4px 14px rgb(0 0 0 / 0.45);
+}
+
+.date-guess-input {
+  color-scheme: dark;
+}
+
+.date-guess-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(88%) sepia(70%) saturate(3100%) hue-rotate(130deg) brightness(105%);
+}
+
 /* Remove white background from Leaflet div icons */
 .leaflet-div-icon {
   background: transparent !important;

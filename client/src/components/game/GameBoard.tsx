@@ -497,14 +497,8 @@ export function GameBoard({
                 disabled={isLocked}
                 existingDate={existingGuess?.date}
                 onConfirm={handleConfirmDate}
+                onClose={() => setDateExpanded(false)}
               />
-              <button
-                type="button"
-                onClick={() => setDateExpanded(false)}
-                className="mx-auto mt-2 block rounded-full bg-surface px-4 py-1.5 text-xs font-bold text-text-darker"
-              >
-                {t('common.close')}
-              </button>
             </div>
           </motion.div>
         )}
