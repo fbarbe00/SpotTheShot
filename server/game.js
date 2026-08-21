@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { clampDateToRange, computeDateRoundScore, computeRoundScore, computeUploaderRoundScore, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
-import { gameModeDefinition, normalizeGameType } from './gameModes.js';
+import { aiTipCountForMode, buildDateChallengePlan, gameModeDefinition, normalizeGameType } from './gameModes.js';
 import { isValidCoordinate } from './utils.js';
 import { batchLookup } from './geoclipClient.js';
 import { isoToFlag } from './countryFlags.js';
@@ -123,6 +123,7 @@ export class GameManager extends AIPipeline {
       settings: {
         roundDurationSec,
         gameType: normalizeGameType(settings?.gameType),
+        dateSubmode: ['exact', 'before_after', 'timeline'].includes(settings?.dateSubmode) ? settings.dateSubmode : 'exact',
         dateTimelineStart: null,
         dateTimelineEnd: todayUtcDate(),
         gameMode: settings?.gameMode || 'individual',
@@ -132,6 +133,7 @@ export class GameManager extends AIPipeline {
         visionCommentary: (settings?.visionCommentary || false) && constraints.allowVisionCommentary,
         autoNameImages: (settings?.autoNameImages || false) && constraints.allowAutoNaming,
         showImageDate: normalizeGameType(settings?.gameType) !== 'date' ? (settings?.showImageDate || false) : false,
+        requireReady: settings?.requireReady || false,
         uploaderPenaltyPercent: settings?.uploaderPenaltyPercent ?? 10,
         minPhotosPerPlayer: settings?.minPhotosPerPlayer ?? 0,
         maxPhotosPerPlayer: Math.min(settings?.maxPhotosPerPlayer ?? constraints.maxPhotosPerPlayer, constraints.maxPhotosPerPlayer),
@@ -140,6 +142,7 @@ export class GameManager extends AIPipeline {
       },
       roundIndex: -1,
       roundOrder: [],
+      dateChallengePlan: null,
       roundStartAt: null,
       roundDurationMs: (roundDurationSec + 1) * 1000,
       duelRaceTimeMs: (duelRaceTimeSec + 1) * 1000,
@@ -165,6 +168,15 @@ export class GameManager extends AIPipeline {
     return { lobby, playerId, sessionToken };
   }
 
+  _availableNickname(lobby, requested) {
+    const base = String(requested || '').trim();
+    const used = new Set([...lobby.players.values()].map(player => player.nickname.toLocaleLowerCase()));
+    if (!used.has(base.toLocaleLowerCase())) return base;
+    let suffix = 2;
+    while (used.has(`${base} ${suffix}`.toLocaleLowerCase())) suffix += 1;
+    return `${base} ${suffix}`;
+  }
+
   _assignPlayerToLeastPopulatedTeam(lobby, playerId) {
     const player = lobby.players.get(playerId);
     if (!player || player.team !== null) return;
@@ -183,7 +195,12 @@ export class GameManager extends AIPipeline {
 
     if (newSettings.timerMode === 'fixed' || newSettings.timerMode === 'progressive') {
       s.timerMode = newSettings.timerMode;
-      if (s.timerMode === 'progressive') s.roundDurationSec = 0;
+      if (s.timerMode === 'progressive') {
+        s.roundDurationSec = 0;
+        // The visible timer reaches zero at the configured duration while the
+        // server keeps one final second for answers already in flight.
+        lobby.roundDurationMs = 1000;
+      }
     }
 
     if (typeof newSettings.roundDurationSec === 'number' && s.timerMode === 'fixed') {
@@ -224,6 +241,9 @@ export class GameManager extends AIPipeline {
           if (s.autoNameImages) this.prefetchAutoNaming(photo.id, photo, lobbyId);
         }
       }
+    }
+    if (['exact', 'before_after', 'timeline'].includes(newSettings.dateSubmode)) {
+      s.dateSubmode = newSettings.dateSubmode;
     }
     if (newSettings.gameMode === 'teams') {
       for (const player of lobby.players.values()) {
@@ -298,6 +318,7 @@ export class GameManager extends AIPipeline {
     if (typeof newSettings.showImageDate === 'boolean') {
       s.showImageDate = s.gameType !== 'date' ? newSettings.showImageDate : false;
     }
+    if (typeof newSettings.requireReady === 'boolean') s.requireReady = newSettings.requireReady;
 
     // Map settings — if allowAllMaps is false, only osm is permitted
     if (['osm', 'hot', 'cyclosm', 'opnvkarte', 'dark', 'light', 'satellite', 'terrain'].includes(newSettings.mapStyle)) {
@@ -353,13 +374,14 @@ export class GameManager extends AIPipeline {
     this.getAIProcessingStatus(lobbyId);
   }
 
-  kickPlayer(lobbyId, playerIdToKick) {
+  async kickPlayer(lobbyId, playerIdToKick) {
     const lobby = this.lobbies.get(lobbyId);
     if (!lobby) return;
     const playerToKick = lobby.players.get(playerIdToKick);
     if (!playerToKick || playerIdToKick === lobby.hostId) return;
     const socket = this.io.sockets.sockets.get(playerToKick.socketId);
     if (socket) { socket.emit('kicked'); socket.disconnect(true); }
+    await this._removePlayerPhotos(lobby, playerIdToKick);
     lobby.players.delete(playerIdToKick);
     this.broadcastLobby(lobbyId);
   }
@@ -374,8 +396,9 @@ export class GameManager extends AIPipeline {
     }
     const playerId = uuid();
     const sessionToken = uuid();
+    const uniqueNickname = this._availableNickname(lobby, nickname);
     lobby.players.set(playerId, {
-      id: playerId, sessionToken, nickname, score: 0, ready: false, color: null, socketId, team: null, wins: 0, clientSessionId,
+      id: playerId, sessionToken, nickname: uniqueNickname, score: 0, ready: false, color: null, socketId, team: null, wins: 0, clientSessionId,
     });
     if (lobby.settings.gameMode === 'teams') this._assignPlayerToLeastPopulatedTeam(lobby, playerId);
     return { lobby, playerId, sessionToken };
@@ -498,6 +521,10 @@ export class GameManager extends AIPipeline {
     }
 
     const realPlayers = [...lobby.players.values()].filter(p => p.socketId !== null && !p.isAI);
+    if (lobby.settings.requireReady) {
+      const notReady = realPlayers.find(player => !player.ready);
+      if (notReady) throw new Error(`${notReady.nickname} is not ready`);
+    }
     for (const player of realPlayers) {
       const count = lobby.photos.filter(p => p.uploaderId === player.id).length;
       if (count < lobby.settings.minPhotosPerPlayer) {
@@ -528,16 +555,31 @@ export class GameManager extends AIPipeline {
       for (const photo of eligiblePhotos) {
         this._invalidateVisionCommentary(photo.id);
       }
+      if (lobby.settings.dateSubmode === 'before_after'
+        && !eligiblePhotos.some((photo, index) => eligiblePhotos.some((other, otherIndex) => index !== otherIndex && photo.captureDate !== other.captureDate))) {
+        throw new Error('Before or After needs at least two photos with different dates');
+      }
+      if (lobby.settings.dateSubmode === 'timeline'
+        && new Set(eligiblePhotos.map(photo => photo.captureDate)).size < 3) {
+        throw new Error('Timeline Builder needs photos from at least three different dates');
+      }
     }
 
-    lobby.roundOrder = eligiblePhotos.map(p => p.id);
-    for (let i = lobby.roundOrder.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [lobby.roundOrder[i], lobby.roundOrder[j]] = [lobby.roundOrder[j], lobby.roundOrder[i]];
+    lobby.dateChallengePlan = null;
+    if (lobby.settings.gameType === 'date' && lobby.settings.dateSubmode !== 'exact') {
+      lobby.dateChallengePlan = buildDateChallengePlan(lobby.settings.dateSubmode, eligiblePhotos);
+      lobby.roundOrder = lobby.dateChallengePlan.map(round => round.currentPhoto.id);
+    } else {
+      lobby.roundOrder = eligiblePhotos.map(p => p.id);
+      for (let i = lobby.roundOrder.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [lobby.roundOrder[i], lobby.roundOrder[j]] = [lobby.roundOrder[j], lobby.roundOrder[i]];
+      }
     }
 
     lobby.state = 'in_round';
     lobby.roundIndex = -1;
+    lobby.gameId = uuid();
     lobby.gameStartTime = Date.now();
     lobby.roundStatistics = [];
     lobby.roundHistory = [];
@@ -552,9 +594,16 @@ export class GameManager extends AIPipeline {
 
   async nextRound(lobbyId) {
     const lobby = this.lobbies.get(lobbyId);
-    if (!lobby) return;
+    if (!lobby) return false;
+    // The first transition is started internally by startGame. Every later
+    // transition must originate from the results screen. This makes repeated
+    // acknowledgements and double-clicks harmless.
+    if (lobby.roundIndex >= 0 && lobby.state !== 'showing_results') return false;
+    if (lobby.roundAdvanceInProgress) return false;
+    lobby.roundAdvanceInProgress = true;
+    try {
 
-    lobby.roundIndex += 1;
+      lobby.roundIndex += 1;
     lobby.guesses = new Map();
     lobby.firstGuessAt = null;
     lobby.isEndingRound = false;
@@ -562,33 +611,56 @@ export class GameManager extends AIPipeline {
     lobby.roundToken = uuid();
 
     if (lobby.roundIndex >= lobby.roundOrder.length) {
-      return this._finishGame(lobbyId, lobby);
+      this._finishGame(lobbyId, lobby);
+      lobby.roundAdvanceInProgress = false;
+      return true;
     }
 
     lobby.state = 'in_round';
     lobby.roundStartAt = Date.now();
     const photo = this.currentPhoto(lobby);
-    if (!photo) return this._finishGame(lobbyId, lobby);
+    if (!photo) {
+      this._finishGame(lobbyId, lobby);
+      lobby.roundAdvanceInProgress = false;
+      return true;
+    }
 
     const mode = gameModeDefinition(lobby.settings.gameType);
+    lobby.currentDateChallenge = null;
+    if (lobby.settings.gameType === 'date' && lobby.settings.dateSubmode !== 'exact') {
+      lobby.currentDateChallenge = lobby.dateChallengePlan?.[lobby.roundIndex]?.challenge || null;
+    }
+    if (lobby.settings.gameType === 'date' && lobby.settings.dateSubmode !== 'exact' && !lobby.currentDateChallenge) {
+      throw new Error(`Unable to build ${lobby.settings.dateSubmode} challenge for this round`);
+    }
     lobby.currentRoundPhoto = {
       id: mode.hidesUploaderDuringRound ? lobby.roundToken : photo.id,
       url: photo.url,
       uploaderId: mode.hidesUploaderDuringRound ? undefined : photo.uploaderId,
       title: photo.title || '', hint: photo.hint || '',
       captureDate: mode.requiresDate ? undefined : photo.captureDate,
+      // The reference's captureDate is deliberately not sent: players must
+      // judge Before or After from the two images, not read the answer.
+      dateReference: lobby.currentDateChallenge?.kind === 'before_after' ? {
+        id: lobby.currentDateChallenge.reference.id,
+        url: lobby.currentDateChallenge.reference.url,
+      } : undefined,
+      timelinePhotos: lobby.currentDateChallenge?.kind === 'timeline'
+        ? lobby.currentDateChallenge.photos.map(item => ({ id: item.id, url: item.url }))
+        : undefined,
     };
 
     lobby.aiTipIndex = lobby.settings.enableAIGuessing
       && Math.random() < 0.6
-      ? Math.floor(Math.random() * mode.aiTipCount)
+      ? Math.floor(Math.random() * aiTipCountForMode(lobby.settings.gameType, lobby.settings.dateSubmode))
       : null;
 
     this.io.to(lobbyId).emit('round_start', {
       roundIndex: lobby.roundIndex,
       totalRounds: lobby.roundOrder.length,
       photo: lobby.currentRoundPhoto,
-      roundDurationMs: lobby.roundDurationMs,
+      // Never expose the transport grace second as playable countdown time.
+      roundDurationMs: lobby.settings.timerMode === 'fixed' ? lobby.settings.roundDurationSec * 1000 : 0,
       roundStartAt: lobby.roundStartAt,
       aiTipIndex: lobby.aiTipIndex,
     });
@@ -622,22 +694,27 @@ export class GameManager extends AIPipeline {
       let remaining, timerStarted = true;
       if (lobby.settings.timerMode === 'progressive') {
         if (lobby.firstGuessAt) {
-          remaining = Math.max(0, lobby.duelRaceTimeMs - (Date.now() - lobby.firstGuessAt));
+          remaining = Math.max(0, lobby.settings.duelRaceTimeSec * 1000 - (Date.now() - lobby.firstGuessAt));
         } else {
           remaining = 0; timerStarted = false;
         }
       } else {
-        remaining = Math.max(0, lobby.roundDurationMs - (Date.now() - lobby.roundStartAt));
+        remaining = Math.max(0, lobby.settings.roundDurationSec * 1000 - (Date.now() - lobby.roundStartAt));
       }
       this.io.to(lobbyId).emit('timer', { remainingMs: remaining, timerStarted });
     }, 1000);
 
     this.broadcastLobby(lobbyId);
+      return true;
+    } finally {
+      lobby.roundAdvanceInProgress = false;
+    }
   }
 
   _finishGame(lobbyId, lobby) {
     lobby.state = 'finished';
     lobby.currentRoundPhoto = null;
+    lobby.currentDateChallenge = null;
     for (const player of lobby.players.values()) {
       if (!player.socketId) continue;
       this.io.sockets.sockets.get(player.socketId)?.emit('game_finished', this.serializeLobby(lobby, player.id));
@@ -683,11 +760,34 @@ export class GameManager extends AIPipeline {
     if (!lobby.players.has(playerId)) return { accepted: false, error: 'Player not found' };
     const mode = gameModeDefinition(lobby.settings.gameType);
     if (mode.guessKind === 'date') {
-      const guessDate = normalizePhotoDate(guess?.date);
-      if (!guessDate || guessDate > (lobby.settings.dateTimelineEnd || todayUtcDate()) || guessDate < lobby.settings.dateTimelineStart) {
-        return { accepted: false, error: 'Guess date is outside the lobby timeline' };
+      const submode = lobby.settings.dateSubmode || 'exact';
+      const aiDate = playerId.startsWith('ai-') ? normalizePhotoDate(guess?.date) : null;
+      if (submode === 'before_after') {
+        const choice = aiDate && lobby.currentDateChallenge?.reference
+          ? (aiDate < lobby.currentDateChallenge.reference.captureDate ? 'before' : 'after')
+          : guess?.dateChoice;
+        if (!['before', 'after'].includes(choice)) return { accepted: false, error: 'Choose before or after' };
+        guess = { dateChoice: choice };
+      } else if (submode === 'timeline') {
+        let photoOrder = guess?.photoOrder;
+        if (aiDate && lobby.currentDateChallenge?.kind === 'timeline') {
+          photoOrder = lobby.currentDateChallenge.photos
+            .map(item => ({ id: item.id, date: item.id === photo.id ? aiDate : item.captureDate }))
+            .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)).map(item => item.id);
+        }
+        const expected = lobby.currentDateChallenge?.answer || [];
+        if (!Array.isArray(photoOrder) || photoOrder.length !== expected.length
+          || new Set(photoOrder).size !== expected.length || photoOrder.some(id => !expected.includes(id))) {
+          return { accepted: false, error: 'Submit every timeline photo exactly once' };
+        }
+        guess = { photoOrder };
+      } else {
+        const guessDate = normalizePhotoDate(guess?.date);
+        if (!guessDate || guessDate > (lobby.settings.dateTimelineEnd || todayUtcDate()) || guessDate < lobby.settings.dateTimelineStart) {
+          return { accepted: false, error: 'Guess date is outside the lobby timeline' };
+        }
+        guess = { date: guessDate };
       }
-      guess = { date: guessDate };
     } else if (mode.guessKind === 'player') {
       const guessedPlayer = lobby.players.get(guess?.uploaderId);
       if (!guessedPlayer || guessedPlayer.isAI || String(guessedPlayer.id).startsWith('ai-')) {
@@ -729,6 +829,40 @@ export class GameManager extends AIPipeline {
       this.io.to(lobbyId).emit('player_guess', { playerId, nickname: player.icon + player.nickname });
     }
     return { accepted: true, duplicate: false };
+  }
+
+  _scoreDateChallenge(lobby, guess, photo, isUploader, playerId) {
+    const challenge = lobby.currentDateChallenge;
+    let base;
+    let correct;
+    if (challenge?.kind === 'before_after') {
+      correct = guess.dateChoice === challenge.answer;
+      base = correct ? 5000 : 0;
+      // Knowing your own photo's date only decides the round when the same
+      // player also uploaded the reference. Otherwise there is no
+      // self-guessing advantage to tax.
+      const bothPhotosFromUploader = isUploader && challenge.reference?.uploaderId === playerId;
+      const multiplier = bothPhotosFromUploader ? 1 - (lobby.settings.uploaderPenaltyPercent ?? 10) / 100 : 1;
+      return { correct, base, total: Math.round(base * multiplier) };
+    } else if (challenge?.kind === 'timeline') {
+      const position = new Map((guess.photoOrder || []).map((id, index) => [id, index]));
+      let correctPairs = 0;
+      let totalPairs = 0;
+      for (let i = 0; i < challenge.answer.length; i++) {
+        for (let j = i + 1; j < challenge.answer.length; j++) {
+          totalPairs++;
+          if (position.get(challenge.answer[i]) < position.get(challenge.answer[j])) correctPairs++;
+        }
+      }
+      correct = correctPairs === totalPairs;
+      base = totalPairs ? Math.round(5000 * correctPairs / totalPairs) : 0;
+      const multiplier = isUploader ? 1 - (lobby.settings.uploaderPenaltyPercent ?? 10) / 100 : 1;
+      return { correct, base, total: Math.round(base * multiplier) };
+    } else {
+      return computeDateRoundScore({
+        guessDate: guess.date, targetDate: photo.captureDate, isUploader, settings: lobby.settings,
+      });
+    }
   }
 
   async endRound(lobbyId) {
@@ -790,9 +924,7 @@ export class GameManager extends AIPipeline {
       if (!g) continue;
       const isUploader = p.id === photo.uploaderId;
       const score = lobby.settings.gameType === 'date'
-        ? computeDateRoundScore({
-          guessDate: g.date, targetDate: photo.captureDate, isUploader, settings: lobby.settings,
-        })
+        ? this._scoreDateChallenge(lobby, g, photo, isUploader, p.id)
         : lobby.settings.gameType === 'uploader'
           ? computeUploaderRoundScore({
             guessedUploaderId: g.uploaderId, targetUploaderId: photo.uploaderId, isUploader, settings: lobby.settings,
@@ -805,7 +937,7 @@ export class GameManager extends AIPipeline {
       p.score += score.total;
       results.push({
         playerId: p.id, nickname: p.nickname, color: p.color, icon: p.icon,
-        lat: g.lat, lon: g.lon, guessedDate: g.date, guessedUploaderId: g.uploaderId,
+        lat: g.lat, lon: g.lon, guessedDate: g.date, dateChoice: g.dateChoice, photoOrder: g.photoOrder, guessedUploaderId: g.uploaderId,
         timeTakenMs: g.timeTakenMs,
         points: score.total,
         basePoints: score.base,
@@ -838,11 +970,13 @@ export class GameManager extends AIPipeline {
         const isoCode = guessCountries[i].isoCode;
         result.countryFlag = isoToFlag(isoCode);
         result.countryCode = isoCode;
+        result.locationLookupSucceeded = guessCountries[i].lookupSucceeded === true;
       } else {
         result.country = null;
         result.region = null;
         result.countryFlag = '';
         result.countryCode = null;
+        result.locationLookupSucceeded = false;
       }
       if (result.playerId.startsWith('ai-') && lobby.settings.visionCommentary) {
         const visionData = this.visionCommentaries.get(photo.id);
@@ -861,13 +995,14 @@ export class GameManager extends AIPipeline {
       },
       guesses: results.map(r => ({
         playerId: r.playerId, nickname: r.nickname, distanceKm: r.distanceKm,
-        distanceDays: r.distanceDays, guessedDate: r.guessedDate,
+        distanceDays: r.distanceDays, guessedDate: r.guessedDate, dateChoice: r.dateChoice, photoOrder: r.photoOrder,
         guessedUploaderId: r.guessedUploaderId, correctUploader: r.correctUploader,
         points: r.points, country: r.country, isUploader: r.isUploader,
       })),
     });
 
     lobby.lastRoundResults = {
+      gameId: lobby.gameId,
       photo: {
         id: mode.hidesUploaderDuringRound ? lobby.roundToken : photo.id,
         url: photo.url, lat: photo.lat, lon: photo.lon, uploaderId: photo.uploaderId,
@@ -883,6 +1018,18 @@ export class GameManager extends AIPipeline {
       roundIndex: lobby.roundIndex,
       totalRounds: lobby.roundOrder.length,
       roundDurationMs: lobby.roundDurationMs,
+      dateChallenge: lobby.currentDateChallenge?.kind === 'before_after'
+        ? {
+          kind: 'before_after', answer: lobby.currentDateChallenge.answer,
+          reference: {
+            id: lobby.currentDateChallenge.reference.id,
+            url: lobby.currentDateChallenge.reference.url,
+            captureDate: lobby.currentDateChallenge.reference.captureDate,
+          },
+        }
+        : lobby.currentDateChallenge?.kind === 'timeline'
+          ? { kind: 'timeline', answer: lobby.currentDateChallenge.answer, photos: lobby.currentDateChallenge.photos.map(item => ({ id: item.id, url: item.url, captureDate: item.captureDate })) }
+          : undefined,
     };
 
     lobby.roundHistory.push(lobby.lastRoundResults);
@@ -937,6 +1084,7 @@ export class GameManager extends AIPipeline {
 
     return {
       id: lobby.id,
+      gameId: lobby.gameId,
       nameMetadata: lobby.nameMetadata,
       hostId: lobby.hostId,
       state: lobby.state,
@@ -949,7 +1097,7 @@ export class GameManager extends AIPipeline {
         id: p.id, nickname: p.nickname, score: p.score,
         ready: p.ready, color: p.color, icon: p.icon, team: p.team, wins: p.wins,
       })),
-      photos: lobby.photos.map(({ id, url, uploaderId, lat, lon, title, hint, manualLocation, captureDate }) => {
+      photos: hideUploaderAnswers && lobby.state === 'in_round' ? [] : lobby.photos.map(({ id, url, uploaderId, lat, lon, title, hint, manualLocation, captureDate }) => {
         const showCoords = !hideAll && (viewerPlayerId === null || uploaderId === viewerPlayerId);
         const isOwnPhoto = viewerPlayerId === null || uploaderId === viewerPlayerId;
         // Before play, other members only need counts/uploader ownership. Do
@@ -1019,10 +1167,13 @@ export class GameManager extends AIPipeline {
     lobby.state = 'waiting';
     lobby.roundIndex = -1;
     lobby.roundOrder = [];
+    lobby.dateChallengePlan = null;
+    lobby.gameId = null;
     lobby.guesses = new Map();
     lobby.firstGuessAt = null;
     lobby.isEndingRound = false;
     lobby.currentRoundPhoto = null;
+    lobby.currentDateChallenge = null;
     lobby.lastRoundResults = null;
     lobby.roundHistory = [];
     lobby.roundToken = null;
@@ -1113,7 +1264,9 @@ export class GameManager extends AIPipeline {
       if (lobby.state === 'in_round' && lobby.currentRoundPhoto) {
         socket.emit('round_start', {
           roundIndex: lobby.roundIndex, totalRounds: lobby.roundOrder.length,
-          photo: lobby.currentRoundPhoto, roundDurationMs: lobby.roundDurationMs, isReconnect: true,
+          photo: lobby.currentRoundPhoto,
+          roundDurationMs: lobby.settings.timerMode === 'fixed' ? lobby.settings.roundDurationSec * 1000 : 0,
+          isReconnect: true,
           roundStartAt: lobby.roundStartAt,
           firstGuessAt: lobby.firstGuessAt,
           aiTipIndex: lobby.aiTipIndex ?? null,
@@ -1140,6 +1293,7 @@ export class GameManager extends AIPipeline {
         id: aiPlayerId, nickname: this._aiNicknameForLanguage(lobby.settings?.language),
         score: 0, ready: false, color: '#888888', icon: '🤖', socketId: null, isAI: true, team: null, wins: 0,
       });
+      if (lobby.settings.gameMode === 'teams') this._assignPlayerToLeastPopulatedTeam(lobby, aiPlayerId);
       this.broadcastLobby(lobbyId);
     }
   }
@@ -1165,6 +1319,7 @@ export class GameManager extends AIPipeline {
     if (leavingPlayer?.disconnectTimeoutId) {
       clearTimeout(leavingPlayer.disconnectTimeoutId);
     }
+    await this._removePlayerPhotos(lobby, playerId);
     lobby.players.delete(playerId);
 
     if (lobby.hostId === playerId && lobby.players.size > 0) {
@@ -1174,6 +1329,46 @@ export class GameManager extends AIPipeline {
     }
 
     this.broadcastLobby(lobbyId);
+  }
+
+  async _removePlayerPhotos(lobby, playerId) {
+    const removed = lobby.photos.filter(photo => photo.uploaderId === playerId);
+    if (!removed.length) return;
+    const removedIds = new Set(removed.map(photo => photo.id));
+    const invalidRoundIds = new Set(removedIds);
+    if (lobby.dateChallengePlan) {
+      const challengePhotoIds = round => round.challenge.kind === 'before_after'
+        ? [round.currentPhoto.id, round.challenge.reference.id]
+        : round.challenge.photos.map(photo => photo.id);
+      lobby.dateChallengePlan = lobby.dateChallengePlan.filter(round => {
+        const invalid = challengePhotoIds(round).some(id => removedIds.has(id));
+        if (invalid) invalidRoundIds.add(round.currentPhoto.id);
+        return !invalid;
+      });
+    }
+    const oldOrder = [...lobby.roundOrder];
+    const nextRemainingId = oldOrder.slice(lobby.roundIndex + 1).find(id => !invalidRoundIds.has(id));
+    const removedCurrent = lobby.state === 'in_round' && invalidRoundIds.has(oldOrder[lobby.roundIndex]);
+
+    await Promise.all(removed.map(async photo => {
+      await fs.unlink(path.join(UPLOADS_DIR, path.basename(photo.url))).catch(err => {
+        if (err?.code !== 'ENOENT') handleError(err, 'departing player photo cleanup');
+      });
+      this._invalidatePhotoCaches(photo.id);
+    }));
+    lobby.photos = lobby.photos.filter(photo => !removedIds.has(photo.id));
+    lobby.roundOrder = lobby.roundOrder.filter(id => !invalidRoundIds.has(id));
+
+    if (lobby.roundIndex >= 0) {
+      const nextIndex = nextRemainingId ? lobby.roundOrder.indexOf(nextRemainingId) : lobby.roundOrder.length;
+      lobby.roundIndex = Math.max(-1, nextIndex - 1);
+    }
+    if (removedCurrent) {
+      clearTimeout(lobby.timers.roundEnd);
+      clearInterval(lobby.timers.ticker);
+      lobby.state = 'showing_results';
+      await this.nextRound(lobby.id);
+    }
   }
 
   async deleteLobby(lobbyId) {
@@ -1267,6 +1462,36 @@ export class GameManager extends AIPipeline {
         `[vision] Starting DateTheShot guess for photo ${photo.id} using ${promptBounds.source}: `
         + `${promptBounds.start}..${promptBounds.end}`,
       );
+      if (lobby.settings.dateSubmode === 'timeline' && lobby.currentDateChallenge?.kind === 'timeline') {
+        // Timeline dates are hidden from everyone. Estimate every card instead
+        // of giving the AI the two real dates that human players cannot see.
+        const estimates = await Promise.all(lobby.currentDateChallenge.photos.map(async challengePhoto => {
+          const result = await this.ensureDatePrediction(challengePhoto, {
+            earliestDate: promptBounds.start,
+            latestDate: promptBounds.end,
+          });
+          return result?.date ? { id: challengePhoto.id, date: result.date } : null;
+        }));
+        const currentLobby = this.lobbies.get(lobbyId);
+        if (!currentLobby || currentLobby.roundToken !== roundToken || currentLobby.state !== 'in_round') return;
+        if (estimates.some(estimate => !estimate)) {
+          console.warn(`[vision] Timeline guess unavailable in lobby ${lobbyId}: one or more dates could not be estimated`);
+          return;
+        }
+        const photoOrder = estimates
+          .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+          .map(estimate => estimate.id);
+        const submission = this.submitGuess(lobbyId, aiPlayerId, { photoOrder });
+        console.log(
+          `[vision] AI timeline submission for photo ${photo.id}: accepted=${submission.accepted}, `
+          + `duplicate=${!!submission.duplicate}${submission.error ? `, error=${submission.error}` : ''}`,
+        );
+        if (currentLobby.settings.visionCommentary && !this.visionCommentaries.has(photo.id)) {
+          this.ensureVisionCommentary(photo, lobbyId)
+            .catch(err => handleError(err, 'AI date commentary'));
+        }
+        return;
+      }
       const prediction = await this.ensureDatePrediction(photo, {
         earliestDate: promptBounds.start,
         latestDate: promptBounds.end,

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameManager } from './game.js';
+import { aiTipCountForMode, buildDateChallengePlan, buildTimelineChallenge, guessPayloadForMode } from './gameModes.js';
 import { clampDateToRange, computeDateRoundScore, computeUploaderRoundScore, deriveDatePromptBounds, deriveDateTimelineBounds, normalizePhotoDate, todayUtcDate } from './scoring.js';
 
 function createManager() {
@@ -378,7 +379,7 @@ test('WhoTookTheShot validates player votes, scores categorical answers, and hid
 
   assert.notEqual(lobby.currentRoundPhoto.id, 'secret-photo');
   assert.equal(lobby.currentRoundPhoto.uploaderId, undefined);
-  assert.equal(gm.serializeLobby(lobby, guest.playerId).photos[0].uploaderId, undefined);
+  assert.deepEqual(gm.serializeLobby(lobby, guest.playerId).photos, []);
   assert.deepEqual(
     gm.submitGuess(lobby.id, guest.playerId, { uploaderId: 'not-a-player' }),
     { accepted: false, error: 'Invalid player vote' },
@@ -547,4 +548,244 @@ test('replaced AI work is not cleared when an older request finishes', async () 
   finishNew('new');
   assert.equal(await newWork, 'new');
   assert.equal(inflight.has('photo'), false);
+});
+
+test('duplicate nicknames are disambiguated and remain visually distinct', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({ nickname: 'Alex', settings: { enableAIGuessing: false }, constraints });
+  const second = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Alex', socketId: 'second' });
+  const third = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'alex', socketId: 'third' });
+  assert.equal(created.lobby.players.get(second.playerId).nickname, 'Alex 2');
+  assert.equal(created.lobby.players.get(third.playerId).nickname, 'alex 3');
+});
+
+test('departing players take all of their waiting-lobby photos with them', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({ nickname: 'Host', settings: { enableAIGuessing: false }, constraints });
+  const guest = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: 'guest' });
+  created.lobby.photos.push(
+    { id: 'host-photo', url: '/uploads/missing-host.jpg', uploaderId: created.playerId, lat: 1, lon: 2 },
+    { id: 'guest-photo', url: '/uploads/missing-guest.jpg', uploaderId: guest.playerId, lat: 3, lon: 4 },
+  );
+  await gm.leaveLobby(created.lobby.id, guest.playerId);
+  assert.deepEqual(created.lobby.photos.map(photo => photo.id), ['host-photo']);
+  assert.equal(created.lobby.players.has(guest.playerId), false);
+});
+
+test('nextRound accepts one results transition and rejects repeats', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({ nickname: 'Host', settings: { enableAIGuessing: false }, constraints });
+  const lobby = created.lobby;
+  lobby.photos.push(
+    { id: 'one', url: '/uploads/one.jpg', uploaderId: created.playerId, lat: 1, lon: 2 },
+    { id: 'two', url: '/uploads/two.jpg', uploaderId: created.playerId, lat: 3, lon: 4 },
+  );
+  lobby.roundOrder = ['one', 'two'];
+  lobby.roundIndex = 0;
+  lobby.state = 'showing_results';
+  assert.equal(await gm.nextRound(lobby.id), true);
+  assert.equal(lobby.roundIndex, 1);
+  assert.equal(await gm.nextRound(lobby.id), false);
+  assert.equal(lobby.roundIndex, 1);
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+});
+
+test('fixed and duel timers retain exactly one server-side grace second', async () => {
+  const gm = createManager();
+  let visibleRoundDurationMs;
+  gm.io.to = () => ({ emit: (event, payload) => {
+    if (event === 'round_start') visibleRoundDurationMs = payload.roundDurationMs;
+  } });
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false, roundDurationSec: 30, duelRaceTimeSec: 15 },
+    constraints,
+  });
+  assert.equal(created.lobby.roundDurationMs, 31_000);
+  assert.equal(created.lobby.duelRaceTimeMs, 16_000);
+  created.lobby.photos.push({ id: 'timer-photo', url: '/uploads/timer.jpg', uploaderId: created.playerId, lat: 1, lon: 2 });
+  gm.startGame(created.lobby.id);
+  assert.equal(visibleRoundDurationMs, 30_000);
+  clearTimeout(created.lobby.timers.roundEnd);
+  clearInterval(created.lobby.timers.ticker);
+  created.lobby.state = 'waiting';
+  gm.updateSettings(created.lobby.id, { timerMode: 'progressive', duelRaceTimeSec: 20 });
+  assert.equal(created.lobby.settings.roundDurationSec, 0);
+  assert.equal(created.lobby.roundDurationMs, 1_000);
+  assert.equal(created.lobby.duelRaceTimeMs, 21_000);
+});
+
+test('AI added to a team game is assigned to a real team', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host',
+    settings: { enableAIGuessing: false, gameMode: 'teams' },
+    constraints,
+  });
+  gm.addAIPlayer(created.lobby.id);
+  assert.match(created.lobby.players.get(`ai-${created.lobby.id}`).team, /^Team [12]$/);
+});
+
+test('mandatory readiness blocks start while informational readiness does not', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({ nickname: 'Host', socketId: 'host', settings: { enableAIGuessing: false }, constraints });
+  const lobby = created.lobby;
+  lobby.photos.push({ id: 'photo', url: '/uploads/ready.jpg', uploaderId: created.playerId, lat: 1, lon: 2 });
+  gm.updateSettings(lobby.id, { requireReady: true });
+  assert.throws(() => gm.startGame(lobby.id), /not ready/);
+  lobby.players.get(created.playerId).ready = true;
+  assert.doesNotThrow(() => gm.startGame(lobby.id));
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+});
+
+test('Before or After builds a dated reference and scores the categorical answer', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host', socketId: 'host',
+    settings: { enableAIGuessing: false, gameType: 'date', dateSubmode: 'before_after' }, constraints,
+  });
+  const guest = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: 'guest' });
+  created.lobby.photos.push(
+    { id: 'old', url: '/uploads/old.jpg', uploaderId: created.playerId, captureDate: '1990-01-01' },
+    { id: 'new', url: '/uploads/new.jpg', uploaderId: guest.playerId, captureDate: '2020-01-01' },
+  );
+  gm.startGame(created.lobby.id);
+  assert.ok(created.lobby.gameId);
+  assert.equal(gm.serializeLobby(created.lobby, guest.playerId).gameId, created.lobby.gameId);
+  assert.equal(created.lobby.currentDateChallenge.kind, 'before_after');
+  assert.ok(created.lobby.currentRoundPhoto.dateReference?.id);
+  assert.ok(created.lobby.currentRoundPhoto.dateReference?.url);
+  // The reference date must not leak to clients during the round.
+  assert.equal(created.lobby.currentRoundPhoto.dateReference?.captureDate, undefined);
+  const answer = created.lobby.currentDateChallenge.answer;
+  assert.equal(gm.submitGuess(created.lobby.id, guest.playerId, { dateChoice: answer }).accepted, true);
+  assert.equal(gm._scoreDateChallenge(created.lobby, created.lobby.guesses.get(guest.playerId), gm.currentPhoto(created.lobby), false).total, 5000);
+  // Uploader penalty applies only when the same player uploaded both photos.
+  const hostId = created.playerId;
+  created.lobby.currentDateChallenge = { kind: 'before_after', reference: { uploaderId: hostId }, answer: 'before' };
+  assert.equal(gm._scoreDateChallenge(created.lobby, { dateChoice: 'before' }, {}, true, hostId).total, 4500);
+  created.lobby.currentDateChallenge = { kind: 'before_after', reference: { uploaderId: guest.playerId }, answer: 'before' };
+  assert.equal(gm._scoreDateChallenge(created.lobby, { dateChoice: 'before' }, {}, true, hostId).total, 5000);
+  clearTimeout(created.lobby.timers.roundEnd);
+  clearInterval(created.lobby.timers.ticker);
+});
+
+test('Timeline Builder validates a permutation and awards partial pair ordering', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host', socketId: 'host',
+    settings: { enableAIGuessing: false, gameType: 'date', dateSubmode: 'timeline' }, constraints,
+  });
+  const guest = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: 'guest' });
+  created.lobby.photos.push(
+    { id: 'a', url: '/uploads/a.jpg', uploaderId: created.playerId, captureDate: '1980-01-01' },
+    { id: 'b', url: '/uploads/b.jpg', uploaderId: guest.playerId, captureDate: '2000-01-01' },
+    { id: 'c', url: '/uploads/c.jpg', uploaderId: created.playerId, captureDate: '2020-01-01' },
+  );
+  gm.startGame(created.lobby.id);
+  assert.equal(created.lobby.currentRoundPhoto.timelinePhotos.length, 3);
+  assert.equal(gm.submitGuess(created.lobby.id, guest.playerId, { photoOrder: ['a', 'a', 'c'] }).accepted, false);
+  const reverse = [...created.lobby.currentDateChallenge.answer].reverse();
+  assert.equal(gm.submitGuess(created.lobby.id, guest.playerId, { photoOrder: reverse }).accepted, true);
+  assert.equal(gm._scoreDateChallenge(created.lobby, created.lobby.guesses.get(guest.playerId), gm.currentPhoto(created.lobby), false).total, 0);
+  clearTimeout(created.lobby.timers.roundEnd);
+  clearInterval(created.lobby.timers.ticker);
+});
+
+test('Timeline Builder only creates playable challenges with three distinct dates', () => {
+  const photos = [
+    { id: 'a1', captureDate: '2000-01-01' },
+    { id: 'a2', captureDate: '2000-01-01' },
+    { id: 'b', captureDate: '2010-01-01' },
+    { id: 'c', captureDate: '2020-01-01' },
+  ];
+  const challenge = buildTimelineChallenge(photos[0], photos, () => 0);
+  assert.ok(challenge);
+  assert.equal(new Set(challenge.photos.map(photo => photo.captureDate)).size, 3);
+  assert.deepEqual(challenge.answer.map(id => photos.find(photo => photo.id === id).captureDate), [
+    '2000-01-01', '2010-01-01', '2020-01-01',
+  ]);
+  assert.equal(buildTimelineChallenge(photos[0], photos.slice(0, 3), () => 0), null);
+});
+
+test('card-based date challenge plans never reuse a photo', () => {
+  const photos = [
+    { id: 'a', captureDate: '1980-01-01' },
+    { id: 'b', captureDate: '1990-01-01' },
+    { id: 'c', captureDate: '2000-01-01' },
+    { id: 'd', captureDate: '2010-01-01' },
+    { id: 'e', captureDate: '2020-01-01' },
+    { id: 'f', captureDate: '2030-01-01' },
+  ];
+
+  const beforeAfter = buildDateChallengePlan('before_after', photos, () => 0.5);
+  const pairedIds = beforeAfter.flatMap(round => [round.currentPhoto.id, round.challenge.reference.id]);
+  assert.equal(beforeAfter.length, 3);
+  assert.equal(new Set(pairedIds).size, pairedIds.length);
+
+  const timeline = buildDateChallengePlan('timeline', photos, () => 0.5);
+  const timelineIds = timeline.flatMap(round => round.challenge.photos.map(photo => photo.id));
+  assert.equal(timeline.length, 2);
+  assert.equal(new Set(timelineIds).size, timelineIds.length);
+});
+
+test('Timeline Builder rejects collections without three distinct dates', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host', socketId: 'host',
+    settings: { enableAIGuessing: false, gameType: 'date', dateSubmode: 'timeline' }, constraints,
+  });
+  created.lobby.photos.push(
+    { id: 'a', url: '/uploads/a.jpg', uploaderId: created.playerId, captureDate: '2000-01-01' },
+    { id: 'b', url: '/uploads/b.jpg', uploaderId: created.playerId, captureDate: '2000-01-01' },
+    { id: 'c', url: '/uploads/c.jpg', uploaderId: created.playerId, captureDate: '2020-01-01' },
+  );
+  assert.throws(() => gm.startGame(created.lobby.id), /at least three different dates/);
+});
+
+test('Timeline AI estimates every hidden card instead of using real dates', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host', socketId: 'host',
+    settings: { enableAIGuessing: false, gameType: 'date', dateSubmode: 'timeline' }, constraints,
+  });
+  created.lobby.photos.push(
+    { id: 'a', url: '/uploads/a.jpg', uploaderId: created.playerId, captureDate: '1980-01-01' },
+    { id: 'b', url: '/uploads/b.jpg', uploaderId: created.playerId, captureDate: '2000-01-01' },
+    { id: 'c', url: '/uploads/c.jpg', uploaderId: created.playerId, captureDate: '2020-01-01' },
+  );
+  gm.startGame(created.lobby.id);
+  created.lobby.settings.enableAIGuessing = true;
+  gm.addAIPlayer(created.lobby.id);
+  const estimated = { a: '2020-01-01', b: '2000-01-01', c: '1980-01-01' };
+  const requested = [];
+  gm.ensureDatePrediction = async photo => {
+    requested.push(photo.id);
+    return { date: estimated[photo.id] };
+  };
+
+  await gm.queryDateVision(created.lobby.id, gm.currentPhoto(created.lobby), created.lobby.roundToken);
+
+  assert.deepEqual(new Set(requested), new Set(['a', 'b', 'c']));
+  assert.deepEqual(created.lobby.guesses.get(`ai-${created.lobby.id}`).photoOrder, ['c', 'b', 'a']);
+  clearTimeout(created.lobby.timers.roundEnd);
+  clearInterval(created.lobby.timers.ticker);
+});
+
+test('socket guess payload keeps fields required by every game submode', () => {
+  assert.deepEqual(guessPayloadForMode('spot', undefined, { lat: 1, lon: 2 }), { lat: 1, lon: 2 });
+  assert.deepEqual(guessPayloadForMode('uploader', undefined, { uploaderId: 'player-2' }), { uploaderId: 'player-2' });
+  assert.deepEqual(guessPayloadForMode('date', 'exact', { date: '2001-02-03' }), { date: '2001-02-03' });
+  assert.deepEqual(guessPayloadForMode('date', 'before_after', { dateChoice: 'before' }), { dateChoice: 'before' });
+  assert.deepEqual(guessPayloadForMode('date', 'timeline', { photoOrder: ['a', 'b', 'c'] }), { photoOrder: ['a', 'b', 'c'] });
+});
+
+test('AI tooltip pools match every game mode and date submode', () => {
+  assert.equal(aiTipCountForMode('spot'), 50);
+  assert.equal(aiTipCountForMode('date', 'exact'), 12);
+  assert.equal(aiTipCountForMode('date', 'before_after'), 8);
+  assert.equal(aiTipCountForMode('date', 'timeline'), 8);
+  assert.equal(aiTipCountForMode('uploader'), 12);
 });

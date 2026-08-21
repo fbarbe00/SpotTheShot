@@ -9,7 +9,9 @@ import { AnimatePresence } from 'framer-motion'
 import { useI18n } from '../contexts/I18nContext'
 import { useAchievementContext } from '../contexts/AchievementContext'
 import { logger } from '../lib/logger'
+import { claimAchievementEvent } from '../lib/achievementEvents'
 import {
+  dateFromTimestamp,
   extractPhotoMetadata,
   hashBlob,
   mapWithConcurrency,
@@ -62,6 +64,10 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     PendingPhotoDetail[]
   >([])
   const [photosNeedingDate, setPhotosNeedingDate] = useState<PendingPhotoDetail[]>([])
+  // Date-dialog prefill per photoId (usually the original file's lastModified).
+  // Kept outside the pending queues so queue membership stays derived purely
+  // from server state and can never race with these values.
+  const [photoDateDefaults, setPhotoDateDefaults] = useState<Record<string, string>>({})
   const [expandedPhotoId, setExpandedPhotoId] = useState<string | null>(null)
   const [photoTitles, setPhotoTitles] = useState<Record<string, string>>({})
   const [photoHints, setPhotoHints] = useState<Record<string, string>>({})
@@ -73,7 +79,6 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
   const [reuploadedEntryIds, setReuploadedEntryIds] = useState<Set<string>>(new Set())
   const sessionStart = useRef(Date.now())
   const sessionHashes = useRef(new Set<string>())
-  const metadataTrackedPhotoIds = useRef(new Set<string>())
   const currentGameType = useRef(lobby.settings.gameType)
   currentGameType.current = lobby.settings.gameType
 
@@ -153,6 +158,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
       lon: number | null
       captureDate?: string | null
       hash?: string
+      lastModified?: number
     }>,
     results: UploadResult[]
   ) {
@@ -168,6 +174,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
         pinned: false,
         serverPhotoId: r.photo?.id,
         contentHash: p.hash,
+        lastModified: p.lastModified,
       });
     });
     await Promise.all(saves);
@@ -178,6 +185,9 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     if (!e.target.files?.length) return
 
     let files = Array.from(e.target.files)
+    // Allow re-selecting the same file (e.g. after a failed upload) to fire a
+    // change event: the FileList is copied above, so clearing is safe here.
+    e.target.value = ''
 
     // Validate images when using file browser (no accept restriction)
     if (useFileBrowser) {
@@ -205,6 +215,9 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
           const validCaptureDate = captureDate && captureDate <= new Date().toISOString().slice(0, 10)
             ? captureDate
             : null
+          // Canvas re-encoding resets lastModified to now, so keep the
+          // original file's timestamp for the date-dialog default.
+          const originalLastModified = file.lastModified
           const resized = await resizeImage(file, 1200)
           const hash = await hashBlob(resized)
           return {
@@ -213,6 +226,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
             lon: metadata.lon,
             captureDate: validCaptureDate,
             hash,
+            lastModified: originalLastModified,
           }
       })
 
@@ -231,6 +245,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
       const allResults: UploadResult[] = []
       const allPhotosNeedingLocation: Array<{ photoId: string; url: string }> = []
       const allPhotosNeedingDate: Array<{ photoId: string; url: string }> = []
+      const dateDefaults: Record<string, string> = {}
       let totalIgnored = 0
 
       for (let i = 0; i < uniquePrepared.length; i += BATCH_SIZE) {
@@ -261,12 +276,15 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
 
         if (uploadGameType === 'spot') allPhotosNeedingLocation.push(...missingGPS)
         if (uploadGameType === 'date') {
-          allPhotosNeedingDate.push(...resArr.results
-            .filter((result: UploadResult) => result.ok && !result.photo?.captureDate)
-            .map((result: UploadResult) => ({
-              photoId: result.photo?.id ?? '',
-              url: result.photo?.url ?? '',
-            })))
+          const today = new Date().toISOString().slice(0, 10)
+          resArr.results.forEach((result: UploadResult, resultIndex: number) => {
+            if (!result.ok || result.photo?.captureDate || !result.photo?.id) return
+            allPhotosNeedingDate.push({ photoId: result.photo.id, url: result.photo.url ?? '' })
+            // Default the dialog to the original file's mtime; a future
+            // timestamp (broken clock) offers no sane default.
+            const lastModifiedDate = dateFromTimestamp(historyBatch[resultIndex]?.lastModified)
+            if (lastModifiedDate && lastModifiedDate <= today) dateDefaults[result.photo.id] = lastModifiedDate
+          })
         }
       }
 
@@ -274,7 +292,10 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
       const failed = allResults.filter((r: UploadResult) => r.error)
 
       if (successful.length) {
-        successful.forEach(() => achievements.trackPhotoUpload())
+        successful.forEach((result: UploadResult) => {
+          const photoId = result.photo?.id
+          if (photoId && claimAchievementEvent(`upload:${photoId}`)) achievements.trackPhotoUpload()
+        })
         addToast(t('uploader.uploadSuccess', { count: successful.length }), 'success', 3000)
         allResults.forEach((r, i) => {
           if (r.ok && uniquePrepared[i]?.hash) sessionHashes.current.add(uniquePrepared[i].hash)
@@ -303,14 +324,19 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
         addToast(`${r.filename}: ${errorMessage}`, 'error', 5000)
       })
 
+      // Only inform via toasts here. The pick/date queues themselves are
+      // rebuilt from the authoritative lobby broadcast by the effect above;
+      // writing them from the upload response would resurrect photos the
+      // player already located or dated mid-upload (batched uploads) and
+      // reopen the picker for them.
       if (allPhotosNeedingLocation.length) {
         addToast(t('uploader.needLocationInfo', { count: allPhotosNeedingLocation.length }), 'info', 3000)
-        setPhotosNeedingLocation(allPhotosNeedingLocation)
-        setLocationPickerStep(0)
       }
       if (allPhotosNeedingDate.length) {
         addToast(t('uploader.needDateInfo', { count: allPhotosNeedingDate.length }), 'info', 3000)
-        setPhotosNeedingDate(allPhotosNeedingDate)
+      }
+      if (Object.keys(dateDefaults).length) {
+        setPhotoDateDefaults(prev => ({ ...prev, ...dateDefaults }))
       }
 
       if (totalIgnored > 0) {
@@ -332,7 +358,11 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     setBusy(true)
     setMessage(t('uploader.processingPhotos', { count: 1 }))
     try {
-      const file = new File([entry.blob], entry.filename, { type: 'image/jpeg' })
+      const file = new File(
+        [entry.blob],
+        entry.filename,
+        { type: 'image/jpeg', ...(entry.lastModified ? { lastModified: entry.lastModified } : {}) },
+      )
       const historyDate = normalizeCaptureDate(entry.captureDate)
       const uploadGameType = currentGameType.current
       const batch = [{ file, ...selectUploadMetadata(uploadGameType, {
@@ -367,24 +397,25 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
         addToast(`${r.filename}: ${errorMessage}`, 'error', 5000)
       })
 
+      // As in onFile: only toasts plus prefill data here. Queue membership is
+      // rebuilt from the lobby broadcast that follows the upload. History
+      // linkage survives via the serverPhotoId written above.
       const missingGPS = (resArr.results as UploadResult[])
         .filter(r => r.ok && !r.hasGPS)
-        .map(r => ({ photoId: r.photo?.id ?? '', url: r.photo?.url ?? '', historyEntryId: entry.id }))
 
       if (missingGPS.length && uploadGameType === 'spot') {
         addToast(t('uploader.needLocationInfo', { count: missingGPS.length }), 'info', 3000)
-        setPhotosNeedingLocation(missingGPS)
-        setLocationPickerStep(0)
       }
       if (uploadGameType === 'date') {
         const uploaded = (resArr.results as UploadResult[])[0]
-        if (uploaded?.ok && !uploaded.photo?.captureDate) {
+        const uploadedPhotoId = uploaded?.photo?.id
+        if (uploaded?.ok && !uploaded.photo?.captureDate && uploadedPhotoId) {
+          const today = new Date().toISOString().slice(0, 10)
+          const lastModifiedDate = dateFromTimestamp(entry.lastModified)
           addToast(t('uploader.needDateInfo', { count: 1 }), 'info', 3000)
-          setPhotosNeedingDate([{
-            photoId: uploaded.photo?.id ?? '',
-            url: uploaded.photo?.url ?? '',
-            historyEntryId: entry.id,
-          }])
+          if (lastModifiedDate && lastModifiedDate <= today) {
+            setPhotoDateDefaults(prev => ({ ...prev, [uploadedPhotoId]: lastModifiedDate }))
+          }
         }
       }
     } catch (err) {
@@ -406,14 +437,27 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
     getHistory().then(setHistoryEntries)
   }
 
-  function handleLocationConfirm(photoId: string, lat: number, lon: number) {
-    socket.emit('update_photo_location', { lobbyId: lobby.id, playerId, photoId, lat, lon })
+  async function handleLocationConfirm(photoId: string, lat: number, lon: number): Promise<boolean> {
+    // Wait for the server: silently dequeuing on a dropped emit used to lose
+    // the location (and the photo was then excluded from spot rounds).
+    const saved = await new Promise<boolean>(resolve => {
+      socket.timeout(7000).emit(
+        'update_photo_location',
+        { lobbyId: lobby.id, playerId, photoId, lat, lon },
+        (error: Error | null, response?: { success?: boolean }) => resolve(!error && !!response?.success),
+      )
+    })
+    if (!saved) {
+      addToast(t('toast.connectionHiccup'), 'warning', 5000)
+      return false
+    }
     const entry = photosNeedingLocation.find(p => p.photoId === photoId)
     setPhotosNeedingLocation(prev => prev.filter(p => p.photoId !== photoId))
     setLocationPickerStep(prev => prev + 1)
     updateEntryLocation(photoId, lat, lon).then(() => getHistory().then(setHistoryEntries))
     if (entry?.historyEntryId) updateEntryLocationById(entry.historyEntryId, lat, lon)
     addToast(t('uploader.locationSet'), 'success', 2000)
+    return true
   }
 
   function handleLocationDelete() {
@@ -481,8 +525,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
       return
     }
 
-    if ((truncatedTitle || truncatedHint) && !metadataTrackedPhotoIds.current.has(photoId)) {
-      metadataTrackedPhotoIds.current.add(photoId)
+    if ((truncatedTitle || truncatedHint) && claimAchievementEvent(`metadata:${photoId}`)) {
       achievements.trackPhotoMetadata()
     }
 
@@ -558,6 +601,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
           <DatePickerDialog
             key={currentPhotoNeedingDate.photoId}
             photoUrl={buildPhotoUrl(currentPhotoNeedingDate.url, lobby.id, playerId)}
+            initialDate={photoDateDefaults[currentPhotoNeedingDate.photoId] ?? ''}
             onConfirm={date => savePhotoDate(currentPhotoNeedingDate.photoId, date)}
             onDelete={handleDateDelete}
           />
@@ -566,9 +610,9 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
           <LocationPickerDialog
             photoId={editingPhoto.id}
             photoUrl={buildPhotoUrl(editingPhoto.url, lobby.id, playerId)}
-            onConfirm={(lat, lon) => {
-              handleLocationConfirm(editingPhoto.id, lat, lon)
-              setEditingPhotoId(null)
+            onConfirm={async (lat, lon) => {
+              const saved = await handleLocationConfirm(editingPhoto.id, lat, lon)
+              if (saved) setEditingPhotoId(null)
             }}
             onCancel={() => setEditingPhotoId(null)}
             isEditing={true}
@@ -591,8 +635,8 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
         {/* Upload button or limit-reached message */}
         {!hasReachedPhotoLimit ? (
           <div className="flex items-center gap-2 mb-3">
-            <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold cursor-pointer transition-colors text-sm">
-              <input type="file" accept={lobby.settings.gameType !== 'uploader' && useFileBrowser ? '' : 'image/*'} className="hidden" onChange={onFile} disabled={busy} multiple />
+            <label htmlFor="photo-upload-input" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold cursor-pointer transition-colors text-sm">
+              <input id="photo-upload-input" aria-label={t('uploader.selectPhotos')} type="file" accept={lobby.settings.gameType !== 'uploader' && useFileBrowser ? '' : 'image/*'} className="hidden" onChange={onFile} disabled={busy} multiple />
               {busy ? t('uploader.uploading') : t('uploader.selectPhotos')}
             </label>
             {isMobileDevice && lobby.settings.gameType !== 'uploader' && (
@@ -702,7 +746,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
                   >
                     <img
                       src={buildPhotoUrl(p.url, lobby.id, playerId)}
-                      alt="photo"
+                      alt={p.title || t('uploader.untitled')}
                       className={`w-12 h-12 object-cover rounded-lg border border-primary/30 ${p.uploaderId !== playerId ? 'blur-xl' : ''}`}
                     />
                     <div className="flex-1 text-left">
@@ -734,6 +778,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
                       </div>
                       <div>
                         <input
+                          aria-label={t('uploader.photoTitleOptional')}
                           type="text"
                           value={p.id in photoTitles ? photoTitles[p.id] : (p.title ?? '')}
                           onChange={(e) => updatePhotoDetails(p.id, e.target.value || '', p.id in photoHints ? photoHints[p.id] : (p.hint ?? ''))}
@@ -745,6 +790,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
                       </div>
                       <div>
                         <input
+                          aria-label={t('uploader.hintOptional')}
                           type="text"
                           value={p.id in photoHints ? photoHints[p.id] : (p.hint ?? '')}
                           onChange={(e) => updatePhotoDetails(p.id, p.id in photoTitles ? photoTitles[p.id] : (p.title ?? ''), e.target.value || '')}
@@ -761,6 +807,7 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
                         </label>
                         <input
                           id={`capture-date-${p.id}`}
+                          aria-label={t('uploader.captureDate')}
                           type="date"
                           value={photoDates[p.id] ?? normalizeCaptureDate(p.captureDate) ?? ''}
                           max={new Date().toISOString().slice(0, 10)}

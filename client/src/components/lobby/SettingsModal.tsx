@@ -14,6 +14,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
   const { t } = useI18n()
   const [roundDurationSec, setRoundDurationSec] = useState(lobby.settings.roundDurationSec)
   const [gameType, setGameType] = useState<GameType>(lobby.settings.gameType || 'spot')
+  const [dateSubmode, setDateSubmode] = useState(lobby.settings.dateSubmode || 'exact')
   const [gameMode, setGameMode] = useState<'individual' | 'teams'>(lobby.settings.gameMode || 'individual')
   const [timerMode, setTimerMode] = useState<'fixed' | 'progressive'>(lobby.settings.timerMode || 'fixed')
   const [hintThresholdSec, setHintThresholdSec] = useState(lobby.settings.hintThresholdSec || DEFAULT_HINT_THRESHOLD_SEC)
@@ -24,6 +25,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
   const [visionCommentary, setVisionCommentary] = useState(lobby.settings.visionCommentary || false)
   const [autoNameImages, setAutoNameImages] = useState(lobby.settings.autoNameImages || false)
   const [showImageDate, setShowImageDate] = useState(lobby.settings.showImageDate || false)
+  const [requireReady, setRequireReady] = useState(lobby.settings.requireReady || false)
   const [mapStyle, setMapStyle] = useState(lobby.settings.mapStyle || 'osm')
   const [mapLanguage, setMapLanguage] = useState(lobby.settings.mapLanguage || 'local')
   const [isSaving, setIsSaving] = useState(false)
@@ -57,6 +59,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
       ...editableSettings,
       roundDurationSec,
       gameType,
+      dateSubmode,
       gameMode,
       timerMode,
       hintThresholdSec,
@@ -67,6 +70,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
       visionCommentary,
       autoNameImages,
       showImageDate,
+      requireReady,
       mapStyle,
       mapLanguage
     })
@@ -93,6 +97,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
             <Settings size={28} className="text-primary" />
             <h2 id="lobby-settings-title" className="text-3xl font-bold text-primary">{t('settings.lobbySettings')}</h2>
           </div>
+
           <button onClick={onClose} aria-label={t('ui.closeModal')} className="p-2 rounded-full hover:bg-white/10 transition-colors">
             <X size={24} />
           </button>
@@ -154,6 +159,18 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
             )}
           </div>
 
+          {gameType === 'date' && <div className="bg-white/5 rounded-xl p-5 border border-primary/10">
+            <h3 className="mb-3 text-lg font-bold text-primary">{t('settings.dateSubmode')}</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {(['exact', 'before_after', 'timeline'] as const).map(mode => (
+                <button key={mode} type="button" onClick={() => setDateSubmode(mode)} className={`rounded-lg border-2 p-2 text-xs font-bold transition-all ${dateSubmode === mode ? 'border-primary bg-primary/20' : 'border-primary/20 bg-white/5'}`}>
+                  {t(`settings.dateSubmode.${mode}`)}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-text-darker">{t(`settings.dateSubmode.${dateSubmode}Help`)}</p>
+          </div>}
+
           {/* Timer Mode Selection */}
           <div className="bg-white/5 rounded-xl p-5 border border-primary/10">
             <div className="flex items-center gap-2 mb-4">
@@ -183,11 +200,13 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
             <div className="space-y-4">
               {timerMode === 'fixed' && (
                 <div>
-                  <label className="flex justify-between items-center mb-2">
+                  <label htmlFor="round-duration" className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-text-darker">{t('settings.timePerRound')}</span>
                     <span className="text-lg font-bold text-primary">{roundDurationSec}s</span>
                   </label>
                   <input
+                    id="round-duration"
+                    aria-label={t('settings.timePerRound')}
                     type="range"
                     min="5"
                     max="300"
@@ -201,11 +220,13 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
               )}
               {timerMode === 'progressive' && (
                 <div>
-                  <label className="flex justify-between items-center mb-2">
+                  <label htmlFor="duel-race-duration" className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-text-darker">{t('settings.raceDuration')}</span>
                     <span className="text-lg font-bold text-primary">{duelRaceTimeSec}s</span>
                   </label>
                   <input
+                    id="duel-race-duration"
+                    aria-label={t('settings.raceDuration')}
                     type="range"
                     min="5"
                     max="60"
@@ -218,11 +239,13 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
                 </div>
               )}
               <div>
-                <label className="flex justify-between items-center mb-2">
+                <label htmlFor="hint-threshold" className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-text-darker">{t('settings.showHintWhen')}</span>
                   <span className={`text-lg font-bold ${isHintThresholdInvalid ? 'text-red-400' : 'text-primary'}`}>{t('settings.secondsLeft', { seconds: hintThresholdSec })}</span>
                 </label>
                 <input
+                  id="hint-threshold"
+                  aria-label={t('settings.showHintWhen')}
                   type="range"
                   min="1"
                   max="60"
@@ -271,8 +294,9 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
               <h3 className="text-lg font-bold text-primary">{t('settings.gameplay')}</h3>
             </div>
             {lobby.settings.enableAIGuessing && (
-              <label className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${c.allowVisionCommentary ? 'cursor-pointer hover:bg-white/5' : 'opacity-50 cursor-not-allowed'}`}>
+              <label aria-label={t('settings.aiVisionCommentary')} className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${c.allowVisionCommentary ? 'cursor-pointer hover:bg-white/5' : 'opacity-50 cursor-not-allowed'}`}>
                 <input
+                  aria-label={t('settings.aiVisionCommentary')}
                   type="checkbox"
                   checked={visionCommentary}
                   onChange={e => c.allowVisionCommentary && setVisionCommentary(e.target.checked)}
@@ -289,8 +313,9 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
               </label>
             )}
             {lobby.settings.enableAIGuessing ? (
-              <label className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${c.allowAutoNaming ? 'cursor-pointer hover:bg-white/5' : 'opacity-50 cursor-not-allowed'}`}>
+              <label aria-label={t('settings.autoNameImages')} className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${c.allowAutoNaming ? 'cursor-pointer hover:bg-white/5' : 'opacity-50 cursor-not-allowed'}`}>
                 <input
+                  aria-label={t('settings.autoNameImages')}
                   type="checkbox"
                   checked={autoNameImages}
                   onChange={e => c.allowAutoNaming && setAutoNameImages(e.target.checked)}
@@ -308,8 +333,9 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
             ) : (
               <div className="text-xs text-text-darker/70 italic p-3">{t('settings.enableAIGuessingForMore')}</div>
             )}
-            {gameType !== 'date' && <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-white/5 transition-colors">
+            {gameType !== 'date' && <label aria-label={t('settings.showImageDate')} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-white/5 transition-colors">
               <input
+                aria-label={t('settings.showImageDate')}
                 type="checkbox"
                 checked={showImageDate}
                 onChange={e => setShowImageDate(e.target.checked)}
@@ -320,13 +346,29 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
                 <div className="text-xs text-text-darker">{t('settings.showImageDateHelp')}</div>
               </div>
             </label>}
+            <label htmlFor="require-ready" className="flex items-start gap-3 cursor-pointer p-3 rounded-lg hover:bg-white/5 transition-colors">
+              <input
+                id="require-ready"
+                aria-label={t('settings.requireReady')}
+                type="checkbox"
+                checked={requireReady}
+                onChange={event => setRequireReady(event.target.checked)}
+                className="w-5 h-5 rounded accent-primary mt-0.5 flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{t('settings.requireReady')}</div>
+                <div className="text-xs text-text-darker">{t('settings.requireReadyHelp')}</div>
+              </div>
+            </label>
             <div className="space-y-4">
               <div>
-                <label className="flex justify-between items-center mb-2">
+                <label htmlFor="uploader-penalty" className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-text-darker">{t('settings.uploaderPenalty')}</span>
                   <span className="text-lg font-bold text-primary">{uploaderPenaltyPercent}%</span>
                 </label>
                 <input
+                  id="uploader-penalty"
+                  aria-label={t('settings.uploaderPenalty')}
                   type="range"
                   min="0"
                   max="100"
@@ -339,11 +381,13 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
               </div>
 
               <div>
-                <label className="flex justify-between items-center mb-2">
+                <label htmlFor="minimum-photos" className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-text-darker">{t('settings.minPhotosPerPlayer')}</span>
                   <span className="text-lg font-bold text-primary">{minPhotosPerPlayer}</span>
                 </label>
                 <input
+                  id="minimum-photos"
+                  aria-label={t('settings.minPhotosPerPlayer')}
                   type="range"
                   min="0"
                   max={maxPhotosPerPlayer}
@@ -353,11 +397,13 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
                 />
               </div>
               <div>
-                <label className="flex justify-between items-center mb-2">
+                <label htmlFor="maximum-photos" className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-text-darker">{t('settings.maxPhotosPerPlayer')}</span>
                   <span className="text-lg font-bold text-primary">{maxPhotosPerPlayer}</span>
                 </label>
                 <input
+                  id="maximum-photos"
+                  aria-label={t('settings.maxPhotosPerPlayer')}
                   type="range"
                   min="1"
                   max={c.maxPhotosPerPlayer}
@@ -381,7 +427,7 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-text-darker mb-2 block">{t('settings.mapStyle')}</label>
+                <div className="text-sm font-medium text-text-darker mb-2">{t('settings.mapStyle')}</div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {(['osm', 'hot', 'cyclosm', 'opnvkarte', 'dark', 'light', 'satellite', 'terrain'] as const).map((style) => {
                     const locked = !c.allowAllMaps && style !== 'osm';
@@ -410,11 +456,13 @@ export default function SettingsModal({ lobby, onClose, onSave }: { lobby: Lobby
               </div>
 
               <div>
-                <label className="text-sm font-medium text-text-darker mb-2 block">{t('settings.mapLanguage')}</label>
+                <label htmlFor="map-language" className="text-sm font-medium text-text-darker mb-2 block">{t('settings.mapLanguage')}</label>
                 {supportsLanguageVariants(mapStyle) ? (
                   <>
                     <p className="text-xs text-text-darker mt-2">{t('settings.mapLanguageHelp')}</p>
                     <select
+                      id="map-language"
+                      aria-label={t('settings.mapLanguage')}
                       value={mapLanguage}
                       onChange={(e) => setMapLanguage(e.target.value as MapLanguage)}
                       className="w-full bg-background border border-primary/20 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary outline-none"

@@ -5,6 +5,7 @@ import { HUD } from "../HUD";
 import MapGuess from "../MapGuess";
 import DateGuess from "../DateGuess";
 import UploaderGuess from "../UploaderGuess";
+import DateSubmodeGuess from "../DateSubmodeGuess";
 import { CalendarDays, Maximize, Minimize } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "../../lib/toast";
@@ -29,7 +30,7 @@ type GameBoardProps = {
   timerMs: number;
   timerStarted?: boolean;
   playerId: string;
-  onSubmitGuess: (p: { lat: number; lon: number } | { date: string } | { uploaderId: string }) => Promise<boolean>;
+  onSubmitGuess: (p: { lat: number; lon: number } | { date: string } | { uploaderId: string } | { dateChoice: 'before' | 'after' } | { photoOrder: string[] }) => Promise<boolean>;
   serverAiTipIndex?: number | null;
 };
 
@@ -47,6 +48,8 @@ export function GameBoard({
   const isUploader = photo?.uploaderId === playerId;
   const uploaderPenalty = lobby.settings.uploaderPenaltyPercent ?? 10;
   const canGuessThisRound = !(isUploader && uploaderPenalty >= 100);
+  const isDateCardMode = lobby.settings.gameType === 'date'
+    && ['before_after', 'timeline'].includes(lobby.settings.dateSubmode || '');
 
   // Re-initialize state from existing guess in the lobby if we reconnected
   const existingGuess = useMemo(() => {
@@ -79,8 +82,14 @@ export function GameBoard({
   const lastPhotoIdRef = useRef(photo?.id);
   const { addToast } = useToast();
   const { t } = useI18n();
-
   const [visibleTip, setVisibleTip] = useState<number | null>(null);
+  const aiTipKey = visibleTip == null
+    ? null
+    : lobby.settings.gameType === 'spot'
+      ? `game.aiTip.${visibleTip}`
+      : lobby.settings.gameType === 'date' && ['before_after', 'timeline'].includes(lobby.settings.dateSubmode || '')
+        ? `game.aiTip.date.${lobby.settings.dateSubmode}.${visibleTip}`
+        : `game.aiTip.${lobby.settings.gameType}.${visibleTip}`;
 
   const uploaderName = useMemo(
     () => lobby.players.find(p => p.id === photo?.uploaderId)?.nickname ?? "Unknown",
@@ -129,6 +138,12 @@ export function GameBoard({
 
   const handleConfirmUploader = async (uploaderId: string) => {
     const accepted = await onSubmitGuess({ uploaderId });
+    if (accepted) setIsLocked(true);
+    return accepted;
+  };
+
+  const handleConfirmDateSubmode = async (guess: { dateChoice: 'before' | 'after' } | { photoOrder: string[] }) => {
+    const accepted = await onSubmitGuess(guess);
     if (accepted) setIsLocked(true);
     return accepted;
   };
@@ -320,7 +335,7 @@ export function GameBoard({
 
   return (
     <div className="relative w-full min-h-[60vh] max-h-[80vh] bg-black rounded-xl overflow-hidden border-2 border-primary/20">
-      <div className="absolute top-0 left-0 right-0 p-1 md:p-2 bg-gradient-to-b from-black/60 to-transparent z-[1001]">
+      <div className="absolute top-0 left-0 right-0 p-1 md:p-2 bg-gradient-to-b from-black/60 to-transparent z-[1004]">
         <HUD
           timeMs={timerStarted ? timerMs : 0}
           timerStarted={timerStarted}
@@ -335,7 +350,8 @@ export function GameBoard({
         />
       </div>
 
-      <div
+      {!isDateCardMode && <div
+        role="presentation"
         className={`absolute inset-0 overflow-hidden ${imageScale > 1 ? 'cursor-grab' : ''} ${isDraggingImage ? 'cursor-grabbing' : ''}`}
         onWheel={handleImageWheel}
         onMouseDown={handleImageMouseDown}
@@ -349,6 +365,8 @@ export function GameBoard({
         style={{ touchAction: imageScale > 1 ? 'none' : 'pan-y' }}
       >
         <img
+          key={photo.id}
+          role="presentation"
           src={buildPhotoUrl(photo.url, lobby.id, playerId)}
           className="game-photo absolute inset-0 w-full h-full object-contain select-none"
           style={{
@@ -360,9 +378,9 @@ export function GameBoard({
           alt={t('ui.guessLocation')}
           onError={() => logger.error('GameBoard failed to load photo', photo.url)}
         />
-      </div>
+      </div>}
 
-      {!isMapExpanded && (
+      {!isMapExpanded && !isDateCardMode && (
         <div className="absolute bottom-2 left-2 z-[1002] flex flex-col gap-1.5">
           <button
             onClick={() => setImageScale(prev => clampImageScale(prev + 0.2))}
@@ -400,7 +418,7 @@ export function GameBoard({
         </div>
       )}
 
-      {lobby.settings.gameType === 'date' && !isDateExpanded && canGuessThisRound && (
+      {lobby.settings.gameType === 'date' && (lobby.settings.dateSubmode || 'exact') === 'exact' && !isDateExpanded && canGuessThisRound && (
         <button
           type="button"
           onClick={() => setDateExpanded(true)}
@@ -480,7 +498,7 @@ export function GameBoard({
       </AnimatePresence>
 
       <AnimatePresence>
-        {lobby.settings.gameType === 'date' && isDateExpanded && canGuessThisRound && (
+        {lobby.settings.gameType === 'date' && (lobby.settings.dateSubmode || 'exact') === 'exact' && isDateExpanded && canGuessThisRound && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -504,6 +522,20 @@ export function GameBoard({
         )}
       </AnimatePresence>
 
+      {lobby.settings.gameType === 'date' && lobby.settings.dateSubmode && lobby.settings.dateSubmode !== 'exact' && canGuessThisRound && (
+        <DateSubmodeGuess
+          key={photo.id}
+          photo={photo}
+          lobbyId={lobby.id}
+          playerId={playerId}
+          mode={lobby.settings.dateSubmode}
+          disabled={isLocked}
+          existingChoice={existingGuess?.dateChoice}
+          existingOrder={existingGuess?.photoOrder}
+          onConfirm={handleConfirmDateSubmode}
+        />
+      )}
+
       {lobby.settings.gameType === 'uploader' && canGuessThisRound && (
         <UploaderGuess
           key={photo.id}
@@ -524,13 +556,11 @@ export function GameBoard({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 24 }}
             transition={{ type: "spring", stiffness: 280, damping: 22 }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-[1002] flex items-center gap-1.5 pointer-events-auto"
+            className={`absolute right-2 z-[1004] flex items-center gap-1.5 pointer-events-auto ${isDateCardMode ? 'top-16' : 'top-1/2 -translate-y-1/2'}`}
           >
             {/* Speech bubble */}
             <div className="relative bg-surface/90 border border-primary/20 rounded-xl px-2.5 py-2 text-[11px] text-text-darker max-w-[120px] text-right backdrop-blur-sm shadow-lg">
-              {t(lobby.settings.gameType === 'spot'
-                ? `game.aiTip.${visibleTip}`
-                : `game.aiTip.${lobby.settings.gameType}.${visibleTip}`)}
+              {aiTipKey && t(aiTipKey)}
               {/* Tail pointing right */}
               <span className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-4 border-y-transparent border-l-[6px] border-l-surface/90" />
             </div>

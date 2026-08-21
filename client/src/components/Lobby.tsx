@@ -3,7 +3,7 @@ import type { Player } from '../lib/types'
 import Uploader from './Uploader'
 import LobbyMap from './LobbyMap'
 import Onboarding, { useOnboarding } from './Onboarding'
-import { socket } from '../lib/socket'
+import { api, socket } from '../lib/socket'
 import { useToast } from '../lib/toast'
 import { getCountryName } from '../lib/countryNames'
 import JoinOrCreateView from './lobby/JoinOrCreateView'
@@ -48,7 +48,8 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
   const [showQR, setShowQR] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [showIconPicker, setShowIconPicker] = useState(false)
-  const iconPickerRef = useRef<HTMLDivElement>(null)
+  const desktopIconPickerRef = useRef<HTMLDivElement>(null)
+  const mobileIconPickerRef = useRef<HTMLDivElement>(null)
   const [aiProcessingStatus, setAiProcessingStatus] = useState<{
     processed: number;
     total: number;
@@ -56,6 +57,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
     isReady?: boolean;
     stage?: string;
   } | null>(null)
+  const [serviceStatus, setServiceStatus] = useState<{ geoclip: { available: boolean }; vision: { available: boolean } } | null>(null)
   const isHost = lobby && playerId && lobby.hostId === playerId
   const me = useMemo(() => lobby?.players.find(p => p.id === playerId), [lobby, playerId])
   const isTeamMode = lobby?.settings.gameMode === 'teams'
@@ -76,7 +78,9 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
   const hasEnoughPlayers = lobby?.settings.gameType !== 'uploader' || humanPlayerCount >= 3
   // AI preparation may continue after the game begins. The server remains
   // authoritative for all start requirements beyond having an uploaded photo.
-  const canStart = (lobby?.photos.length ?? 0) > 0 && hasEnoughPlayers
+  const allRequiredPlayersReady = !lobby?.settings.requireReady
+    || lobby.players.filter(player => !player.id.startsWith('ai-')).every(player => player.ready)
+  const canStart = (lobby?.photos.length ?? 0) > 0 && hasEnoughPlayers && allRequiredPlayersReady
 
   // Get tooltip text for lobby name
   const lobbyNameTooltip = useMemo(() => {
@@ -128,6 +132,14 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
     };
   }, [lobby?.id]);
   /* eslint-enable react-hooks/exhaustive-deps */
+
+  useEffect(() => {
+    let active = true
+    const refresh = () => api.getServicesStatus().then(status => { if (active) setServiceStatus(status) }).catch(() => {})
+    refresh()
+    const interval = setInterval(refresh, 30000)
+    return () => { active = false; clearInterval(interval) }
+  }, [])
 
   // Poll AI status as fallback and for initial state
   /* eslint-disable react-hooks/exhaustive-deps */
@@ -202,7 +214,8 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
   useEffect(() => {
     if (!showIconPicker) return;
     const handleClick = (e: MouseEvent) => {
-      if (iconPickerRef.current && !iconPickerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (!desktopIconPickerRef.current?.contains(target) && !mobileIconPickerRef.current?.contains(target)) {
         setShowIconPicker(false);
       }
     };
@@ -214,10 +227,13 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
   if (!lobby) return null
 
   const requestStartGame = () => {
-    // Not-all-ready is informational only (shown under the button); the
-    // host can still start the game without a blocking confirm dialog.
     onStartGame()
   }
+
+  const unavailableServices = serviceStatus ? [
+    lobby.settings.gameType === 'spot' && !serviceStatus.geoclip.available ? 'GeoCLIP' : '',
+    (lobby.settings.visionCommentary || lobby.settings.autoNameImages || (lobby.settings.gameType === 'date' && lobby.settings.enableAIGuessing)) && !serviceStatus.vision.available ? 'Vision' : '',
+  ].filter(Boolean) : []
 
   return (
     <>
@@ -306,6 +322,12 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
           </motion.div>
         )}
       </AnimatePresence>
+
+      {unavailableServices.length > 0 && (
+        <div className="mx-2 mb-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
+          <strong>{t('lobby.degradedMode')}</strong> {t('lobby.degradedModeDesc', { services: unavailableServices.join(', ') })}
+        </div>
+      )}
 
       {/* Mobile: Game mode + lobby info first */}
       <div className="md:hidden w-full px-2 mb-3 flex flex-col gap-1.5">
@@ -461,6 +483,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                 </div>
               </div>
             </motion.div>
+
           </div>
 
           {/* Players List */}
@@ -504,7 +527,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                       <div className="relative flex items-center gap-2 md:gap-3 w-full">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }}></div>
                         {p.id === playerId ? (
-                          <div className="relative flex-shrink-0" ref={iconPickerRef}>
+                          <div className="relative flex-shrink-0" ref={desktopIconPickerRef}>
                             <button
                               onClick={() => setShowIconPicker(v => !v)}
                               className="text-lg hover:scale-125 transition-transform leading-none"
@@ -518,8 +541,9 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                                   <button
                                     key={icon}
                                     onClick={() => {
-                                      socket.emit('update_icon', { lobbyId: lobby.id, playerId, icon });
-                                      setShowIconPicker(false);
+                                      socket.emit('update_icon', { lobbyId: lobby.id, playerId, icon }, (response: { success?: boolean }) => {
+                                        if (response?.success) setShowIconPicker(false)
+                                      });
                                     }}
                                     className={`text-xl p-1 rounded hover:bg-white/10 transition-colors ${icon === p.icon ? 'bg-primary/20 ring-1 ring-primary' : ''}`}
                                   >
@@ -588,6 +612,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                   const hasAI = lobby.players.some(p => p.id.startsWith('ai-'));
                   if (hasAI) {
                     socket.emit('remove_ai_player', { lobbyId: lobby.id, playerId });
+                    onUpdateSettings({ ...lobby.settings, enableAIGuessing: false, visionCommentary: false, autoNameImages: false });
                   } else {
                     socket.emit('add_ai_player', { lobbyId: lobby.id, playerId });
                     // Automatically enable AI guessing when AI is added
@@ -625,7 +650,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
               {lobby.settings.gameType === 'uploader' && !hasEnoughPlayers && t('lobby.minThreePlayers')}
               {lobby.settings.gameType === 'date' && photosMissingDates > 0 && t('lobby.missingPhotoDates', { count: photosMissingDates })}
               {lobby.settings.gameType === 'date' && photosInvalidDates > 0 && t('lobby.invalidPhotoDates', { count: photosInvalidDates })}
-              {lobby.photos.length > 0 && lobby.players.some(p => !p.ready) && t('lobby.notAllReadyCanStart')}
+              {lobby.photos.length > 0 && lobby.players.some(p => !p.ready) && t(lobby.settings.requireReady ? 'lobby.notAllReadyBlocked' : 'lobby.notAllReadyCanStart')}
             </div>
           )}
         </div>
@@ -720,7 +745,7 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                     <div className="relative flex items-center gap-1.5 w-full">
                       <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: p.color }}></div>
                       {p.id === playerId ? (
-                        <div className="relative flex-shrink-0" ref={iconPickerRef}>
+                        <div className="relative flex-shrink-0" ref={mobileIconPickerRef}>
                           <button
                             onClick={() => setShowIconPicker(v => !v)}
                             className="text-sm hover:scale-125 transition-transform leading-none"
@@ -734,8 +759,9 @@ function InLobbyView({ lobby, playerId, onSetReady, onStartGame, onExitLobby, on
                                 <button
                                   key={icon}
                                   onClick={() => {
-                                    socket.emit('update_icon', { lobbyId: lobby.id, playerId, icon });
-                                    setShowIconPicker(false);
+                                    socket.emit('update_icon', { lobbyId: lobby.id, playerId, icon }, (response: { success?: boolean }) => {
+                                      if (response?.success) setShowIconPicker(false)
+                                    });
                                   }}
                                   className={`text-xl p-1 rounded hover:bg-white/10 transition-colors ${icon === p.icon ? 'bg-primary/20 ring-1 ring-primary' : ''}`}
                                 >

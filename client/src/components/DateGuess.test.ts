@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { buildTimelineLandmarks } from './DateGuess'
+import { buildTimelineLandmarks, initialTimelineDay } from './DateGuess'
+
+describe('date guess initial selection', () => {
+  it('starts on the end of the range (today) for a new round', () => {
+    expect(initialTimelineDay('1977-06-15', '2026-08-05'))
+      .toBe(initialTimelineDay('2026-08-05', '2026-08-05'))
+  })
+
+  it('keeps a restored guess within the available range', () => {
+    expect(initialTimelineDay('2020-01-01', '2026-08-05', '2023-04-12'))
+      .toBe(initialTimelineDay('2023-04-12', '2023-04-12'))
+  })
+})
 
 describe('date guess timeline landmarks', () => {
   it('uses readable aligned years for long timelines', () => {

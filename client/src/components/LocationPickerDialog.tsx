@@ -247,12 +247,18 @@ export default function LocationPickerDialog({
         {/* Header - includes photo that collapses on scroll and expands on click */}
         <div className={`border-b border-primary/10 flex-shrink-0 transition-all duration-300 overflow-hidden ${photoExpanded ? 'max-h-[50vh]' : photoCollapsed ? 'max-h-12' : 'max-h-40'}`}>
           <div className="p-3 flex items-center gap-3">
-            <img
-              src={photoUrl}
-              alt={t('ui.photoPreview')}
-              className={`${photoExpanded ? 'w-full max-h-[40vh] object-contain' : 'w-16 h-16 object-cover'} rounded-lg border border-primary/20 flex-shrink-0 cursor-pointer hover:border-primary/40 transition-all`}
+            <button
+              type="button"
               onClick={() => setPhotoExpanded(!photoExpanded)}
-            />
+              aria-label={photoExpanded ? t('ui.collapsePhoto') : t('ui.expandPhoto')}
+              className="flex-shrink-0"
+            >
+              <img
+                src={photoUrl}
+                alt={t('ui.photoPreview')}
+                className={`${photoExpanded ? 'w-full max-h-[40vh] object-contain' : 'w-16 h-16 object-cover'} rounded-lg border border-primary/20 cursor-pointer hover:border-primary/40 transition-all`}
+              />
+            </button>
             {!photoExpanded && (
               <div className="min-w-0">
                 <h2 className="text-lg font-bold">{isEditing ? t('ui.editPhotoLocation') : t('ui.setPhotoLocation')}</h2>
@@ -296,6 +302,7 @@ export default function LocationPickerDialog({
             <input
               type="text"
               placeholder={t('ui.searchLocation')}
+              aria-label={t('ui.searchLocation')}
               className="w-full pl-10 pr-8 py-1.5 bg-surface border border-primary/20 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-text text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

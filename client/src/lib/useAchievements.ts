@@ -3,6 +3,8 @@ import { ALL_ACHIEVEMENTS, getAchievementById } from './achievementsData';
 import type { Achievement, PlayerStats } from './achievementTypes';
 import { logger } from './logger';
 import type { GameType } from './gameModes';
+import { nextStreak, sameRegion } from './achievementRules';
+import { clearAchievementEvents } from './achievementEvents';
 
 const ACHIEVEMENT_STORAGE_KEY = 'spottheshot-achievements';
 const STATS_STORAGE_KEY = 'spottheshot-player-stats';
@@ -100,6 +102,33 @@ function cloneStats(prev: PlayerStats): PlayerStats {
   };
 }
 
+export function repairLegacyAchievementProgress(achievements: Achievement[], savedStats: Partial<PlayerStats>): Achievement[] {
+  const uploadCount = Math.max(0, savedStats.photosUploaded ?? 0);
+  const uploadTargets: Record<string, number> = { pro_photographer: 10, uploader_legend: 40 };
+  let repaired = achievements.map(achievement => {
+    const target = uploadTargets[achievement.id];
+    if (!target) return achievement;
+    const unlocked = uploadCount >= target;
+    return {
+      ...achievement,
+      progress: uploadCount,
+      unlocked,
+      unlockedAt: unlocked ? achievement.unlockedAt : undefined,
+    };
+  });
+
+  const earnedWithoutHunter = repaired.filter(achievement => achievement.id !== 'achievement_hunter' && achievement.unlocked).length;
+  repaired = repaired.map(achievement => achievement.id === 'achievement_hunter'
+    ? {
+        ...achievement,
+        progress: earnedWithoutHunter,
+        unlocked: earnedWithoutHunter >= 30,
+        unlockedAt: earnedWithoutHunter >= 30 ? achievement.unlockedAt : undefined,
+      }
+    : achievement);
+  return repaired;
+}
+
 /** Returns today's date as YYYY-MM-DD using local time (avoids UTC midnight drift). */
 function todayString(): string {
   const d = new Date();
@@ -167,6 +196,7 @@ export function useAchievements() {
 
       if (savedStats) {
         const p = JSON.parse(savedStats);
+        setAchievements(prev => repairLegacyAchievementProgress(prev, p));
         setStats({
           gamesPlayed: p.gamesPlayed ?? 0,
           gamesWon: p.gamesWon ?? 0,
@@ -253,11 +283,18 @@ export function useAchievements() {
       if (newIds.length === 0) return prev;
 
       let { updated, newEarnedCount } = applyUnlocks(prev, newIds);
+      const hunterProgress = updated.filter(achievement => achievement.id !== 'achievement_hunter' && achievement.unlocked).length;
+      updated = updated.map(achievement => achievement.id === 'achievement_hunter'
+        ? { ...achievement, progress: hunterProgress }
+        : achievement);
 
       // Check if achievement_hunter threshold is now met
       const hunterAlreadyUnlocked = updated.find(a => a.id === 'achievement_hunter')?.unlocked;
-      if (newEarnedCount >= 30 && !hunterAlreadyUnlocked) {
+      if (hunterProgress >= 30 && !hunterAlreadyUnlocked) {
         ({ updated, newEarnedCount } = applyUnlocks(updated, ['achievement_hunter']));
+        updated = updated.map(achievement => achievement.id === 'achievement_hunter'
+          ? { ...achievement, progress: hunterProgress }
+          : achievement);
         newIds.push('achievement_hunter');
       }
 
@@ -303,6 +340,10 @@ export function useAchievements() {
 
       if (shouldUnlock) {
         const newEarnedCount = updated.filter(a => a.unlocked).length;
+        const hunterProgress = updated.filter(achievement => achievement.id !== 'achievement_hunter' && achievement.unlocked).length;
+        const withHunterProgress = updated.map(achievement => achievement.id === 'achievement_hunter'
+          ? { ...achievement, progress: hunterProgress }
+          : achievement);
 
         setUnlockedThisGame(g => g.includes(achievementId) ? g : [...g, achievementId]);
         setUnlockedThisRound(r => r.includes(achievementId) ? r : [...r, achievementId]);
@@ -312,15 +353,27 @@ export function useAchievements() {
             : s
         );
 
-        const hunterUnlocked = updated.find(a => a.id === 'achievement_hunter')?.unlocked;
-        if (newEarnedCount >= 30 && !hunterUnlocked) {
+        const hunterUnlocked = withHunterProgress.find(a => a.id === 'achievement_hunter')?.unlocked;
+        if (hunterProgress >= 30 && !hunterUnlocked) {
           Promise.resolve().then(() => unlockAchievement('achievement_hunter'));
         }
       }
 
+      if (shouldUnlock) {
+        const hunterProgress = updated.filter(achievement => achievement.id !== 'achievement_hunter' && achievement.unlocked).length;
+        return updated.map(achievement => achievement.id === 'achievement_hunter'
+          ? { ...achievement, progress: hunterProgress }
+          : achievement);
+      }
       return updated;
     });
   }, [unlockAchievement]);
+
+  const setAchievementProgress = useCallback((achievementId: string, progress: number) => {
+    setAchievements(prev => prev.map(achievement => achievement.id === achievementId && !achievement.unlocked
+      ? { ...achievement, progress: Math.max(0, progress) }
+      : achievement));
+  }, []);
 
   // ── Game tracking ──────────────────────────────────────────────────────────
 
@@ -353,6 +406,8 @@ export function useAchievements() {
       }
 
       updated.gamesPlayed += 1;
+      setAchievementProgress('game_night', updated.gamesPlayed);
+      setAchievementProgress('veteran_player', updated.gamesPlayed);
 
       // First Steps is specifically the first completed location-guessing game.
       if (gameType === 'spot' && !prev.hasPlayedFirstGame) {
@@ -367,6 +422,9 @@ export function useAchievements() {
         updated.currentWinStreak += 1;
         updated.winStreak = Math.max(updated.winStreak, updated.currentWinStreak);
         updated.lastGameResult = 'win';
+        setAchievementProgress('win_streak', updated.currentWinStreak);
+        setAchievementProgress('undefeated', updated.currentWinStreak);
+        setAchievementProgress('games_won_35', updated.gamesWon);
 
         if (updated.gamesWon === 1) toUnlock.push('first_win');
         if (isPerfectGame) {
@@ -378,6 +436,8 @@ export function useAchievements() {
       } else {
         updated.currentWinStreak = 0;
         updated.lastGameResult = 'loss';
+        setAchievementProgress('win_streak', 0);
+        setAchievementProgress('undefeated', 0);
       }
 
       // Daily streak — string comparison avoids DST issues
@@ -392,13 +452,14 @@ export function useAchievements() {
               updated.consecutiveDaysPlayed,
             );
             if (updated.consecutiveDaysPlayed >= 3) toUnlock.push('daily_player');
-          } else if (diff > 1) {
+          } else {
             updated.consecutiveDaysPlayed = 1;
           }
         } else {
           updated.consecutiveDaysPlayed = 1;
         }
         updated.lastPlayDate = today;
+        setAchievementProgress('daily_player', updated.consecutiveDaysPlayed);
       }
 
       if (updated.gamesPlayed >= 20) toUnlock.push('game_night');
@@ -408,9 +469,9 @@ export function useAchievements() {
       if (toUnlock.length) unlockAchievements(toUnlock);
       return updated;
     });
-  }, [unlockAchievements]);
+  }, [setAchievementProgress, unlockAchievements]);
 
-  const trackDateGuess = useCallback((distanceDays: number, targetDate: string, score: number) => {
+  const trackDateGuess = useCallback((distanceDays: number, targetDate: string) => {
     if (distanceDays === 0) unlockAchievement('date_bullseye');
     if (distanceDays <= 7) updateAchievementProgress('date_detective');
     updateAchievementProgress('date_marathon');
@@ -420,22 +481,10 @@ export function useAchievements() {
     if (targetDate <= cutoff.toISOString().slice(0, 10) && distanceDays <= 366) {
       unlockAchievement('archive_explorer');
     }
-    if (score === 5000) unlockAchievement('five_k');
-    if (score >= 4500) updateAchievementProgress('ten_k_score');
     setStats(prev => {
       const updated = cloneStats(prev);
       updated.dateGuesses += 1;
       if (distanceDays <= 30) updated.closeDateGuesses += 1;
-      if (score >= 3000) {
-        updated.consecutiveHighScoreRounds += 1;
-        updated.maxConsecutiveHighScoreRounds = Math.max(
-          updated.maxConsecutiveHighScoreRounds,
-          updated.consecutiveHighScoreRounds,
-        );
-        if (updated.consecutiveHighScoreRounds >= 10) unlockAchievement('consistent_scoring');
-      } else {
-        updated.consecutiveHighScoreRounds = 0;
-      }
       return updated;
     });
   }, [unlockAchievement, updateAchievementProgress]);
@@ -458,20 +507,35 @@ export function useAchievements() {
     });
   }, [unlockAchievement, updateAchievementProgress]);
 
+  const trackModeRound = useCallback((dateSubmode: 'exact' | 'before_after' | 'timeline' | undefined, basePoints = 0) => {
+    if (dateSubmode === 'before_after' && basePoints === 5000) updateAchievementProgress('before_after_oracle');
+    if (dateSubmode === 'timeline' && basePoints === 5000) updateAchievementProgress('timeline_architect');
+  }, [updateAchievementProgress]);
+
   // ── Guess tracking ─────────────────────────────────────────────────────────
 
-  const trackCorrectGuess = useCallback((country: string, region: string, lat: number, lon: number) => {
+  const trackCorrectGuess = useCallback((
+    guessedCountry: string,
+    guessedRegion: string,
+    targetCountry: string,
+    targetRegion: string,
+    lat: number,
+    lon: number,
+  ) => {
     setStats(prev => {
       const updated = cloneStats(prev);
       const toUnlock: string[] = [];
+      const countryCorrect = !!targetCountry && guessedCountry === targetCountry;
 
-      if (country) {
-        updated.uniqueCountriesGuessed.add(country);
-        updateAchievementProgress('correct_country');
-
+      if (guessedCountry && !updated.uniqueCountriesGuessed.has(guessedCountry)) {
+        updated.uniqueCountriesGuessed.add(guessedCountry);
+        setAchievementProgress('around_the_world', updated.uniqueCountriesGuessed.size);
         if (updated.uniqueCountriesGuessed.size >= 20) toUnlock.push('around_the_world');
+      }
 
-        updated.currentCorrectCountryStreak += 1;
+      if (countryCorrect) {
+        updateAchievementProgress('correct_country');
+        updated.currentCorrectCountryStreak = nextStreak(updated.currentCorrectCountryStreak, true);
         updated.maxCorrectCountryStreak = Math.max(
           updated.maxCorrectCountryStreak,
           updated.currentCorrectCountryStreak,
@@ -481,20 +545,16 @@ export function useAchievements() {
         updated.currentCorrectCountryStreak = 0;
       }
 
-      if (region) {
+      if (countryCorrect && sameRegion(guessedRegion, targetRegion)) {
         updated.hasGuessedCorrectRegion = true;
         updateAchievementProgress('correct_region');
       }
 
-      if (lat !== undefined && lon !== undefined) {
-        if (lat >= 0) updated.hasGuessedNorthernHemisphere = true;
-        else updated.hasGuessedSouthernHemisphere = true;
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        if (lat > 0) updated.hasGuessedNorthernHemisphere = true;
+        else if (lat < 0) updated.hasGuessedSouthernHemisphere = true;
 
-        if (
-          updated.gamesPlayed >= 3 &&
-          updated.hasGuessedNorthernHemisphere &&
-          updated.hasGuessedSouthernHemisphere
-        ) {
+        if (updated.hasGuessedNorthernHemisphere && updated.hasGuessedSouthernHemisphere) {
           toUnlock.push('hemisphere_hopper');
         }
       }
@@ -502,24 +562,24 @@ export function useAchievements() {
       if (toUnlock.length) unlockAchievements(toUnlock);
       return updated;
     });
-  }, [unlockAchievements, updateAchievementProgress]);
+  }, [setAchievementProgress, unlockAchievements, updateAchievementProgress]);
 
   // ── Score tracking ─────────────────────────────────────────────────────────
 
-  const trackScore = useCallback((score: number, distanceKm: number) => {
+  const trackScore = useCallback((score: number | null, distanceKm?: number) => {
     setStats(prev => {
       const updated = cloneStats(prev);
       const toUnlock: string[] = [];
 
       if (score === 5000) toUnlock.push('five_k');
-      if (score >= 4500) updateAchievementProgress('ten_k_score');
-      if (distanceKm <= 0.1) updateAchievementProgress('perfect_guess');
-      if (distanceKm < 10) {
+      if (score != null && score >= 4500) updateAchievementProgress('ten_k_score');
+      if (distanceKm === 0) updateAchievementProgress('perfect_guess');
+      if (distanceKm != null && distanceKm <= 10) {
         updated.closeGuessCount += 1;
         updateAchievementProgress('close_guesses');
       }
-      if (distanceKm < 100) updateAchievementProgress('medium_guesses');
-      if (distanceKm > 10000) {
+      if (distanceKm != null && distanceKm <= 100) updateAchievementProgress('medium_guesses');
+      if (distanceKm != null && distanceKm >= 10000) {
         updated.farGuessCount += 1;
         updateAchievementProgress('mind_blown');
         updateAchievementProgress('global_swing_master');
@@ -527,8 +587,8 @@ export function useAchievements() {
 
       // Track consecutive high score rounds (3000+ points)
       // This is a streak counter that persists across games
-      if (score >= 3000) {
-        updated.consecutiveHighScoreRounds += 1;
+      if (score != null && score >= 3000) {
+        updated.consecutiveHighScoreRounds = nextStreak(updated.consecutiveHighScoreRounds, true);
         updated.maxConsecutiveHighScoreRounds = Math.max(
           updated.maxConsecutiveHighScoreRounds,
           updated.consecutiveHighScoreRounds,
@@ -538,15 +598,17 @@ export function useAchievements() {
         // Reset the streak when a round scores below 3000
         updated.consecutiveHighScoreRounds = 0;
       }
+      setAchievementProgress('consistent_scoring', updated.consecutiveHighScoreRounds);
 
       if (toUnlock.length) unlockAchievements(toUnlock);
       return updated;
     });
-  }, [unlockAchievements, updateAchievementProgress]);
+  }, [setAchievementProgress, unlockAchievements, updateAchievementProgress]);
 
   // ── AI tracking ────────────────────────────────────────────────────────────
 
   const trackAIBeat = useCallback((distanceDifferenceKm: number) => {
+    if (!Number.isFinite(distanceDifferenceKm) || distanceDifferenceKm <= 0) return;
     updateAchievementProgress('beat_ai_10x');
     updateAchievementProgress('beat_ai_50x');
     updateAchievementProgress('ai_rival');
@@ -578,11 +640,9 @@ export function useAchievements() {
     setStats(prev => {
       const updated = cloneStats(prev);
       updated.photosUsedInGames += 1;
-      updateAchievementProgress('pro_photographer');
-      updateAchievementProgress('uploader_legend');
       return updated;
     });
-  }, [updateAchievementProgress]);
+  }, []);
 
   const trackPhotoUploadFromCountry = useCallback((country: string) => {
     if (!country) return;
@@ -613,18 +673,19 @@ export function useAchievements() {
     setStats(prev => {
       const updated = cloneStats(prev);
       if (wonRound) {
-        updated.currentRoundWinStreak += 1;
+        updated.currentRoundWinStreak = nextStreak(updated.currentRoundWinStreak, true);
         updated.maxRoundWinStreak = Math.max(updated.maxRoundWinStreak, updated.currentRoundWinStreak);
-        updateAchievementProgress('perfect_rounds');
+        if (updated.currentRoundWinStreak >= 6) unlockAchievement('perfect_rounds');
       } else {
         updated.currentRoundWinStreak = 0;
       }
+      setAchievementProgress('perfect_rounds', updated.currentRoundWinStreak);
       return updated;
     });
-  }, [updateAchievementProgress]);
+  }, [setAchievementProgress, unlockAchievement]);
 
   const trackPhotoFinish = useCallback((marginKm: number) => {
-    if (marginKm < 5) updateAchievementProgress('photo_finish');
+    if (Number.isFinite(marginKm) && marginKm >= 0 && marginKm < 5) updateAchievementProgress('photo_finish');
   }, [updateAchievementProgress]);
 
   // ── Geography tracking ─────────────────────────────────────────────────────
@@ -633,13 +694,14 @@ export function useAchievements() {
     setStats(prev => {
       const updated = cloneStats(prev);
       const continent = getContinentFromCountry(country);
-      if (continent) {
+      if (continent && !updated.continentsCompleted.has(continent)) {
         updated.continentsCompleted.add(continent);
+        setAchievementProgress('all_continents', updated.continentsCompleted.size);
         if (updated.continentsCompleted.size >= 7) unlockAchievement('all_continents');
       }
       return updated;
     });
-  }, [unlockAchievement]);
+  }, [setAchievementProgress, unlockAchievement]);
 
   const trackWaterGuess = useCallback(() => {
     setStats(prev => {
@@ -653,7 +715,7 @@ export function useAchievements() {
   // ── Time / distance fun tracking ───────────────────────────────────────────
 
   const trackFastGuess = useCallback((timeTakenMs: number) => {
-    if (timeTakenMs >= 10_000) return;
+    if (!Number.isFinite(timeTakenMs) || timeTakenMs < 0 || timeTakenMs >= 10_000) return;
     setStats(prev => {
       const updated = cloneStats(prev);
       updated.fastGuessCount += 1;
@@ -664,7 +726,7 @@ export function useAchievements() {
   }, [updateAchievementProgress]);
 
   const trackMindBlownGuess = useCallback((distanceKm: number) => {
-    if (distanceKm <= 10_000) return;
+    if (distanceKm < 10_000) return;
     setStats(prev => {
       const updated = cloneStats(prev);
       updated.mindBlownCount += 1;
@@ -751,6 +813,7 @@ export function useAchievements() {
     try {
       localStorage.removeItem(ACHIEVEMENT_STORAGE_KEY);
       localStorage.removeItem(STATS_STORAGE_KEY);
+      clearAchievementEvents();
     } catch (error) {
       logger.error('Failed to clear achievement cache', error);
     }
@@ -787,6 +850,7 @@ export function useAchievements() {
     trackPhotoFinish,
     trackDateGuess,
     trackUploaderGuess,
+    trackModeRound,
     getEarnedAchievements,
     getNextAchievements,
     startGame,

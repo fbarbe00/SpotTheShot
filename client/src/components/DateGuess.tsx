@@ -21,6 +21,13 @@ function fromDayNumber(day: number) {
   return new Date(day * DAY_MS).toISOString().slice(0, 10)
 }
 
+export function initialTimelineDay(startDate: string, endDate: string, existingDate?: string) {
+  const minDay = toDayNumber(startDate)
+  const maxDay = toDayNumber(endDate)
+  if (!existingDate) return maxDay
+  return Math.max(minDay, Math.min(maxDay, toDayNumber(existingDate)))
+}
+
 type TimelineLandmark = {
   date: string
   label: string
@@ -104,9 +111,7 @@ export default function DateGuess({
   const { t, language } = useI18n()
   const minDay = useMemo(() => toDayNumber(startDate), [startDate])
   const maxDay = useMemo(() => toDayNumber(endDate), [endDate])
-  const initialDay = existingDate
-    ? toDayNumber(existingDate)
-    : Math.round(minDay + (maxDay - minDay) / 2)
+  const initialDay = initialTimelineDay(startDate, endDate, existingDate)
   const [day, setDay] = useState(initialDay)
   const [locked, setLocked] = useState(!!existingDate)
   const [submitting, setSubmitting] = useState(false)
@@ -181,7 +186,11 @@ export default function DateGuess({
       </div>
 
       <div className="space-y-3 px-4 py-4 sm:px-5">
-        <div className="rounded-2xl border border-white/10 bg-background/45 px-3 pb-2 pt-4 sm:px-4">
+        <div className="rounded-2xl border border-white/10 bg-background/45 px-3 pb-2 pt-3 sm:px-4">
+          <div className="mb-3 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-text-darker">
+            <span>← {landmarks[0]?.label}</span>
+            <span className="text-primary">{landmarks.at(-1)?.label} →</span>
+          </div>
           <input
             type="range"
             min={minDay}

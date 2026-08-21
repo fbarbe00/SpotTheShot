@@ -27,6 +27,7 @@ import {
   type VersionLogEntry,
 } from './lib/version'
 import type { GameType } from './lib/gameModes'
+import AdminPanel from './components/AdminPanel'
 
 // Socket response types
 interface SocketResponse { success?: boolean; error?: string; lobby?: Lobby; playerId?: string; duplicate?: boolean }
@@ -34,6 +35,7 @@ interface SocketResponse { success?: boolean; error?: string; lobby?: Lobby; pla
 // Lobby settings update type
 interface LobbySettingsUpdate {
   gameType?: GameType;
+  dateSubmode?: 'exact' | 'before_after' | 'timeline';
   dateTimelineStart?: string;
   dateTimelineEnd?: string;
   timerMode?: 'fixed' | 'progressive';
@@ -49,6 +51,7 @@ interface LobbySettingsUpdate {
   visionCommentary?: boolean;
   autoNameImages?: boolean;
   showImageDate?: boolean;
+  requireReady?: boolean;
 }
 
 type AchievementsApi = ReturnType<typeof useAchievements>
@@ -664,27 +667,36 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
     socket.emit('set_team', { lobbyId: lobby.id, playerId, team })
   }
 
-  async function submitGuess(p: {lat:number,lon:number} | {date:string} | {uploaderId:string}): Promise<boolean> {
+  async function submitGuess(p: {lat:number,lon:number} | {date:string} | {uploaderId:string} | {dateChoice:'before'|'after'} | {photoOrder:string[]}): Promise<boolean> {
     if (!lobby || !playerId) return false
 
-    const attempt = () => new Promise<boolean>(resolve => {
+    const attempt = () => new Promise<{ accepted: boolean; retryable: boolean; error?: string }>(resolve => {
       socket.timeout(6000).emit(
         'submit_guess',
         { lobbyId: lobby.id, playerId, ...p },
-        (error: Error | null, response?: SocketResponse) => resolve(!error && !!response?.success),
+        (error: Error | null, response?: SocketResponse) => resolve({
+          accepted: !error && !!response?.success,
+          retryable: !!error,
+          error: response?.error,
+        }),
       )
     })
 
-    if (await attempt()) return true
+    const first = await attempt()
+    if (first.accepted) return true
+    if (!first.retryable) {
+      addToast(first.error || t('toast.somethingWrong'), 'warning', 5000)
+      return false
+    }
     if (!socket.connected) {
       await new Promise<void>(resolve => {
         const timeout = window.setTimeout(resolve, 5000)
         socket.once('connect', () => { window.clearTimeout(timeout); resolve() })
       })
     }
-    const accepted = await attempt()
-    if (!accepted) addToast(t('toast.connectionHiccup'), 'warning', 5000)
-    return accepted
+    const second = await attempt()
+    if (!second.accepted) addToast(second.error || t('toast.connectionHiccup'), 'warning', 5000)
+    return second.accepted
   }
 
   // Show achievement notification when game ends and achievements are unlocked
@@ -892,6 +904,10 @@ export default function App() {
 function AppContentWrapper() {
   const achievements = useAchievements()
 
+  if (new URLSearchParams(window.location.search).has('admin')) {
+    return <AdminPanel />
+  }
+
   return (
     <AchievementProvider
       value={{
@@ -915,6 +931,7 @@ function AppContentWrapper() {
         trackPhotoFinish: achievements.trackPhotoFinish,
         trackUploaderGuess: achievements.trackUploaderGuess,
         trackDateGuess: achievements.trackDateGuess,
+        trackModeRound: achievements.trackModeRound,
       }}
     >
       <AppContent achievementsApi={achievements} />

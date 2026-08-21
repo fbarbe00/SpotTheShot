@@ -13,7 +13,7 @@ export const VERSION_LOG: VersionLogEntry[] = [
     date: '2026-07-29',
     notes: [
       '👥 WhoTookTheShot adds a third game: vote for the friend who uploaded each photo.',
-      '🎲 The AI votes randomly and openly jokes about its random choice after the uploader is revealed.',
+      '🎲 The Computer votes randomly and openly jokes about its random choice after the uploader is revealed.',
       '🧩 Game modes now use shared capability definitions, with safe prompts when an existing lobby changes mode.',
       '🗓️ DateTheShot now opens from a compact launcher and uses automatic photo-aware timeline bounds.',
       '📊 Every mode has a combined round leaderboard with answers, round points, totals, and transparent scoring rules.',
@@ -30,7 +30,7 @@ export const VERSION_LOG: VersionLogEntry[] = [
       '⚙️ Choose SpotTheShot or DateTheShot when creating a lobby, or switch in lobby settings.',
       '🖼️ Capture dates can be corrected before play, with future dates blocked.',
       '🗓️ Missing dates now open a dedicated date dialog, with PNG and screenshot-date detection.',
-      '🤖 The local vision AI now estimates photo dates and jokes about the era clues it got right or wrong.',
+      '🤖 The local Computer player now estimates photo dates and jokes about the era clues it got right or wrong.',
       '📊 Date results now place every player and score directly on the timeline.',
       '🏆 Date achievements have been added, and First Steps now specifically rewards a location-guessing game.',
     ],
@@ -39,7 +39,7 @@ export const VERSION_LOG: VersionLogEntry[] = [
     version: '2.0.0',
     date: '2026-05-17',
     notes: [
-      '🤖 The AI now whispers hints while you\'re guessing — a little speech bubble appears with its thoughts on the photo. Click the robot to dismiss it.',
+      '🤖 The Computer now whispers hints while you\'re guessing — a little speech bubble appears with its thoughts on the photo. Click the robot to dismiss it.',
       '⏰ Missed the timer? Round highlights now call out players who ran out of time.',
       '🏅 Credits and achievements are now always visible in the header — no more hunting through the menu on mobile.',
       '📱 Round results scroll properly on mobile — no more cut-off leaderboards or double-scroll weirdness.',
@@ -49,7 +49,7 @@ export const VERSION_LOG: VersionLogEntry[] = [
     version: '1.7.0',
     date: '2026-05-01',
     notes: [
-      '🤖 AI-generated titles, hints, and comments should be more consistent and less likely to trail off.',
+      '🤖 Computer-generated titles, hints, and comments should be more consistent and less likely to trail off.',
       '🌍 Improved Russian text throughout the game.',
       '⚙️ Setup is more reliable for self-hosted games.',
     ],
@@ -136,7 +136,7 @@ export const VERSION_LOG: VersionLogEntry[] = [
     version: '1.0.2',
     date: '2026-02-21',
     notes: [
-      'Improved AI auto-naming hints.',
+      'Improved Computer auto-naming hints.',
       'Lobby names are now random region or country names in the world.'
     ],
   },

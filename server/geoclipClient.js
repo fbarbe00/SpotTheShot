@@ -15,13 +15,13 @@ const GEOCLIP_URL = process.env.GEOCLIP_URL || 'http://geoclip:8000';
  * Lookup country and region for coordinates
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
- * @returns {Promise<{country: string|null, region: string|null, isoCode: string|null}>}
+ * @returns {Promise<{country: string|null, region: string|null, isoCode: string|null, lookupSucceeded: boolean}>}
  */
 export async function lookupLocation(lat, lon) {
   try {
     if (typeof lat !== 'number' || typeof lon !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lon)) {
       console.warn('Invalid coordinates for geoclip lookup:', lat, lon);
-      return { country: null, region: null };
+      return { country: null, region: null, isoCode: null, lookupSucceeded: false };
     }
 
     const controller = new AbortController();
@@ -40,7 +40,7 @@ export async function lookupLocation(lat, lon) {
 
     if (!response.ok) {
       console.warn(`Geoclip lookup failed: ${response.status}`);
-      return { country: null, region: null };
+      return { country: null, region: null, isoCode: null, lookupSucceeded: false };
     }
 
     const data = await response.json();
@@ -48,10 +48,11 @@ export async function lookupLocation(lat, lon) {
       country: data.country || null,
       region: data.region || null,
       isoCode: data.iso_code || null,
+      lookupSucceeded: true,
     };
   } catch (error) {
     console.warn('Geoclip lookup error:', error.message);
-    return { country: null, region: null, isoCode: null};
+    return { country: null, region: null, isoCode: null, lookupSucceeded: false };
   }
 }
 
@@ -64,5 +65,7 @@ export async function batchLookup(coords) {
   const results = await Promise.allSettled(
     coords.map(({ lat, lon }) => lookupLocation(lat, lon))
   );
-  return results.map(r => r.status === 'fulfilled' ? r.value : { country: null, region: null, isoCode: null });
+  return results.map(r => r.status === 'fulfilled'
+    ? r.value
+    : { country: null, region: null, isoCode: null, lookupSucceeded: false });
 }

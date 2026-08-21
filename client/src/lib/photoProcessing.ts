@@ -10,6 +10,20 @@ export async function hashBlob(blob: Blob): Promise<string> {
     .join('')
 }
 
+/**
+ * Best-effort capture date from a file's modification timestamp. Used only as
+ * the default value in the date picker: EXIF/XMP/filename dates are always
+ * preferred, but after metadata stripping lastModified is often the only
+ * remaining signal (it matches capture time for camera-roll originals).
+ */
+export function dateFromTimestamp(ms: number | undefined | null): string | null {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return null
+  const date = new Date(ms)
+  if (Number.isNaN(date.getTime())) return null
+  // UTC formatting keeps the value comparable with the server's UTC "today".
+  return date.toISOString().slice(0, 10)
+}
+
 export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,

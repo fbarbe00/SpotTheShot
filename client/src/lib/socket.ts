@@ -32,6 +32,7 @@ export function clearPlayerSessionToken(): void {
 // Settings type for lobby creation
 interface LobbySettings {
   gameType?: GameType;
+  dateSubmode?: 'exact' | 'before_after' | 'timeline';
   dateTimelineStart?: string;
   dateTimelineEnd?: string;
   roundDurationSec?: number;
@@ -47,6 +48,7 @@ interface LobbySettings {
   duelRaceTimeSec?: number;
   language?: string;
   showImageDate?: boolean;
+  requireReady?: boolean;
 }
 
 // Helper to get session from localStorage
@@ -138,6 +140,11 @@ export function connectSocket(): void {
 
 export const api = {
   base: SERVER_URL,
+  getServicesStatus: async (): Promise<{ geoclip: { available: boolean }; vision: { available: boolean }; checkedAt: string | null }> => {
+    const response = await fetch(`${SERVER_URL}/api/services-status`);
+    if (!response.ok) throw new Error('Service status unavailable');
+    return response.json();
+  },
   createLobby: async (nickname: string, settings?: LobbySettings, clientSessionId?: string | null, tokenSecret?: string | null) => {
     const r = await fetch(`${SERVER_URL}/api/lobbies`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname, settings, clientSessionId, tokenSecret: tokenSecret || undefined }) });
     return r.json();

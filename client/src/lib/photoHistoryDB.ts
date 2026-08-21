@@ -15,6 +15,7 @@ export interface HistoryEntry {
   savedAt: number;
   serverPhotoId?: string;
   contentHash?: string; // SHA-256 hex of the resized blob
+  lastModified?: number; // original file's mtime, used as date-picker default
 }
 
 function openDB(): Promise<IDBDatabase> {

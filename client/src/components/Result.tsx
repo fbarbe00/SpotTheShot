@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Award, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Award, ChevronRight } from "lucide-react";
 import type { Lobby, Photo, Result, LeaderboardItem, RoundResults, IndividualLeaderboardItem, TeamLeaderboardItem } from "../lib/types";
 import { getMapInitialView } from "../lib/utils";
 import { buildPhotoUrl, socket } from "../lib/socket";
@@ -8,24 +8,14 @@ import { useToast } from "../lib/toast";
 import { useI18n } from "../contexts/I18nContext";
 import { getCountryName } from "../lib/countryNames";
 import { MomentCard, pickRoundMoments, pickGameMoments } from "./result/GameHighlights";
-import { AnimatedCounter } from "./ui/AnimatedCounter";
 import { ScoringInfo } from "./result/ResultLeaderboard";
 import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap, Popup } from "react-leaflet";
 import L from "leaflet";
 import { logger } from "../lib/logger";
 import { getTileUrl, getMapProvider, type MapStyle, type MapLanguage } from "../lib/mapConfig";
+import { AnimatedLeaderboardRow, type LeaderboardRowData } from "./result/AnimatedLeaderboardRow";
 
 export { MomentCard, pickRoundMoments, pickGameMoments };
-
-/* ─────────────────────────────────────────
-   Animation Constants
-───────────────────────────────────────── */
-const LEADERBOARD_ANIMATION = {
-  HYPE:         { delay: 0.1, stagger: 0.05, stiffness: 300, damping: 25 },
-  SCORE:        { delay: 0.2, stiffness: 200, damping: 20 },
-  ROUND_POINTS: { delay: 0.3, stiffness: 180, damping: 20 },
-  LAYOUT:       { stiffness: 150, damping: 25, duration: 0.4 },
-};
 
 /* ─────────────────────────────────────────
    Type Guards
@@ -68,226 +58,6 @@ function FitBounds({ photo, revealedHumans }: { photo: Photo; revealedHumans: Re
 
   return null;
 }
-
-/* ─────────────────────────────────────────
-   Rank badge helpers
-───────────────────────────────────────── */
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 0) return <div className="w-7 h-7 rounded-full bg-amber-400/20 border border-amber-400/60 flex items-center justify-center text-amber-400 font-black text-xs">1</div>;
-  if (rank === 1) return <div className="w-7 h-7 rounded-full bg-gray-400/20 border border-gray-400/60 flex items-center justify-center text-gray-300 font-black text-xs">2</div>;
-  if (rank === 2) return <div className="w-7 h-7 rounded-full bg-orange-600/20 border border-orange-600/50 flex items-center justify-center text-orange-500 font-black text-xs">3</div>;
-  return <div className="w-7 h-7 rounded-full bg-surface border border-primary/20 flex items-center justify-center text-text-darker font-bold text-xs">{rank + 1}</div>;
-}
-
-function RankDelta({ delta }: { delta: number }) {
-  if (delta === 0) return <Minus size={12} className="text-text-darker/40" />;
-  if (delta > 0) return (
-    <div className="flex items-center gap-0.5 text-emerald-400">
-      <TrendingUp size={12} />
-      <span className="text-[10px] font-bold">{delta}</span>
-    </div>
-  );
-  return (
-    <div className="flex items-center gap-0.5 text-red-400">
-      <TrendingDown size={12} />
-      <span className="text-[10px] font-bold">{Math.abs(delta)}</span>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────
-   Unified Animated Leaderboard Row
-───────────────────────────────────────── */
-type LeaderboardRowData = {
-  id: string;
-  rank: number;
-  prevRank: number;
-  icon: string;
-  nickname: string;
-  color: string;
-  totalScore: number;
-  prevScore: number;
-  roundPoints: number;
-  isPlayer: boolean;
-  isUploader: boolean;
-  // distanceKm is stored as a pre-formatted string including the unit, e.g. "123 km"
-  distanceKm?: string;
-  countryFlag?: string;
-  country?: string;
-  countryCode?: string;
-  visionCommentary?: string;
-  isAI?: boolean;
-};
-
-type HypeLevel = {
-  level: 'perfect' | 'amazing' | 'great' | 'good' | 'decent';
-  label: string;
-  desc: string;
-  color: string;
-  emoji: string;
-};
-
-function LeaderboardRow({
-  row,
-  index,
-  phase,
-}: {
-  row: LeaderboardRowData;
-  index: number;
-  phase: 'before' | 'after';
-}) {
-  const { t, language } = useI18n();
-  const displayScore = phase === 'before' ? row.prevScore : row.totalScore;
-  const delta = row.prevRank - row.rank; // positive = moved up
-
-  const [showHype, setShowHype] = useState(true);
-
-  // Parse numeric km value from the pre-formatted "X km" string.
-  const getHypeLevel = (distanceKm?: string): HypeLevel | null => {
-    if (!distanceKm) return null;
-    const dist = parseFloat(distanceKm.replace(/\s*km\s*$/i, '').trim());
-    if (isNaN(dist)) return null;
-
-    if (dist < 1)    return { level: 'perfect', label: t('guess.perfect'), desc: t('guess.perfectDesc'), color: 'text-amber-400',   emoji: '🎯' };
-    if (dist < 100)  return { level: 'amazing', label: t('guess.amazing'), desc: t('guess.amazingDesc'), color: 'text-purple-400',  emoji: '🌟' };
-    if (dist < 500)  return { level: 'great',   label: t('guess.great'),   desc: t('guess.greatDesc'),   color: 'text-blue-400',    emoji: '✨' };
-    if (dist < 1000) return { level: 'good',    label: t('guess.good'),    desc: t('guess.goodDesc'),    color: 'text-emerald-400', emoji: '👍' };
-    if (dist < 5000) return { level: 'decent',  label: t('guess.decent'),  desc: t('guess.decentDesc'),  color: 'text-text-darker', emoji: ''  };
-    return null;
-  };
-
-  const hype = getHypeLevel(row.distanceKm);
-  // Only show hype animation for the two highest-excitement tiers
-  const shouldShowHype = phase === 'after' && hype !== null && (hype.level === 'perfect' || hype.level === 'amazing');
-
-  useEffect(() => {
-    if (!shouldShowHype) return;
-    setShowHype(true);
-    const timeout = setTimeout(() => setShowHype(false), 2500);
-    return () => clearTimeout(timeout);
-  }, [phase, shouldShowHype]);
-
-  const isPodium = row.rank < 3;
-  const isMe = row.isPlayer;
-
-  return (
-    <motion.div
-      layout
-      layoutId={`leaderboard-row-${row.id}`}
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{
-        layout:   { type: 'spring', stiffness: LEADERBOARD_ANIMATION.LAYOUT.stiffness, damping: LEADERBOARD_ANIMATION.LAYOUT.damping, delay: index * 0.05 },
-        opacity:  { duration: LEADERBOARD_ANIMATION.LAYOUT.duration, delay: index * 0.05 },
-        x:        { duration: LEADERBOARD_ANIMATION.LAYOUT.duration, delay: index * 0.05 },
-      }}
-      className={`
-        relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-colors
-        ${isMe    ? 'border-primary/50 bg-primary/10'  : isPodium ? 'border-primary/20 bg-surface/80' : 'border-primary/10 bg-surface/50'}
-        ${phase === 'after' && delta > 0 ? 'ring-1 ring-emerald-400/30' : ''}
-        ${phase === 'after' && delta < 0 ? 'ring-1 ring-red-400/20'     : ''}
-      `}
-    >
-      {/* Rank */}
-      <div className="flex flex-col items-center gap-0.5 flex-shrink-0 w-8">
-        <RankBadge rank={row.rank} />
-        {phase === 'after' && <RankDelta delta={delta} />}
-      </div>
-
-      {/* Avatar */}
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-lg flex-shrink-0 border-2"
-        style={{ borderColor: row.color + '66', background: row.color + '22' }}
-      >
-        {row.icon}
-      </div>
-
-      {/* Name + meta */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`font-semibold text-sm truncate ${isMe ? 'text-primary' : 'text-text'}`}>
-            {row.nickname}
-          </span>
-          {row.isUploader && (
-            <span className="text-[10px] text-text-darker/60 flex-shrink-0 border border-primary/20 rounded px-1">📸</span>
-          )}
-          {row.countryFlag && (
-            <span
-              className="text-sm flex-shrink-0"
-              title={getCountryName(row.countryCode, language, row.country)}
-            >
-              {row.countryFlag}
-            </span>
-          )}
-        </div>
-        {/* Distance shown only after reveal — already includes the "km" unit */}
-        <AnimatePresence>
-          {phase === 'after' && row.distanceKm && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="text-[11px] text-text-darker mt-0.5"
-            >
-              📍 {row.distanceKm}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Score + round points */}
-      <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
-        <AnimatePresence mode="wait">
-          {shouldShowHype && showHype && hype ? (
-            <motion.div
-              key="hype"
-              initial={{ opacity: 0, scale: 0, y: -5 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0, y: 5 }}
-              transition={{
-                delay: LEADERBOARD_ANIMATION.HYPE.delay + index * LEADERBOARD_ANIMATION.HYPE.stagger,
-                type: 'spring',
-                stiffness: LEADERBOARD_ANIMATION.HYPE.stiffness,
-                damping: LEADERBOARD_ANIMATION.HYPE.damping,
-              }}
-              className={`text-[10px] font-black ${hype.color} flex items-center gap-1`}
-            >
-              {hype.emoji && <span className="text-sm">{hype.emoji}</span>}
-              <span>{hype.label}</span>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="score"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.15 }}
-              className={`font-mono font-black text-base tabular-nums ${isMe ? 'text-primary' : 'text-text'}`}
-            >
-              <AnimatedCounter value={displayScore} delay={0} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <AnimatePresence>
-          {phase === 'after' && row.roundPoints > 0 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.7, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{
-                delay: LEADERBOARD_ANIMATION.ROUND_POINTS.delay + index * LEADERBOARD_ANIMATION.HYPE.stagger,
-                type: 'spring',
-                stiffness: LEADERBOARD_ANIMATION.ROUND_POINTS.stiffness,
-                damping: LEADERBOARD_ANIMATION.ROUND_POINTS.damping,
-              }}
-              className="text-[11px] font-bold text-emerald-400 font-mono"
-            >
-              +{row.roundPoints}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </motion.div>
-  );
-}
-
 const REVEAL_INITIAL_DELAY = 450;
 const MAX_REVEAL_SEQUENCE_MS = 7000;
 
@@ -417,8 +187,8 @@ export default function ResultComponent({
   const isLastRound = roundIndex !== undefined && totalRounds !== undefined && roundIndex === totalRounds - 1;
   const hostName = lobby.players.find(p => p.id === lobby.hostId)?.nickname ?? t('ui.host');
   const moments = useMemo(
-    () => pickRoundMoments(data, allPriorRounds, t, language),
-    [data, allPriorRounds, t, language],
+    () => pickRoundMoments(data, allPriorRounds, t, language, lobby.settings.gameType),
+    [data, allPriorRounds, t, language, lobby.settings.gameType],
   );
 
   /* Build previous rank map from the last prior round */
@@ -459,7 +229,7 @@ export default function ResultComponent({
       const icon = roundResult?.icon ?? player?.icon ?? '👤';
       const color = roundResult?.color ?? '#888';
       const nickname = isTeam
-        ? `Team ${id}`
+        ? id
         : (roundResult?.nickname ?? player?.nickname ?? id);
 
       // Format distanceKm once here as "X km" so child components don't add a second "km"
@@ -501,7 +271,7 @@ export default function ResultComponent({
   if (!photo || typeof photo.lat !== 'number' || typeof photo.lon !== 'number') {
     return (
       <div className="text-center py-10">
-        <p className="text-red-400">Error: Invalid photo data. Unable to display results.</p>
+        <p className="text-red-400">{t('errors.invalidPhotoData')}</p>
       </div>
     );
   }
@@ -551,7 +321,7 @@ export default function ResultComponent({
               width: '100%',
               background: '#2a2057',
             }}
-            scrollWheelZoom={false}
+            scrollWheelZoom
           >
             <TileLayer
               key={`${mapStyle}-${mapLanguage}`}
@@ -562,7 +332,7 @@ export default function ResultComponent({
             <Marker position={center} icon={photoMarker} ref={photoMarkerRef}>
               <Popup autoPan>
                 <div className="w-40">
-                  <img src={buildPhotoUrl(photo.url, lobby.id, playerId)} alt="Photo location" className="w-full h-32 object-cover rounded-lg mb-2" />
+                  <img src={buildPhotoUrl(photo.url, lobby.id, playerId)} alt={photo.title || t('results.photoLocation')} className="w-full h-32 object-cover rounded-lg mb-2" />
                   <div className="text-sm font-bold border-b border-primary/20 mb-1 pb-1">
                     {photo.title || t('results.photoLocation')}
                   </div>
@@ -671,7 +441,7 @@ export default function ResultComponent({
           <div className="p-2 flex flex-col gap-1.5">
             <AnimatePresence mode="popLayout">
               {displayRows.map((row, i) => (
-                <LeaderboardRow key={row.id} row={row} index={i} phase={phase} />
+                <AnimatedLeaderboardRow key={row.id} row={row} index={i} phase={phase} />
               ))}
             </AnimatePresence>
           </div>

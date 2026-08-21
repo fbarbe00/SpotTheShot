@@ -54,6 +54,7 @@ export default function DateResult({
     return Math.max(0, Math.min(100, ((dayNumber(date) - startDay) / timelineSpan) * 100))
   }
   const actualPosition = positionForDate(actual)
+  const isExactMode = (lobby.settings.dateSubmode || 'exact') === 'exact'
 
   const next = () => {
     socket.emit('next_round', { lobbyId: lobby.id, playerId }, (response: { success?: boolean; error?: string }) => {
@@ -62,14 +63,30 @@ export default function DateResult({
   }
 
   return (
-    <div className="mx-auto grid max-h-[calc(100svh-80px)] max-w-6xl gap-5 overflow-y-auto px-2 md:grid-cols-[1.1fr_0.9fr]">
+    <div className="mx-auto flex max-w-6xl flex-col gap-4 px-2 md:grid md:max-h-[calc(100svh-80px)] md:grid-cols-[1.1fr_0.9fr] md:gap-5 md:overflow-hidden">
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
         className="overflow-hidden rounded-2xl border border-primary/20 bg-surface">
-        <img src={buildPhotoUrl(data.photo.url, lobby.id, playerId)} alt="" className="h-64 w-full bg-black object-contain md:h-[28rem]" />
+        {data.dateChallenge?.kind === 'before_after' ? <div className="grid grid-cols-2 gap-2 bg-black p-2">
+          <img src={buildPhotoUrl(data.photo.url, lobby.id, playerId)} alt="" className="h-64 w-full rounded-lg object-contain md:h-[28rem]" />
+          <img src={buildPhotoUrl(data.dateChallenge.reference.url, lobby.id, playerId)} alt="" className="h-64 w-full rounded-lg object-contain md:h-[28rem]" />
+        </div> : data.dateChallenge?.kind === 'timeline' ? <div className="grid grid-cols-3 gap-2 bg-black p-2">
+          {data.dateChallenge.answer.map(id => {
+            const item = data.dateChallenge?.kind === 'timeline' ? data.dateChallenge.photos.find(photo => photo.id === id) : undefined
+            return <div key={id} className="min-w-0">
+              <img src={buildPhotoUrl(item?.url || '', lobby.id, playerId)} alt="" className="h-48 w-full rounded-lg object-contain md:h-[24rem]" />
+              <div className="mt-1 text-center text-xs font-bold text-primary">{item?.captureDate}</div>
+            </div>
+          })}
+        </div> : <img src={buildPhotoUrl(data.photo.url, lobby.id, playerId)} alt="" className="h-64 w-full bg-black object-contain md:h-[28rem]" />}
         <div className="bg-gradient-to-r from-amber-500/10 via-primary/10 to-violet-500/10 p-5 text-center">
           <div className="text-xs font-bold uppercase tracking-[0.25em] text-primary/70">{t('game.date.takenOn')}</div>
           <div className="mt-1 text-3xl font-black text-white">{actualLabel}</div>
-          <div className="mt-6 text-left">
+          {data.dateChallenge?.kind === 'before_after' && <div className="mt-3 rounded-lg bg-black/20 p-2 text-sm">{t('game.date.correctAnswer')}: <strong>{t(`game.date.${data.dateChallenge.answer}`)}</strong> ({data.dateChallenge.reference.captureDate})</div>}
+          {data.dateChallenge?.kind === 'timeline' && <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">{data.dateChallenge.answer.map((id, index) => {
+            const item = data.dateChallenge?.kind === 'timeline' ? data.dateChallenge.photos.find(photo => photo.id === id) : undefined
+            return <span key={id} className="rounded bg-black/25 px-2 py-1">{index + 1}. {item?.captureDate}</span>
+          })}</div>}
+          {isExactMode && <div className="mt-6 text-left">
             <div className="mb-2 flex justify-between text-[10px] font-semibold text-text-darker">
               <span>{timelineStart}</span>
               <span>{timelineEnd}</span>
@@ -97,10 +114,10 @@ export default function DateResult({
                 </div>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
       </motion.div>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 md:overflow-y-auto">
         {isHost ? (
           <button onClick={next} className="flex items-center justify-center gap-2 rounded-xl bg-primary p-3 font-black text-black hover:bg-primary-dark">
             {isLastRound ? t('game.viewResults') : t('game.nextRound')} <ChevronRight size={18} />
@@ -114,11 +131,19 @@ export default function DateResult({
           data={data}
           lobby={lobby}
           playerId={playerId}
-          renderAnswer={result => (
+          renderAnswer={result => isExactMode ? (
             <span className="flex flex-wrap items-center gap-1">
               <CalendarDays size={12} /> {result.guessedDate || '—'}
               <span>·</span>
               <Clock3 size={12} /> {formatDistance(result.distanceDays, t)}
+              {result.isUploader && <span className="ml-1 text-amber-400">{t('results.uploader')}</span>}
+            </span>
+          ) : (
+            <span className="flex flex-wrap items-center gap-1">
+              <CalendarDays size={12} />
+              {data.dateChallenge?.kind === 'before_after'
+                ? t(`game.date.${result.dateChoice || 'before'}`)
+                : t('game.date.timelinePairs', { points: result.basePoints || 0 })}
               {result.isUploader && <span className="ml-1 text-amber-400">{t('results.uploader')}</span>}
             </span>
           )}

@@ -14,7 +14,8 @@ import { pickAvatarColor, pickAvatarIcon, AVATAR_ICONS, isValidCoordinate } from
 import { SERVER_CONFIG } from './config.js';
 import { validateToken, applyToken, pruneExpiredTokens } from './tokenManager.js';
 import { normalizePhotoDate, todayUtcDate } from './scoring.js';
-import { GAME_TYPES, gameModeDefinition } from './gameModes.js';
+import { GAME_TYPES, gameModeDefinition, guessPayloadForMode } from './gameModes.js';
+import { createOperationsRouter } from './operationsRoutes.js';
 
 dotenv.config();
 
@@ -164,11 +165,12 @@ function validateLobbySettings(settings = {}) {
       throw new Error(`${key} must be an integer between ${min} and ${max}`);
     }
   }
-  for (const key of ['enableAIGuessing', 'visionCommentary', 'autoNameImages', 'showImageDate']) {
+  for (const key of ['enableAIGuessing', 'visionCommentary', 'autoNameImages', 'showImageDate', 'requireReady']) {
     if (settings[key] !== undefined && typeof settings[key] !== 'boolean') throw new Error(`${key} must be a boolean`);
   }
   if (settings.gameMode !== undefined && !['individual', 'teams'].includes(settings.gameMode)) throw new Error('Invalid game mode');
   if (settings.gameType !== undefined && !GAME_TYPES.includes(settings.gameType)) throw new Error('Invalid game type');
+  if (settings.dateSubmode !== undefined && !['exact', 'before_after', 'timeline'].includes(settings.dateSubmode)) throw new Error('Invalid date submode');
   if (settings.timerMode !== undefined && !['fixed', 'progressive'].includes(settings.timerMode)) throw new Error('Invalid timer mode');
   if (settings.language !== undefined && !VALID_LANGUAGES.includes(String(settings.language).toLowerCase())) throw new Error('Invalid language');
   if (settings.minPhotosPerPlayer !== undefined && settings.maxPhotosPerPlayer !== undefined
@@ -331,60 +333,12 @@ setInterval(() => {
 
 /* ─── REST endpoints ─── */
 
-app.get('/api/server-status', (req, res) => {
-  try {
-    let activeLobbies = 0, totalPlayers = 0, gamesInProgress = 0;
-
-    for (const lobby of gm.lobbies.values()) {
-      const connectedPlayers = [...lobby.players.values()].filter(p => p.socketId !== null).length;
-      if (connectedPlayers > 0) {
-        activeLobbies++;
-        totalPlayers += connectedPlayers;
-        if (lobby.state !== 'waiting') gamesInProgress++;
-      }
-    }
-
-    const uploadsPath = [path.join(process.cwd(), 'uploads'), '/app/uploads', '/uploads'].find(p => fs.existsSync(p));
-    let uploadsInfo = { totalFiles: 0, totalSizeMB: 0, orphanedFiles: 0 };
-
-    if (uploadsPath) {
-      const referencedFiles = new Set(
-        [...gm.lobbies.values()].flatMap(l => (l.photos ?? []).map(p => path.basename(p.url)).filter(Boolean))
-      );
-      let totalSizeBytes = 0, orphanedCount = 0;
-      const files = fs.readdirSync(uploadsPath).filter(file => !file.startsWith('.'));
-
-      for (const file of files) {
-        try {
-          const stats = fs.statSync(path.join(uploadsPath, file));
-          if (stats.isDirectory()) continue;
-          totalSizeBytes += stats.size;
-          if (!referencedFiles.has(file)) orphanedCount++;
-        } catch (err) {
-          console.warn(`Could not stat file ${file}:`, err.message);
-        }
-      }
-
-      uploadsInfo = {
-        totalFiles: files.length,
-        totalSizeMB: parseFloat((totalSizeBytes / (1024 * 1024)).toFixed(2)),
-        orphanedFiles: orphanedCount,
-      };
-    }
-
-    res.json({
-      activeLobbies, totalPlayers, gamesInProgress,
-      uploadsFolder: uploadsInfo,
-      safeToRestart: gamesInProgress === 0,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Error in server status endpoint:', error);
-    res.status(500).json({ error: 'Failed to get server status' });
-  }
-});
+app.use('/api', createOperationsRouter({ gm, gameStats, uploadsDir: UPLOADS_DIR }));
 
 app.get('/api/game-stats', (req, res) => {
+  // TODO: If this server is exposed beyond a trusted group, split this into
+  // public aggregates and authenticated detailed history. Finished lobby IDs
+  // can be reused after a reset and are intentionally returned for now.
   res.json(gameStats);
 });
 
@@ -475,8 +429,9 @@ app.post('/api/lobbies/:lobbyId/join', rateLimit('join-lobby', 30, 60 * 1000), (
   try {
     const { lobby, playerId, sessionToken } = gm.joinLobby({ lobbyId: lobbyId.toUpperCase(), nickname, socketId: null, clientSessionId });
     gm.schedulePendingJoinExpiry(lobby.id, playerId, PENDING_JOIN_TIMEOUT_MS);
-    gm.setPlayerColor(lobby, playerId, pickAvatarColor(nickname));
-    gm.setPlayerIcon(lobby, playerId, pickAvatarIcon(nickname));
+    const displayNickname = lobby.players.get(playerId)?.nickname || nickname;
+    gm.setPlayerColor(lobby, playerId, pickAvatarColor(displayNickname));
+    gm.setPlayerIcon(lobby, playerId, pickAvatarIcon(displayNickname));
     res.json({ lobby: gm.serializeLobby(lobby, playerId), playerId, sessionToken });
   } catch (e) {
     const status = e.message === 'Lobby not found' ? 404 : 400;
@@ -498,11 +453,6 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
     return res.status(400).json({ error: 'Invalid player ID format' });
   }
   if (!files?.length) return res.status(400).json({ error: 'No files uploaded' });
-  if (!checkUploadRateLimit(playerId)) {
-    await cleanupUploadedFiles(files);
-    return res.status(429).json({ error: 'Too many upload requests. Please wait before uploading again.' });
-  }
-
   const invalidFiles = files.filter(f => !validateFile(f));
   if (invalidFiles.length > 0) {
     await cleanupUploadedFiles(files);
@@ -528,6 +478,13 @@ app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PH
   if (lobby.state !== 'waiting') {
     await cleanupUploadedFiles(files);
     return res.status(409).json({ error: 'Photos can only be uploaded before the game starts' });
+  }
+
+  const configuredPhotoLimit = lobby.settings?.maxPhotosPerPlayer ?? MAX_PHOTOS_PER_PLAYER;
+  const uploadBurstLimit = Math.max(5, Math.ceil(configuredPhotoLimit / 5) + 1);
+  if (!checkUploadRateLimit(playerId, uploadBurstLimit)) {
+    await cleanupUploadedFiles(files);
+    return res.status(429).json({ error: 'Too many upload requests. Please wait before uploading again.' });
   }
 
   // Use lobby settings for max photos, fallback to server default
@@ -649,8 +606,8 @@ io.on('connection', (socket) => {
   ]);
   const acknowledgementEvents = new Set([
     'leave_lobby', 'update_settings', 'get_ai_processing_status',
-    'update_photo_details', 'update_photo_date', 'request_lobby_sync', 'submit_guess',
-    'next_round', 'reset_lobby',
+    'update_photo_details', 'update_photo_date', 'update_photo_location',
+    'request_lobby_sync', 'submit_guess', 'next_round', 'reset_lobby',
   ]);
   socket.use((packet, next) => {
     const eventName = packet[0];
@@ -726,8 +683,9 @@ io.on('connection', (socket) => {
         lobby = res.lobby;
         newPlayerId = res.playerId;
         incomingSessionToken = res.sessionToken;
-        gm.setPlayerColor(lobby, newPlayerId, pickAvatarColor(nickname));
-        gm.setPlayerIcon(lobby, newPlayerId, pickAvatarIcon(nickname));
+        const displayNickname = lobby.players.get(newPlayerId)?.nickname || nickname;
+        gm.setPlayerColor(lobby, newPlayerId, pickAvatarColor(displayNickname));
+        gm.setPlayerIcon(lobby, newPlayerId, pickAvatarIcon(displayNickname));
       }
 
       if (!lobby) throw new Error('Lobby not found');
@@ -766,10 +724,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('kick_player', ({ lobbyId, hostId, playerIdToKick }) => {
+  socket.on('kick_player', async ({ lobbyId, hostId, playerIdToKick }) => {
     if (!validateSocket(lobbyId, hostId)) return;
     const lobby = gm.lobbies.get(lobbyId);
-    if (lobby?.hostId === hostId) gm.kickPlayer(lobbyId, playerIdToKick);
+    if (lobby?.hostId === hostId) await gm.kickPlayer(lobbyId, playerIdToKick);
   });
 
   socket.on('update_settings', ({ lobbyId, playerId, settings }, callback) => {
@@ -835,31 +793,32 @@ io.on('connection', (socket) => {
       .catch(error => console.warn('Failed to delete photo:', error?.message));
   });
 
-  socket.on('update_icon', ({ lobbyId, playerId, icon }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
-    if (!AVATAR_ICONS.includes(icon)) return;
+  socket.on('update_icon', ({ lobbyId, playerId, icon }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
+    if (!AVATAR_ICONS.includes(icon)) return callback?.({ success: false, error: 'Invalid icon' });
     const lobby = gm.lobbies.get(normalizeLobbyId(lobbyId));
-    if (!lobby) return;
+    if (!lobby) return callback?.({ success: false, error: 'Lobby not found' });
     gm.setPlayerIcon(lobby, playerId, icon);
     gm.broadcastLobby(normalizeLobbyId(lobbyId));
+    callback?.({ success: true });
   });
 
-  socket.on('update_photo_location', ({ lobbyId, playerId, photoId, lat, lon }) => {
-    if (!validateSocket(lobbyId, playerId)) return;
+  socket.on('update_photo_location', ({ lobbyId, playerId, photoId, lat, lon }, callback) => {
+    if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     try {
       if (!isValidCoordinate(lat, lon)) {
         socket.emit('error_msg', 'Invalid coordinates. Please select a valid location on the map.');
-        return;
+        return callback?.({ success: false, error: 'Invalid coordinates' });
       }
       const lobby = gm.lobbies.get(lobbyId);
-      if (!lobby) return;
-      if (lobby.state !== 'waiting') return;
+      if (!lobby) return callback?.({ success: false, error: 'Lobby not found' });
+      if (lobby.state !== 'waiting') return callback?.({ success: false, error: 'Locations are locked after the game starts' });
       if (!gameModeDefinition(lobby.settings.gameType).requiresLocation) {
         socket.emit('error_msg', 'Locations are not used in this game mode');
-        return;
+        return callback?.({ success: false, error: 'Locations are not used in this game mode' });
       }
       const photo = lobby.photos.find(p => p.id === photoId && p.uploaderId === playerId);
-      if (!photo) return;
+      if (!photo) return callback?.({ success: false, error: 'Photo not found' });
       photo.lat = lat;
       photo.lon = lon;
       photo.manualLocation = true;
@@ -876,9 +835,10 @@ io.on('connection', (socket) => {
       }
       gm.broadcastLobby(lobbyId);
       io.to(lobbyId).emit('ai_processing_status', gm.getAIProcessingStatus(lobbyId));
+      callback?.({ success: true });
     } catch (e) {
       console.error('Failed to update photo location:', e);
-      socket.emit('error_msg', e.message);
+      callback?.({ success: false, error: e.message });
     }
   });
 
@@ -943,7 +903,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon, date, uploaderId }, callback) => {
+  socket.on('submit_guess', ({ lobbyId, playerId, lat, lon, date, dateChoice, photoOrder, uploaderId }, callback) => {
     if (!validateSocket(lobbyId, playerId)) return callback?.({ success: false, error: 'Invalid socket' });
     try {
       const lobby = gm.lobbies.get(normalizeLobbyId(lobbyId));
@@ -951,9 +911,9 @@ io.on('connection', (socket) => {
       if (guessKind === 'location' && !isValidCoordinate(lat, lon)) {
         return callback?.({ success: false, error: 'Invalid guess location' });
       }
-      const guess = guessKind === 'date' ? { date }
-        : guessKind === 'player' ? { uploaderId }
-          : { lat, lon };
+      const guess = guessPayloadForMode(lobby.settings.gameType, lobby.settings.dateSubmode, {
+        lat, lon, date, dateChoice, photoOrder, uploaderId,
+      });
       const result = gm.submitGuess(lobbyId, playerId, guess);
       callback?.({ success: result.accepted, duplicate: result.duplicate, error: result.error });
     } catch (e) {
@@ -979,9 +939,12 @@ io.on('connection', (socket) => {
     try {
       if (!validateSocket(lobbyId, playerId)) return callback({ success: false, error: 'Invalid socket' });
       const lobby = gm.lobbies.get(lobbyId);
+      if (lobby?.hostId === playerId && lobby.state !== 'showing_results') {
+        return callback({ success: true, duplicate: true });
+      }
       if (lobby?.hostId === playerId) {
-        await gm.nextRound(lobbyId);
-        callback({ success: true });
+        const advanced = await gm.nextRound(lobbyId);
+        callback({ success: !!advanced, error: advanced ? undefined : 'Round is already advancing' });
       } else {
         callback({ success: false, error: 'Lobby not found or not host' });
       }

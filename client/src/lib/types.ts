@@ -35,12 +35,15 @@ export type Photo = {
   countryFlag?: string;
   countryCode?: string; // ISO 3166-1 alpha-2 code for translation
   color?: string;
+  dateReference?: { id: string; url: string };
+  timelinePhotos?: Array<{ id: string; url: string }>;
 };
 
 // Game settings configuration
 export type GameSettings = {
   roundDurationSec: number;
   gameType: GameType;
+  dateSubmode?: 'exact' | 'before_after' | 'timeline';
   dateTimelineStart?: string;
   dateTimelineEnd?: string;
   gameMode: 'individual' | 'teams';
@@ -50,6 +53,7 @@ export type GameSettings = {
   visionCommentary?: boolean;
   autoNameImages?: boolean;
   showImageDate?: boolean;
+  requireReady?: boolean;
   uploaderPenaltyPercent?: number;
   minPhotosPerPlayer?: number;
   maxPhotosPerPlayer?: number;
@@ -65,6 +69,8 @@ export type Result = {
   lat?: number;
   lon?: number;
   guessedDate?: string;
+  dateChoice?: 'before' | 'after';
+  photoOrder?: string[];
   guessedUploaderId?: string;
   correctUploader?: boolean;
   icon?: string;
@@ -79,6 +85,7 @@ export type Result = {
   region?: string;
   countryFlag?: string;
   countryCode?: string; // ISO 3166-1 alpha-2 code for translation
+  locationLookupSucceeded?: boolean;
   isAI?: boolean;
   isUploader?: boolean;
   visionCommentary?: string;
@@ -130,6 +137,7 @@ export type LeaderboardItem = IndividualLeaderboardItem | TeamLeaderboardItem;
 
 // Complete round results
 export type RoundResults = {
+  gameId?: string;
   photo: {
     id: string;
     url: string;
@@ -151,6 +159,9 @@ export type RoundResults = {
   roundIndex: number;
   totalRounds: number;
   roundDurationMs: number;
+  dateChallenge?:
+    | { kind: 'before_after'; answer: 'before' | 'after'; reference: { id: string; url: string; captureDate: string } }
+    | { kind: 'timeline'; answer: string[]; photos: Array<{ id: string; url: string; captureDate: string }> };
 };
 
 // Lobby name metadata for tooltip display
@@ -173,6 +184,7 @@ export interface LobbyConstraints {
 // Main lobby state
 export interface Lobby {
   id: string; // Display name (country or region) - same as lobby code
+  gameId?: string | null;
   nameMetadata?: LobbyNameMetadata; // Metadata for tooltip
   hostId: string;
   state: 'waiting' | 'in_round' | 'showing_results' | 'finished';
@@ -189,7 +201,7 @@ export interface Lobby {
   firstGuessAt?: number | null;
   lastRoundResults?: RoundResults | null;
   roundHistory?: RoundResults[];
-  currentGuesses?: Record<string, { lat?: number; lon?: number; date?: string; uploaderId?: string; timeTakenMs: number }> | null;
+  currentGuesses?: Record<string, { lat?: number; lon?: number; date?: string; dateChoice?: 'before' | 'after'; photoOrder?: string[]; uploaderId?: string; timeTakenMs: number }> | null;
   roundDurationMs?: number;
   aiTipIndex?: number | null;
 }

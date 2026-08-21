@@ -272,9 +272,40 @@ export function pickRoundMoments(
   allPriorRounds: RoundResults[] = [],
   t: (key: string, vars?: Record<string, string | number>) => string = (key: string) => key,
   language: Language = 'en',
+  gameType: GameType = 'spot',
 ): StatMoment[] {
   const all = round.results;
   if (all.length === 0) return [];
+
+  if (gameType === 'date') {
+    const humans = all.filter(result => !result.isAI);
+    const top = [...humans].sort((a, b) => b.points - a.points)[0];
+    const perfect = humans.filter(result => result.basePoints === 5000).length;
+    const moments: StatMoment[] = [];
+    if (top) moments.push(createMoment('⏳', t('highlights.dateRoundWinner'), t('highlights.dateRoundWinnerTemplate'),
+      { player: top.nickname, points: top.points }, [
+        { key: 'player', type: 'player', value: top.nickname, color: top.color },
+        { key: 'points', type: 'points', value: String(top.points) },
+      ]));
+    if (perfect) moments.push(createMoment('✨', t('highlights.dateRoundPerfect'), t('highlights.dateRoundPerfectTemplate'),
+      { count: perfect }, [{ key: 'count', type: 'count', value: String(perfect) }]));
+    return moments.slice(0, 2);
+  }
+
+  if (gameType === 'uploader') {
+    const humans = all.filter(result => !result.isAI);
+    const correct = humans.filter(result => result.correctUploader);
+    const fastest = [...humans].sort((a, b) => a.timeTakenMs - b.timeTakenMs)[0];
+    const moments: StatMoment[] = [];
+    moments.push(createMoment(correct.length ? '🕵️' : '🎭', t('highlights.uploaderRoundSolved'), t('highlights.uploaderRoundSolvedTemplate'),
+      { count: correct.length }, [{ key: 'count', type: 'count', value: String(correct.length) }]));
+    if (fastest) moments.push(createMoment('⚡', t('highlights.uploaderRoundFastest'), t('highlights.uploaderRoundFastestTemplate'),
+      { player: fastest.nickname, time: formatSeconds(fastest.timeTakenMs) }, [
+        { key: 'player', type: 'player', value: fastest.nickname, color: fastest.color },
+        { key: 'time', type: 'time', value: formatSeconds(fastest.timeTakenMs) },
+      ]));
+    return moments.slice(0, 2);
+  }
 
   const pool: StatMoment[] = [];
   const byDist = [...all].sort((a, b) => a.distanceKm - b.distanceKm);

@@ -160,7 +160,7 @@ export class AIPipeline {
 
   _aiNicknameForLanguage(language) {
     const lang = this._normalizeLanguage(language);
-    return { en: 'AI Player', fr: 'Joueur IA', it: 'Giocatore IA', es: 'IA', de: 'KI-Spieler', ru: 'ИИ Игрок' }[lang] ?? 'AI Player';
+    return { en: 'Computer', fr: 'Ordinateur', it: 'Computer', es: 'Ordenador', de: 'Computer', ru: 'Компьютер' }[lang] ?? 'Computer';
   }
 
   /* ─── File helpers ─── */

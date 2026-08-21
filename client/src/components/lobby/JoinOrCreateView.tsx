@@ -208,12 +208,12 @@ export default function JoinOrCreateView({
 
           <form onSubmit={handleSubmit}>
             <input
+              aria-label={t('lobby.yourNickname')}
               className="w-full rounded-lg bg-white/5 border border-primary/20 p-3 text-center text-lg font-bold tracking-wider"
               placeholder={t('lobby.yourNickname')}
               value={nickname}
               onChange={e => onSetNickname(e.target.value)}
               maxLength={20}
-              autoFocus
             />
 
             {isJoiningViaLink ? (
@@ -278,6 +278,7 @@ export default function JoinOrCreateView({
                     </h3>
 
                     <input
+                      aria-label={t('lobby.lobbyIdPlaceholder')}
                       className="w-full rounded-lg bg-surface border border-primary/20 p-3 text-center font-mono tracking-widest"
                       placeholder={t('lobby.lobbyIdPlaceholder')}
                       value={normalizeString(lobbyIdInput).toUpperCase()}
@@ -324,6 +325,7 @@ export default function JoinOrCreateView({
           {showTokenInput && (
             <div className="mt-2 flex gap-2">
               <input
+                aria-label={t('lobby.tokenPlaceholder')}
                 type="text"
                 value={tokenInput}
                 onChange={e => { setTokenInput(e.target.value); setTokenSaved(false); }}

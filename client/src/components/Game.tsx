@@ -3,6 +3,8 @@ import type { Lobby, Photo, RoundResults } from "../lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAchievementContext } from "../contexts/AchievementContext";
 import { useI18n } from "../contexts/I18nContext";
+import { claimAchievementEvent } from '../lib/achievementEvents';
+import { uniqueLast, uniquePositiveWinner } from '../lib/achievementRules';
 
 // Lazy load heavy components
 const GameBoard = lazy(() => import("./game/GameBoard").then(m => ({ default: m.GameBoard })));
@@ -14,9 +16,14 @@ const UploaderResult = lazy(() => import("./UploaderResult"));
 const LoadingFallback = () => (
   <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
     <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-    <p className="text-text-darker animate-pulse">Loading...</p>
+    <LoadingLabel />
   </div>
 );
+
+function LoadingLabel() {
+  const { t } = useI18n();
+  return <p className="text-text-darker animate-pulse">{t('common.loading')}</p>;
+}
 
 /**
  * Game Component
@@ -38,7 +45,7 @@ type GameProps = {
   timerMs: number;
   timerStarted?: boolean;
   results: RoundResults | null;
-  onSubmitGuess: (p: { lat: number; lon: number } | { date: string } | { uploaderId: string }) => Promise<boolean>;
+  onSubmitGuess: (p: { lat: number; lon: number } | { date: string } | { uploaderId: string } | { dateChoice: 'before' | 'after' } | { photoOrder: string[] }) => Promise<boolean>;
   onExitLobby: () => void;
   serverAiTipIndex?: number | null;
 };
@@ -64,6 +71,12 @@ export default function Game(props: GameProps) {
 
   const trackRoundAchievements = useCallback((roundResults: RoundResults) => {
     if (isSoloHumanGame) {
+      const playerResult = roundResults.results.find(result => result.playerId === props.playerId);
+      const aiResult = roundResults.results.find(result => result.isAI || String(result.playerId).startsWith('ai-'));
+      if (lobby.settings.gameType === 'spot' && playerResult && aiResult) {
+        const distanceDifference = aiResult.distanceKm - playerResult.distanceKm;
+        if (distanceDifference > 0) achievements.trackAIBeat(distanceDifference);
+      }
       return;
     }
 
@@ -76,7 +89,9 @@ export default function Game(props: GameProps) {
     const sortedResults = [...roundResults.results].sort((a, b) => b.points - a.points);
     const winner = sortedResults[0];
     const runnerUp = sortedResults[1];
-    const didWinRound = winner?.playerId === props.playerId;
+    const didWinRound = uniquePositiveWinner(
+      roundResults.results.map(result => ({ id: result.playerId, score: result.points })),
+    ) === props.playerId;
     const winMarginKm = winner && runnerUp ? Math.abs(runnerUp.distanceKm - winner.distanceKm) : Number.POSITIVE_INFINITY;
 
     // Upload-country tracking is uploader-based and intentionally allowed on own photos.
@@ -89,33 +104,42 @@ export default function Game(props: GameProps) {
 
     // Most round-based achievements only count for photos uploaded by other players.
     if (isOwnPhoto) {
+      // An ineligible own-photo round cannot advance a streak, but it still
+      // separates eligible successes and therefore must break streaks.
+      achievements.trackRoundWin(false);
+      achievements.trackScore(null);
+      if (lobby.settings.gameType === 'uploader') achievements.trackUploaderGuess(false);
+      if (lobby.settings.gameType === 'spot') {
+        achievements.trackCorrectGuess('', '', photo.country || '', photo.region || '', Number.NaN, Number.NaN);
+      }
       return;
+    }
+
+    achievements.trackRoundWin(didWinRound);
+    achievements.trackScore(
+      playerResult?.points ?? null,
+      lobby.settings.gameType === 'spot' ? playerResult?.distanceKm : undefined,
+    );
+    if (playerResult?.timeTakenMs) achievements.trackFastGuess(playerResult.timeTakenMs);
+
+    if (playerResult) {
+      achievements.trackModeRound(lobby.settings.dateSubmode, playerResult.basePoints);
     }
 
     if (lobby.settings.gameType === 'date') {
       if (playerResult?.distanceDays != null && photo.captureDate && achievements.trackDateGuess) {
-        achievements.trackDateGuess(playerResult.distanceDays, photo.captureDate, playerResult.points);
-      }
-      if (achievements.trackRoundWin) achievements.trackRoundWin(!!didWinRound);
-      if (playerResult && achievements.trackFastGuess && playerResult.timeTakenMs) {
-        achievements.trackFastGuess(playerResult.timeTakenMs);
+        achievements.trackDateGuess(playerResult.distanceDays, photo.captureDate);
       }
       return;
     }
 
     if (lobby.settings.gameType === 'uploader') {
-      if (playerResult && achievements.trackUploaderGuess) {
-        achievements.trackUploaderGuess(!!playerResult.correctUploader);
-      }
-      if (achievements.trackRoundWin) achievements.trackRoundWin(!!didWinRound);
-      if (playerResult?.timeTakenMs && achievements.trackFastGuess) {
-        achievements.trackFastGuess(playerResult.timeTakenMs);
-      }
+      achievements.trackUploaderGuess(!!playerResult?.correctUploader);
       return;
     }
 
-    if (achievements.trackRoundWin) {
-      achievements.trackRoundWin(!!didWinRound);
+    if (!playerResult) {
+      achievements.trackCorrectGuess('', '', photo.country || '', photo.region || '', Number.NaN, Number.NaN);
     }
 
     if (didWinRound && Number.isFinite(winMarginKm) && achievements.trackPhotoFinish) {
@@ -123,18 +147,8 @@ export default function Game(props: GameProps) {
     }
 
     if (playerResult) {
-      // Track score and distance achievements
-      if (achievements.trackScore) {
-        achievements.trackScore(playerResult.points, playerResult.distanceKm);
-      }
-
-      // Track fast guesses
-      if (achievements.trackFastGuess && playerResult.timeTakenMs) {
-        achievements.trackFastGuess(playerResult.timeTakenMs);
-      }
-
       // Track mind-blown guesses (>10,000km off)
-      if (achievements.trackMindBlownGuess && playerResult.distanceKm > 10000) {
+      if (achievements.trackMindBlownGuess && playerResult.distanceKm >= 10000) {
         achievements.trackMindBlownGuess(playerResult.distanceKm);
       }
 
@@ -144,19 +158,18 @@ export default function Game(props: GameProps) {
       }
 
       // Track water guesses (no country)
-      if (achievements.trackWaterGuess && !playerResult.country) {
+      if (achievements.trackWaterGuess && playerResult.locationLookupSucceeded && !playerResult.country) {
         achievements.trackWaterGuess();
       }
 
-      // Track correct country/region if applicable
-      if (playerResult.country === photo.country && achievements.trackCorrectGuess) {
-        achievements.trackCorrectGuess(
-          playerResult.country || '',
-          playerResult.region || '',
-          playerResult.lat!,
-          playerResult.lon!
-        );
-      }
+      achievements.trackCorrectGuess(
+        playerResult.country || '',
+        playerResult.region || '',
+        photo.country || '',
+        photo.region || '',
+        playerResult.lat ?? Number.NaN,
+        playerResult.lon ?? Number.NaN,
+      );
 
       // Track continent completion for correct guesses
       if (playerResult.country === photo.country && photo.country && achievements.trackContinentCompletion) {
@@ -172,7 +185,7 @@ export default function Game(props: GameProps) {
         achievements.trackAIBeat(distanceDiff);
       }
     }
-  }, [isSoloHumanGame, props.playerId, achievements, lobby.settings.gameType]);
+  }, [isSoloHumanGame, props.playerId, achievements, lobby.settings.gameType, lobby.settings.dateSubmode]);
 
   const trackGameCompletionAchievements = useCallback(() => {
     if (!achievements.trackGameCompletion) return;
@@ -190,28 +203,31 @@ export default function Game(props: GameProps) {
         }
         for (const [team, score] of bestByTeam) teamScores.set(team, (teamScores.get(team) ?? 0) + score);
       }
-      const winningScore = Math.max(...teamScores.values(), 0);
-      isWinner = !!playerTeam && teamScores.get(playerTeam) === winningScore;
+      isWinner = !!playerTeam && uniquePositiveWinner(
+        [...teamScores].map(([id, score]) => ({ id, score })),
+      ) === playerTeam;
     } else {
-      const leaderboard = lobby.players.map(p => ({ id: p.id, score: p.score })).sort((a, b) => b.score - a.score);
-      const player = leaderboard.find(p => p.id === props.playerId);
-      isWinner = !!player && player.score === leaderboard[0]?.score;
+      isWinner = uniquePositiveWinner(
+        lobby.players.map(player => ({ id: player.id, score: player.score })),
+      ) === props.playerId;
     }
 
     const playerTeam = lobby.players.find(p => p.id === props.playerId)?.team;
     // In team games, a perfect game means the player's team won every round.
     const playerWonAllRounds = gameResults.length > 0 && gameResults.every(round => {
       if (lobby.settings.gameMode !== 'teams') {
-        const roundWinner = [...round.results].sort((a, b) => b.points - a.points)[0];
-        return roundWinner?.playerId === props.playerId;
+        return uniquePositiveWinner(
+          round.results.map(result => ({ id: result.playerId, score: result.points })),
+        ) === props.playerId;
       }
       const bestByTeam = new Map<string, number>();
       for (const result of round.results) {
         const team = lobby.players.find(p => p.id === result.playerId)?.team;
         if (team) bestByTeam.set(team, Math.max(bestByTeam.get(team) ?? 0, result.points));
       }
-      const bestScore = Math.max(...bestByTeam.values(), 0);
-      return !!playerTeam && bestByTeam.get(playerTeam) === bestScore;
+      return !!playerTeam && uniquePositiveWinner(
+        [...bestByTeam].map(([id, score]) => ({ id, score })),
+      ) === playerTeam;
     });
 
     // Check for team game wins
@@ -231,11 +247,13 @@ export default function Game(props: GameProps) {
             const team = lobby.players.find(p => p.id === result.playerId)?.team;
             if (team) firstScores.set(team, Math.max(firstScores.get(team) ?? 0, result.points));
           }
-          const lowestScore = Math.min(...firstScores.values());
-          wasLastInFirstRound = !!playerTeam && firstScores.get(playerTeam) === lowestScore;
+          wasLastInFirstRound = !!playerTeam && uniqueLast(
+            [...firstScores].map(([id, score]) => ({ id, score })),
+          ) === playerTeam;
         } else {
-          const firstRoundResults = [...firstRound.results].sort((a, b) => b.points - a.points);
-          wasLastInFirstRound = firstRoundResults[firstRoundResults.length - 1]?.playerId === props.playerId;
+          wasLastInFirstRound = uniqueLast(
+            firstRound.results.map(result => ({ id: result.playerId, score: result.points })),
+          ) === props.playerId;
         }
 
         if (wasLastInFirstRound) {
@@ -257,7 +275,8 @@ export default function Game(props: GameProps) {
         }).length,
       }));
       const bestCount = Math.max(...correctCounts.map(entry => entry.count), 0);
-      if (bestCount > 0 && correctCounts.some(entry => entry.uploaderId === props.playerId && entry.count === bestCount)) {
+      const bestPhotos = correctCounts.filter(entry => entry.count === bestCount);
+      if (bestCount > 0 && bestPhotos.length === 1 && bestPhotos[0]?.uploaderId === props.playerId) {
         achievements.trackPhotoWithMostCorrectGuesses();
       }
     }
@@ -279,6 +298,8 @@ export default function Game(props: GameProps) {
       }
 
       processedRoundKeysRef.current.add(roundKey);
+      const gameId = results.gameId || lobby.gameId;
+      if (gameId && !claimAchievementEvent(`round:${gameId}:${props.playerId}:${results.roundIndex}`)) return;
       setGameResults(prev => {
         const existingIndex = prev.findIndex(r => r.photo.id === results.photo.id && r.roundIndex === results.roundIndex);
         if (existingIndex === -1) return [...prev, results];
@@ -289,7 +310,7 @@ export default function Game(props: GameProps) {
 
       trackRoundAchievements(results);
     }
-  }, [phase, results, trackRoundAchievements]);
+  }, [phase, results, trackRoundAchievements, lobby.gameId, props.playerId]);
 
   useEffect(() => {
     if (phase === "end") {
@@ -297,6 +318,8 @@ export default function Game(props: GameProps) {
       // Track game completion achievements only once per game session
       if (!processedGameCompletionRef.current) {
         processedGameCompletionRef.current = true;
+        const gameId = lobby.gameId || gameResults[0]?.gameId;
+        if (gameId && !claimAchievementEvent(`game:${gameId}:${props.playerId}`)) return;
         trackGameCompletionAchievements();
       }
     }
@@ -305,7 +328,7 @@ export default function Game(props: GameProps) {
       setGameResults([]);
       processedGameCompletionRef.current = false; // Reset for next game
     }
-  }, [phase, trackGameCompletionAchievements, gameResults.length, lobby.roundHistory?.length]);
+  }, [phase, trackGameCompletionAchievements, gameResults, lobby.gameId, lobby.roundHistory?.length, props.playerId]);
 
   return (
     <AnimatePresence mode="wait">

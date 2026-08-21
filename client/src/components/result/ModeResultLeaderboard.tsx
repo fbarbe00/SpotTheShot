@@ -3,26 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Info, Trophy } from 'lucide-react'
 import type { LeaderboardItem, Lobby, Result, TeamLeaderboardItem } from '../../lib/types'
 import { useI18n } from '../../contexts/I18nContext'
+import { AnimatedLeaderboardRow, type LeaderboardRowData } from './AnimatedLeaderboardRow'
 
 export function roundPointsForEntry(entry: LeaderboardItem, results: Result[]) {
   if ('id' in entry) return results.find(result => result.playerId === entry.id)?.points ?? 0
   return Math.max(0, ...entry.players.map(player =>
     results.find(result => result.playerId === player.id)?.points ?? 0))
-}
-
-function RankBadge({ rank }: { rank: number }) {
-  const colors = rank === 0
-    ? 'border-amber-400/60 bg-amber-400/20 text-amber-300'
-    : rank === 1
-      ? 'border-slate-300/50 bg-slate-300/15 text-slate-200'
-      : rank === 2
-        ? 'border-orange-500/50 bg-orange-500/15 text-orange-400'
-        : 'border-primary/20 bg-black/20 text-text-darker'
-  return (
-    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-black ${colors}`}>
-      {rank + 1}
-    </span>
-  )
 }
 
 function PointsBreakdown({ result }: { result: Result }) {
@@ -109,10 +95,44 @@ export default function ModeResultLeaderboard({
   playerId: string
   renderAnswer: (result: Result) => ReactNode
 }) {
-  const { t, language } = useI18n()
+  const { t } = useI18n()
   const isTeams = lobby.settings.gameMode === 'teams'
   const penalty = lobby.settings.uploaderPenaltyPercent ?? 10
   const [showScoring, setShowScoring] = useState(false)
+  const rows: LeaderboardRowData[] = data.leaderboard.map((entry, rank) => {
+    const isTeam = 'team' in entry
+    const id = isTeam ? entry.team : entry.id
+    const memberResults = isTeam
+      ? entry.players.map(player => data.results.find(result => result.playerId === player.id)).filter((result): result is Result => !!result)
+      : []
+    const result = isTeam
+      ? [...memberResults].sort((a, b) => b.points - a.points)[0]
+      : data.results.find(item => item.playerId === entry.id)
+    const roundPoints = roundPointsForEntry(entry, data.results)
+    return {
+      id,
+      rank,
+      prevRank: rank,
+      icon: isTeam ? '👥' : entry.icon || '👤',
+      nickname: isTeam ? entry.team : entry.nickname,
+      color: result?.color || (isTeam ? '#a78bfa' : entry.color) || '#888888',
+      totalScore: entry.score,
+      prevScore: Math.max(0, entry.score - roundPoints),
+      roundPoints,
+      isPlayer: isTeam ? entry.players.some(player => player.id === playerId) : entry.id === playerId,
+      isUploader: result?.isUploader || false,
+      meta: result ? (
+        <>
+          {renderAnswer(result)}
+          {result.isAI && result.visionCommentary && (
+            <span className="mt-1 block italic text-primary/75">“{result.visionCommentary}”</span>
+          )}
+        </>
+      ) : undefined,
+      visionCommentary: result?.visionCommentary,
+      isAI: result?.isAI,
+    }
+  })
 
   return (
     <div className="overflow-hidden rounded-2xl border border-primary/20 bg-surface">
@@ -124,59 +144,18 @@ export default function ModeResultLeaderboard({
         </span>
       </div>
 
-      <div className="space-y-2 p-3">
-        {data.leaderboard.map((entry, index) => {
-          const result = 'id' in entry
-            ? data.results.find(item => item.playerId === entry.id)
-            : undefined
-          const current = 'id' in entry
-            ? entry.id === playerId
-            : entry.players.some(player => player.id === playerId)
-          const icon = 'id' in entry ? entry.icon : '👥'
-          const name = 'id' in entry ? entry.nickname : entry.team
+      <div className="flex flex-col gap-1.5 p-2">
+        {rows.map((row, index) => {
+          const entry = data.leaderboard[index]
           return (
-            <motion.div
-              key={'id' in entry ? entry.id : entry.team}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.06 }}
-              className={`rounded-xl border p-3 ${
-                current ? 'border-primary/50 bg-primary/10' : 'border-white/10 bg-white/[0.04]'
-              }`}
-            >
-              <div className="flex items-start gap-2.5">
-                <RankBadge rank={index} />
-                <span className="text-xl">{icon || '👤'}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-bold text-white">{name}</div>
-                  {result && <PlayerAnswer result={result} renderAnswer={renderAnswer} />}
-                  {isTeams && (
-                    <div className="mt-0.5 text-[10px] text-text-darker">
-                      {t('results.bestTeamScoreCounts')}
-                    </div>
-                  )}
+            <div key={row.id}>
+              <AnimatedLeaderboardRow row={row} index={index} phase="after" />
+              {entry && 'team' in entry && (
+                <div className="ml-12">
+                  <TeamDetails entry={entry} results={data.results} renderAnswer={renderAnswer} />
                 </div>
-                <div className="flex shrink-0 items-start gap-3">
-                  {!isTeams && result
-                    ? <PointsBreakdown result={result} />
-                    : (
-                      <div className="text-right">
-                        <div className="text-[9px] font-bold uppercase tracking-wider text-text-darker">{t('results.roundPoints')}</div>
-                        <div className="font-mono text-base font-black text-primary">
-                          +{roundPointsForEntry(entry, data.results).toLocaleString(language)}
-                        </div>
-                      </div>
-                    )}
-                  <div className="min-w-16 text-right">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-text-darker">{t('results.totalScore')}</div>
-                    <div className="font-mono text-base font-black text-white">{entry.score.toLocaleString(language)}</div>
-                  </div>
-                </div>
-              </div>
-              {'team' in entry && (
-                <TeamDetails entry={entry} results={data.results} renderAnswer={renderAnswer} />
               )}
-            </motion.div>
+            </div>
           )
         })}
       </div>
@@ -201,7 +180,14 @@ export default function ModeResultLeaderboard({
           >
             <div className="p-3">
               <p>{t(lobby.settings.gameType === 'date' ? 'results.dateScoringFormula' : 'results.uploaderScoringFormula')}</p>
-              {penalty > 0 && <p className="mt-1">{t('results.modeUploaderPenalty', { penalty })}</p>}
+              {penalty > 0 && (
+                <p className="mt-1">{t(
+                  lobby.settings.gameType === 'date' && lobby.settings.dateSubmode === 'before_after'
+                    ? 'results.modeUploaderPenaltyBeforeAfter'
+                    : 'results.modeUploaderPenalty',
+                  { penalty },
+                )}</p>
+              )}
               {isTeams && <p className="mt-1">{t('results.teamScoringRule')}</p>}
             </div>
           </motion.div>

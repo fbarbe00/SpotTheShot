@@ -84,6 +84,22 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
     category: 'accuracy'
   },
   {
+    id: 'before_after_oracle',
+    name: 'Before Your Time',
+    description: 'Solve five Before or After rounds perfectly',
+    emoji: '↔️',
+    category: 'accuracy',
+    target: 5
+  },
+  {
+    id: 'timeline_architect',
+    name: 'Timeline Architect',
+    description: 'Build three completely correct timelines',
+    emoji: '🏗️',
+    category: 'accuracy',
+    target: 3
+  },
+  {
     id: 'first_win',
     name: 'First Victory',
     description: 'Win your first game',
@@ -260,16 +276,16 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
 
   {
     id: 'beat_ai_10x',
-    name: 'AI Challenger',
-    description: 'Beat the AI 10 times',
+    name: 'Computer Challenger',
+    description: 'Beat the Computer 10 times',
     emoji: '🤖',
     category: 'ai-master',
     target: 10
   },
   {
     id: 'beat_ai_50x',
-    name: 'AI Nemesis',
-    description: 'Beat the AI 50 times',
+    name: 'Computer Nemesis',
+    description: 'Beat the Computer 50 times',
     emoji: '⚙️',
     category: 'ai-master',
     target: 50
@@ -277,15 +293,15 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'sniper_beat',
     name: 'Sniper',
-    description: 'Beat the AI by 500+ km in 3 rounds',
+    description: 'Beat the Computer by 500+ km in 3 rounds',
     emoji: '🎯',
     category: 'ai-master',
     target: 3
   },
   {
     id: 'ai_rival',
-    name: 'AI Rival',
-    description: 'Beat the AI 100 times',
+    name: 'Computer Rival',
+    description: 'Beat the Computer 100 times',
     emoji: '🧠',
     category: 'ai-master',
     target: 100

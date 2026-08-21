@@ -90,16 +90,16 @@ export default function LobbyMap({
                   <div className="text-sm w-48">
                     <img
                       src={photoUrl}
-                      alt="photo"
+                      alt={photo.title || t("ui.untitled")}
                       className="w-full h-32 object-cover rounded mb-2"
                     />
                     <div className="font-bold">{photo.title || t("ui.untitled")}</div>
                     <div className="text-xs text-gray-600 mb-2">
                       <div className="mt-1">
                         {photo.manualLocation ? (
-                          <span className="text-amber-500 font-semibold">📍 Manually entered</span>
+                          <span className="text-amber-500 font-semibold">📍 {t('uploader.manuallyEntered')}</span>
                         ) : (
-                          <span className="text-green-500 font-semibold">📷 From EXIF GPS</span>
+                          <span className="text-green-500 font-semibold">📷 {t('uploader.located')}</span>
                         )}
                       </div>
                     </div>
@@ -109,7 +109,7 @@ export default function LobbyMap({
                       }}
                       className="w-full px-2 py-1 rounded bg-primary text-black text-xs font-bold hover:bg-primary-dark"
                     >
-                      Edit Location
+                      {t('uploader.changeLocation')}
                     </button>
                   </div>
                 </Popup>
@@ -141,13 +141,14 @@ export default function LobbyMap({
       {/* Enlarged Image Modal - Outside MapContainer to fix z-index */}
       {enlargedImage && (
         <div
+          role="presentation"
           className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/90 backdrop-blur-sm"
           onClick={() => setEnlargedImage(null)}
         >
-          <div className="relative max-w-4xl max-h-[90vh] p-4" onClick={(e) => e.stopPropagation()}>
+          <div role="presentation" className="relative max-w-4xl max-h-[90vh] p-4" onClick={(e) => e.stopPropagation()}>
             <img
               src={enlargedImage}
-              alt="Enlarged photo"
+              alt={t('ui.untitled')}
               className="max-w-full max-h-[90vh] object-contain rounded-lg"
             />
             <button

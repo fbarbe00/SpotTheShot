@@ -5,7 +5,7 @@ import { logger } from './logger'
 /**
  * Custom hook for managing game state and persistence
  * Tracks current game phase, photo, round info, timer, and results
- * Persists state to localStorage for recovery on page refresh
+ * The server is authoritative and restores state after reconnect.
  */
 export function useGameState() {
   const [phase, setPhase] = useState<'waiting'|'round'|'results'|'end'>('waiting')
@@ -42,33 +42,19 @@ export function useGameState() {
   }
 
   /**
-   * Save current game state to localStorage for recovery
-   * @param phaseToSave - Current game phase
-   * @param photoToSave - Current photo data
-   * @param roundInfoToSave - Current round information
-   * @param timerMsToSave - Current timer value
-   * @param resultsToSave - Current round results
+   * Compatibility shim for existing event handlers. Game state used to be
+   * persisted here, but it was never safely replayed and could retain private
+   * photo URLs. Reconnection now always hydrates from serialized server state.
    */
   const saveGameState = (
-    phaseToSave: 'waiting'|'round'|'results'|'end',
-    photoToSave: Photo | null,
-    roundInfoToSave: {roundIndex:number,totalRounds:number,duration:number},
-    timerMsToSave: number,
-    resultsToSave: RoundResults | null
+    _phaseToSave: 'waiting'|'round'|'results'|'end',
+    _photoToSave: Photo | null,
+    _roundInfoToSave: {roundIndex:number,totalRounds:number,duration:number},
+    _timerMsToSave: number,
+    _resultsToSave: RoundResults | null
   ) => {
     try {
-      if (phaseToSave === 'waiting') {
-        window.localStorage.removeItem('geo-snap-gameState')
-      } else {
-        window.localStorage.setItem('geo-snap-gameState', JSON.stringify({
-          phase: phaseToSave,
-          photo: photoToSave,
-          roundInfo: roundInfoToSave,
-          timerMs: timerMsToSave,
-          results: resultsToSave,
-          timestamp: Date.now()
-        }))
-      }
+      window.localStorage.removeItem('geo-snap-gameState')
     } catch (error) {
       // Silently fail - localStorage may be unavailable in private browsing
       logger.error('Could not save game state', error)

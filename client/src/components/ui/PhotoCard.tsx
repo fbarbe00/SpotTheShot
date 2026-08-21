@@ -31,17 +31,21 @@ export function PhotoCard({ photo, isLoading = false, onClick, variant = 'full' 
   const photoUrl = photo.url ? buildPhotoUrl(photo.url) : '/placeholder.jpg'
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className={`rounded-lg overflow-hidden border border-primary/20 bg-white/5 hover:border-primary/40 transition-colors cursor-pointer ${
-        onClick ? 'hover:shadow-lg' : ''
+      disabled={!onClick}
+      className={`w-full rounded-lg overflow-hidden border border-primary/20 bg-white/5 text-left transition-colors ${
+        onClick ? 'cursor-pointer hover:border-primary/40 hover:shadow-lg' : 'cursor-default'
       }`}
     >
       {/* Image */}
       <div className="relative w-full h-40 bg-gray-400/20 overflow-hidden">
+        {/* onError is a load fallback, not a user interaction. */}
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
         <img
           src={photoUrl}
-          alt="Photo"
+          alt={photo.title || 'Untitled'}
           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
           onError={(e) => {
             (e.target as HTMLImageElement).src = '/placeholder.jpg'
@@ -75,6 +79,6 @@ export function PhotoCard({ photo, isLoading = false, onClick, variant = 'full' 
           </div>
         )}
       </div>
-    </div>
+    </button>
   )
 }
