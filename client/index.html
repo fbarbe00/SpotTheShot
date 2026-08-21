@@ -6,9 +6,11 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/favicon-192.png" />
     <meta property="og:image" content="/favicon-512.png">
-    <!-- Deliberately lock page-level pinch zoom: on this map-first interface,
-         browser zoom intercepts the same gesture used to zoom Leaflet and has
-         previously left the parent layout magnified instead of the map. -->
+    <!-- Intentionally lock page-level pinch zoom. On mobile, the same gesture
+         controls Leaflet; allowing browser zoom has previously left the whole
+         layout magnified when the player meant to zoom only the game map. Keep
+         this scoped to the map-first experience and revisit with a future
+         accessibility mode. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="A geography guessing game where you try to find the location of your friends' photos on a map." />
     <meta name="theme-color" content="#1a103c" />

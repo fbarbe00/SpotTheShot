@@ -7,9 +7,12 @@ import parser from '@typescript-eslint/parser'
 import typescriptEslint from '@typescript-eslint/eslint-plugin'
 
 export default [
+  {
+    ignores: ['dist/**']
+  },
   js.configs.recommended,
   {
-    files: ['**/*.{js,jsx,ts,tsx}'],
+    files: ['**/*.{ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: {
@@ -41,6 +44,7 @@ export default [
       ),
       'react-prop-types': 'off',
       'react/react-in-jsx-scope': 'off',
+      'jsx-a11y/label-has-for': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
@@ -57,6 +61,22 @@ export default [
       react: {
         version: 'detect'
       }
+    }
+  },
+  {
+    files: ['*.config.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: 'module',
+      globals: globals.node
+    }
+  },
+  {
+    files: ['scripts/**/*.cjs'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: 'commonjs',
+      globals: globals.node
     }
   }
 ]

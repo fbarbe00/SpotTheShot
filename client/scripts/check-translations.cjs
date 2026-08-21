@@ -112,7 +112,7 @@ function parseTranslationKeys(block) {
   return keys;
 }
 
-function validateTemplateSyntax(template, key) {
+function validateTemplateSyntax(template) {
   const issues = [];
 
   // Check for valid placeholder syntax
@@ -237,7 +237,7 @@ for (const lang of SUPPORTED_LANGUAGES) {
   let syntaxErrors = 0;
 
   for (const key of templateKeys) {
-    const issues = validateTemplateSyntax(translations[lang][key], key);
+    const issues = validateTemplateSyntax(translations[lang][key]);
     if (issues.length > 0) {
       syntaxErrors++;
       if (syntaxErrors <= 3) {
@@ -272,7 +272,7 @@ function extractAchievementIdsFromBlock(block) {
   const ids = new Set();
   // Match lines like:   first_game: { name: '...', description: '...' },
   // Note: achievementI18n.ts uses 4 spaces for achievement entries
-  const idRegex = /^    (\w+): \{/gm;
+  const idRegex = /^ {4}(\w+): \{/gm;
   let match;
   
   while ((match = idRegex.exec(block)) !== null) {
@@ -296,7 +296,7 @@ function getAchievementIdsForLanguage(lang) {
   
   // Find the next language block or end of the main object
   const remainingContent = achievementContent.substring(langStart);
-  const nextLangMatch = remainingContent.match(/^  (en|fr|it|es|de|ru): \{/m);
+  const nextLangMatch = remainingContent.match(/^ {2}(en|fr|it|es|de|ru): \{/m);
   
   let langEnd = achievementContent.length;
   if (nextLangMatch && nextLangMatch.index !== null) {

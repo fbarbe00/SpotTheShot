@@ -7,8 +7,9 @@ else
   export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 fi
 
-THREADS=${THREADS:-5}
+THREADS=${THREADS:-4}
 THREADS_BATCH=${THREADS_BATCH:-5}
+POLL=${POLL:-50}
 CTX_SIZE=${CTX_SIZE:-1024}
 MODEL=${MODEL:-ministral}
 MODELS_DIR=/app/models
@@ -68,7 +69,7 @@ exec /app/llama-server \
   --host 0.0.0.0 --port 8001 --jinja -fa on --no-ui \
   --cors-origins localhost --no-cors-credentials \
   --ctx-size "$CTX_SIZE" -b 256 -ub 256 \
-  -t "$THREADS" -tb "$THREADS_BATCH" \
+  -t "$THREADS" -tb "$THREADS_BATCH" --poll "$POLL" \
   --temp 0.15 --top-p 0.9 --n-predict 100 --presence-penalty 0.1 \
   --cache-type-k q4_0 --cache-type-v q4_0 \
   --parallel 1 --threads-http 2 --metrics --alias "$MODEL" \

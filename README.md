@@ -63,6 +63,10 @@ cd SpotTheShot
 cp .env.example .env
 ```
 
+Set `ADMIN_TOKEN` in `.env` to a long random secret. The authenticated health,
+lobby, model, cleanup, and aggregate-statistics panel is then available at
+`/?admin=1`.
+
 ### 1. FastGeoCLIP weights and data
 
 The `geoclip/` directory is a submodule pointing at [fbarbe00/FastGeoCLIP](https://github.com/fbarbe00/FastGeoCLIP). The GeoCLIP fine-tuned weights and the 100K-point GPS gallery come bundled with the submodule (in `geoclip/fastgeoclip/`), so the only host-prepared artifacts are the CLIP vision tower and the reverse-geocoding GeoPackage:
@@ -114,7 +118,10 @@ Everything is in `.env`. Key knobs:
 | `VISION_CONCURRENCY` | 1 | Parallel vision LLM requests (memory-bound) |
 | `MODEL` | `ministral` | Vision profile downloaded by `vision/download-model.sh` |
 | `THINKING` | `off` | Reasoning mode for profiles that support it |
-| `THREADS`, `NUM_THREADS` | 5 | CPU thread count for vision and geoclip (requests remain sequential) |
+| `THREADS` | 4 | Vision generation threads; four leaves capacity for the other services on a 6-core host |
+| `THREADS_BATCH` | 5 | Vision prompt/image batch threads; the short batch phase can use one extra core |
+| `POLL` | 50 | llama.cpp worker polling; zero reduced vision throughput substantially in testing |
+| `NUM_THREADS` | 5 | GeoCLIP CPU thread count (requests remain sequential) |
 | `BUILD_JOBS` | 3 | llama.cpp compiler jobs; keep low on a shared server |
 | `CTX_SIZE` | 1024 | Vision context; raise only if prompts are truncated |
 | `VITE_MAP_BBOX_*` | Europe | Default in-game map bounding box |
@@ -190,7 +197,7 @@ the player can immediately join again as a new participant.
 - Date and GPS metadata are extracted from the selected file before the browser resizes it. On mobile, DateTheShot defaults to the quick photo-library picker, while SpotTheShot defaults to the file browser. Picker behavior varies by mobile OS; if the browser supplies a privacy-sanitized copy without EXIF data, the lobby asks for the missing date or location.
 - Every photo needs a valid date before a DateTheShot game can start.
 - Dates after the server's current day are rejected on upload, edit, and guess submission.
-- At game start, the server derives the timeline from the photo collection: a random 1–20 years before the oldest photo and 1–20 years after the newest, capped at today. Month/year landmarks and precise date controls make long ranges usable.
+- At game start, the server derives the timeline from the photo collection: a random 1–3 years before the oldest photo and 1–3 years after the newest, capped at today. Month/year landmarks and precise date controls make long ranges usable.
 - The vision model receives a tighter collection-aware range: ten years before the oldest uploaded photo through ten years after the newest, capped at today.
 - Date scoring is `round(5000 × e^(-daysAway / 3652.5))`: an exact date earns 5,000 points and the score decreases smoothly with absolute calendar-day error.
 - The AI date prompt receives the exact playable start and end dates. When vision commentary is enabled, it compares its submitted date with the real date and jokes about reading the era clues correctly—or getting them wrong.
@@ -214,7 +221,7 @@ English, French, Italian, Spanish, German, Russian. UI strings, achievements, an
 ## Tested on
 
 - **OS:** Ubuntu 24.04.4 LTS (Linux 6.8 x86_64)
-- **CPU:** AMD EPYC, 4 cores / 4 threads
+- **CPU:** AMD EPYC, 6 cores / 6 threads
 - **RAM:** 8 GB
 - All services run CPU-only; no GPU required.
 

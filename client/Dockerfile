@@ -11,6 +11,17 @@ RUN npm ci
 # Copy source files
 COPY . .
 
+# Vite reads these values while compiling the static client. Compose forwards
+# them as build arguments; runtime env_file values alone cannot change a built bundle.
+ARG VITE_MAP_BBOX_SOUTH=35
+ARG VITE_MAP_BBOX_WEST=-10
+ARG VITE_MAP_BBOX_NORTH=70
+ARG VITE_MAP_BBOX_EAST=40
+ENV VITE_MAP_BBOX_SOUTH=$VITE_MAP_BBOX_SOUTH \
+    VITE_MAP_BBOX_WEST=$VITE_MAP_BBOX_WEST \
+    VITE_MAP_BBOX_NORTH=$VITE_MAP_BBOX_NORTH \
+    VITE_MAP_BBOX_EAST=$VITE_MAP_BBOX_EAST
+
 # Build the application
 RUN npm run build
 ENV NODE_ENV=production

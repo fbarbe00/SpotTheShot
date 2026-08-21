@@ -10,8 +10,9 @@ services:
     environment:
       - MODEL=${MODEL:-ministral}
       - THINKING=${THINKING:-off}
-      - THREADS=${THREADS:-5}
+      - THREADS=${THREADS:-4}
       - THREADS_BATCH=${THREADS_BATCH:-5}
+      - POLL=${POLL:-50}
       - CTX_SIZE=${CTX_SIZE:-1024}
     volumes:
       - ./vision/models:/app/models
@@ -53,7 +54,7 @@ services:
       # backupable, and survive any docker operation including `down -v`.
       - ./server/data:/app/data
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/server-status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/services-status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -71,7 +72,13 @@ services:
   client:
     container_name: spottheshot_client
     restart: unless-stopped
-    build: ./client
+    build:
+      context: ./client
+      args:
+        VITE_MAP_BBOX_SOUTH: ${VITE_MAP_BBOX_SOUTH:-35}
+        VITE_MAP_BBOX_WEST: ${VITE_MAP_BBOX_WEST:--10}
+        VITE_MAP_BBOX_NORTH: ${VITE_MAP_BBOX_NORTH:-70}
+        VITE_MAP_BBOX_EAST: ${VITE_MAP_BBOX_EAST:-40}
     ports:
       - "4080:80"
     depends_on:
