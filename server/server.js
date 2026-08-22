@@ -439,7 +439,14 @@ app.post('/api/lobbies/:lobbyId/join', rateLimit('join-lobby', 30, 60 * 1000), (
   }
 });
 
-app.post('/api/lobbies/:lobbyId/upload/:playerId', upload.array('photos', MAX_PHOTOS_PER_PLAYER), async (req, res) => {
+// The per-IP limit runs before multer so rejected requests never reach the
+// disk. It is deliberately generous: a full party behind one NAT address must
+// still be able to upload within the same minute.
+app.post(
+  '/api/lobbies/:lobbyId/upload/:playerId',
+  rateLimit('upload', Math.max(30, MAX_PHOTOS_PER_PLAYER * 3), 60 * 1000),
+  upload.array('photos', MAX_PHOTOS_PER_PLAYER),
+  async (req, res) => {
   const { lobbyId, playerId } = req.params;
   const normalizedLobbyId = normalizeLobbyId(lobbyId);
   const files = req.files;

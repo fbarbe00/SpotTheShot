@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "../../lib/toast";
 import { useI18n } from "../../contexts/I18nContext";
 import { logger } from "../../lib/logger";
+import { canSubmitRoundGuess } from "../../lib/roundEligibility";
 
 function defaultDateTimelineStart() {
   const date = new Date();
@@ -45,9 +46,14 @@ export function GameBoard({
   serverAiTipIndex = null,
 }: GameBoardProps) {
   const MAP_TOOLTIP_KEY = "geo-snap-map-tooltip-seen";
-  const isUploader = photo?.uploaderId === playerId;
-  const uploaderPenalty = lobby.settings.uploaderPenaltyPercent ?? 10;
-  const canGuessThisRound = !(isUploader && uploaderPenalty >= 100);
+  const canGuessThisRound = canSubmitRoundGuess({
+    gameType: lobby.settings.gameType,
+    dateSubmode: lobby.settings.dateSubmode,
+    uploaderId: photo?.uploaderId,
+    referenceUploaderId: photo?.dateReference?.uploaderId,
+    playerId,
+    uploaderPenaltyPercent: lobby.settings.uploaderPenaltyPercent,
+  });
   const isDateCardMode = lobby.settings.gameType === 'date'
     && ['before_after', 'timeline'].includes(lobby.settings.dateSubmode || '');
 

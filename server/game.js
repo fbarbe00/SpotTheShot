@@ -641,9 +641,12 @@ export class GameManager extends AIPipeline {
       captureDate: mode.requiresDate ? undefined : photo.captureDate,
       // The reference's captureDate is deliberately not sent: players must
       // judge Before or After from the two images, not read the answer.
+      // uploaderId is public in date games (it is already serialized for every
+      // lobby photo) and lets clients mirror the server's penalty rule.
       dateReference: lobby.currentDateChallenge?.kind === 'before_after' ? {
         id: lobby.currentDateChallenge.reference.id,
         url: lobby.currentDateChallenge.reference.url,
+        uploaderId: lobby.currentDateChallenge.reference.uploaderId,
       } : undefined,
       timelinePhotos: lobby.currentDateChallenge?.kind === 'timeline'
         ? lobby.currentDateChallenge.photos.map(item => ({ id: item.id, url: item.url }))
@@ -761,20 +764,14 @@ export class GameManager extends AIPipeline {
     const mode = gameModeDefinition(lobby.settings.gameType);
     if (mode.guessKind === 'date') {
       const submode = lobby.settings.dateSubmode || 'exact';
-      const aiDate = playerId.startsWith('ai-') ? normalizePhotoDate(guess?.date) : null;
       if (submode === 'before_after') {
-        const choice = aiDate && lobby.currentDateChallenge?.reference
-          ? (aiDate < lobby.currentDateChallenge.reference.captureDate ? 'before' : 'after')
-          : guess?.dateChoice;
+        // The AI derives its choice from two independent image estimates in
+        // queryDateVision; real capture dates must never reach this branch.
+        const choice = guess?.dateChoice;
         if (!['before', 'after'].includes(choice)) return { accepted: false, error: 'Choose before or after' };
         guess = { dateChoice: choice };
       } else if (submode === 'timeline') {
-        let photoOrder = guess?.photoOrder;
-        if (aiDate && lobby.currentDateChallenge?.kind === 'timeline') {
-          photoOrder = lobby.currentDateChallenge.photos
-            .map(item => ({ id: item.id, date: item.id === photo.id ? aiDate : item.captureDate }))
-            .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)).map(item => item.id);
-        }
+        const photoOrder = guess?.photoOrder;
         const expected = lobby.currentDateChallenge?.answer || [];
         if (!Array.isArray(photoOrder) || photoOrder.length !== expected.length
           || new Set(photoOrder).size !== expected.length || photoOrder.some(id => !expected.includes(id))) {
@@ -869,6 +866,7 @@ export class GameManager extends AIPipeline {
     const lobby = this.lobbies.get(lobbyId);
     if (!lobby || lobby.state !== 'in_round' || lobby.isEndingRound) return;
     lobby.isEndingRound = true;
+    const roundToken = lobby.roundToken;
 
     clearTimeout(lobby.timers.roundEnd);
     clearInterval(lobby.timers.ticker);
@@ -914,8 +912,23 @@ export class GameManager extends AIPipeline {
       }
     }
 
+    // While we were waiting, the round may have been advanced or finished by
+    // another path (for example _removePlayerPhotos when the uploader left).
+    // Never resurrect such a round: it would score the wrong photo and could
+    // revert a finished lobby back to showing_results.
+    if (this.lobbies.get(lobbyId) !== lobby || lobby.roundToken !== roundToken || lobby.state !== 'in_round') {
+      // Only clear our own flag: a newer round may already be ending itself.
+      if (lobby.roundToken === roundToken) lobby.isEndingRound = false;
+      return;
+    }
+
     lobby.state = 'showing_results';
     const photo = this.currentPhoto(lobby);
+    if (!photo) {
+      // Defensive: an inconsistent round order must not crash scoring.
+      lobby.isEndingRound = false;
+      return;
+    }
     const mode = gameModeDefinition(lobby.settings.gameType);
     const results = [];
 
@@ -1336,7 +1349,10 @@ export class GameManager extends AIPipeline {
     if (!removed.length) return;
     const removedIds = new Set(removed.map(photo => photo.id));
     const invalidRoundIds = new Set(removedIds);
-    if (lobby.dateChallengePlan) {
+    // A finished game is a record: rewriting its round plan would contradict
+    // the already-published round history (round indices and totals).
+    const preserveRoundPlan = lobby.state === 'finished';
+    if (lobby.dateChallengePlan && !preserveRoundPlan) {
       const challengePhotoIds = round => round.challenge.kind === 'before_after'
         ? [round.currentPhoto.id, round.challenge.reference.id]
         : round.challenge.photos.map(photo => photo.id);
@@ -1345,6 +1361,9 @@ export class GameManager extends AIPipeline {
         if (invalid) invalidRoundIds.add(round.currentPhoto.id);
         return !invalid;
       });
+    }
+    if (preserveRoundPlan) {
+      invalidRoundIds.clear();
     }
     const oldOrder = [...lobby.roundOrder];
     const nextRemainingId = oldOrder.slice(lobby.roundIndex + 1).find(id => !invalidRoundIds.has(id));
@@ -1357,11 +1376,13 @@ export class GameManager extends AIPipeline {
       this._invalidatePhotoCaches(photo.id);
     }));
     lobby.photos = lobby.photos.filter(photo => !removedIds.has(photo.id));
-    lobby.roundOrder = lobby.roundOrder.filter(id => !invalidRoundIds.has(id));
+    if (!preserveRoundPlan) {
+      lobby.roundOrder = lobby.roundOrder.filter(id => !invalidRoundIds.has(id));
 
-    if (lobby.roundIndex >= 0) {
-      const nextIndex = nextRemainingId ? lobby.roundOrder.indexOf(nextRemainingId) : lobby.roundOrder.length;
-      lobby.roundIndex = Math.max(-1, nextIndex - 1);
+      if (lobby.roundIndex >= 0) {
+        const nextIndex = nextRemainingId ? lobby.roundOrder.indexOf(nextRemainingId) : lobby.roundOrder.length;
+        lobby.roundIndex = Math.max(-1, nextIndex - 1);
+      }
     }
     if (removedCurrent) {
       clearTimeout(lobby.timers.roundEnd);
@@ -1490,6 +1511,40 @@ export class GameManager extends AIPipeline {
           this.ensureVisionCommentary(photo, lobbyId)
             .catch(err => handleError(err, 'AI date commentary'));
         }
+        return;
+      }
+      if (lobby.settings.dateSubmode === 'before_after' && lobby.currentDateChallenge?.kind === 'before_after') {
+        // The reference's real capture date is the answer: estimating only the
+        // current photo and comparing against it would leak ground truth.
+        // Estimate both images exactly like a human player would.
+        const [currentEstimate, referenceEstimate] = await Promise.all([
+          this.ensureDatePrediction(photo, {
+            earliestDate: promptBounds.start,
+            latestDate: promptBounds.end,
+          }),
+          this.ensureDatePrediction(lobby.currentDateChallenge.reference, {
+            earliestDate: promptBounds.start,
+            latestDate: promptBounds.end,
+          }),
+        ]);
+        const currentLobby = this.lobbies.get(lobbyId);
+        if (!currentLobby || currentLobby.roundToken !== roundToken || currentLobby.state !== 'in_round') return;
+        if (!currentEstimate?.date || !referenceEstimate?.date) {
+          console.warn(`[vision] Before or After guess unavailable in lobby ${lobbyId}: a date could not be estimated`);
+          return;
+        }
+        if (currentLobby.settings.visionCommentary && !this.visionCommentaries.has(photo.id)) {
+          this.ensureVisionCommentary(photo, lobbyId)
+            .catch(err => handleError(err, 'AI date commentary'));
+        }
+        const dateChoice = currentEstimate.date < referenceEstimate.date ? 'before' : 'after';
+        const submission = this.submitGuess(lobbyId, aiPlayerId, { dateChoice });
+        const log = submission.accepted ? console.log : console.warn;
+        log(
+          `[vision] AI Before or After submission for photo ${photo.id}: choice=${dateChoice}, `
+          + `accepted=${submission.accepted}, duplicate=${!!submission.duplicate}`
+          + `${submission.error ? `, error=${submission.error}` : ''}`,
+        );
         return;
       }
       const prediction = await this.ensureDatePrediction(photo, {

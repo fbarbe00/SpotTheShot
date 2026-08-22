@@ -634,25 +634,22 @@ export default function Uploader({ lobby, playerId }: { lobby: Lobby; playerId: 
 
         {/* Upload button or limit-reached message */}
         {!hasReachedPhotoLimit ? (
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-3">
             <label htmlFor="photo-upload-input" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-dark text-black font-bold cursor-pointer transition-colors text-sm">
               <input id="photo-upload-input" aria-label={t('uploader.selectPhotos')} type="file" accept={lobby.settings.gameType !== 'uploader' && useFileBrowser ? '' : 'image/*'} className="hidden" onChange={onFile} disabled={busy} multiple />
               {busy ? t('uploader.uploading') : t('uploader.selectPhotos')}
             </label>
             {isMobileDevice && lobby.settings.gameType !== 'uploader' && (
-              <button
-                onClick={() => setUseFileBrowser(!useFileBrowser)}
-                className="text-xs px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-text-darker transition-colors"
-                title={useFileBrowser ? t('uploader.fileBrowserMode') : t('uploader.photoPickerMode')}
-              >
-                {lobby.settings.gameType === 'date'
-                  ? useFileBrowser
-                    ? t('uploader.metadataSafePicker')
-                    : t('uploader.quickPicker')
-                  : useFileBrowser
-                    ? t('uploader.fileBrowser')
-                    : t('uploader.photoPicker')}
-              </button>
+              <label className="flex items-center gap-1.5 text-xs text-text-darker cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  aria-label={t('uploader.locationSafePicker')}
+                  checked={useFileBrowser}
+                  onChange={e => setUseFileBrowser(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded accent-primary"
+                />
+                {t('uploader.locationSafePicker')}
+              </label>
             )}
           </div>
         ) : (

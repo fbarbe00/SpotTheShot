@@ -75,4 +75,69 @@ describe('Date submode controls', () => {
     await act(async () => confirm?.click())
     expect(onConfirm).toHaveBeenCalledWith({ photoOrder: ['b', 'a', 'c'] })
   })
+
+  it('keeps an in-progress arrangement across identical lobby updates', async () => {
+    const makePhotos = () => [
+      { id: 'a', url: '/a.jpg' },
+      { id: 'b', url: '/b.jpg' },
+      { id: 'c', url: '/c.jpg' },
+    ]
+    const onConfirm = vi.fn().mockResolvedValue(true)
+    const render = (timelinePhotos: ReturnType<typeof makePhotos>) => act(async () => root.render(<DateSubmodeGuess
+      photo={{ id: 'a', url: '/a.jpg', timelinePhotos }}
+      lobbyId="LOBBY"
+      playerId="player"
+      mode="timeline"
+      disabled={false}
+      onConfirm={onConfirm}
+    />))
+
+    await render(makePhotos())
+    const moveLater = [...container.querySelectorAll('button')]
+      .find(button => button.getAttribute('aria-label') === 'game.date.moveLater' && !button.hasAttribute('disabled'))
+    await act(async () => moveLater?.click())
+    expect([...container.querySelectorAll('img')].map(image => image.getAttribute('src'))).toEqual(['/b.jpg', '/a.jpg', '/c.jpg'])
+
+    // A lobby_update rebuilds the photo object with a fresh array identity
+    // but the same challenge; the arrangement must survive.
+    await render(makePhotos())
+    expect([...container.querySelectorAll('img')].map(image => image.getAttribute('src'))).toEqual(['/b.jpg', '/a.jpg', '/c.jpg'])
+  })
+
+  it('resets the arrangement when the challenge changes and restores a submitted order', async () => {
+    const firstChallenge = [
+      { id: 'a', url: '/a.jpg' },
+      { id: 'b', url: '/b.jpg' },
+      { id: 'c', url: '/c.jpg' },
+    ]
+    const nextChallenge = [
+      { id: 'd', url: '/d.jpg' },
+      { id: 'e', url: '/e.jpg' },
+      { id: 'f', url: '/f.jpg' },
+    ]
+    const onConfirm = vi.fn().mockResolvedValue(true)
+    const render = (photoId: string, timelinePhotos: typeof firstChallenge, existingOrder?: string[]) => act(async () => root.render(<DateSubmodeGuess
+      photo={{ id: photoId, url: `${photoId}.jpg`, timelinePhotos }}
+      lobbyId="LOBBY"
+      playerId="player"
+      mode="timeline"
+      disabled={false}
+      existingOrder={existingOrder}
+      onConfirm={onConfirm}
+    />))
+
+    await render('a', firstChallenge)
+    const moveLater = [...container.querySelectorAll('button')]
+      .find(button => button.getAttribute('aria-label') === 'game.date.moveLater' && !button.hasAttribute('disabled'))
+    await act(async () => moveLater?.click())
+    expect([...container.querySelectorAll('img')].map(image => image.getAttribute('src'))).toEqual(['/b.jpg', '/a.jpg', '/c.jpg'])
+
+    // A different set of cards is a new challenge: start from the dealt order.
+    await render('d', nextChallenge)
+    expect([...container.querySelectorAll('img')].map(image => image.getAttribute('src'))).toEqual(['/d.jpg', '/e.jpg', '/f.jpg'])
+
+    // A reconnect restores the order the server already recorded.
+    await render('a', firstChallenge, ['c', 'a', 'b'])
+    expect([...container.querySelectorAll('img')].map(image => image.getAttribute('src'))).toEqual(['/c.jpg', '/a.jpg', '/b.jpg'])
+  })
 })

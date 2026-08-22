@@ -35,7 +35,7 @@ export type Photo = {
   countryFlag?: string;
   countryCode?: string; // ISO 3166-1 alpha-2 code for translation
   color?: string;
-  dateReference?: { id: string; url: string };
+  dateReference?: { id: string; url: string; uploaderId?: string };
   timelinePhotos?: Array<{ id: string; url: string }>;
 };
 

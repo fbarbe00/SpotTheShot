@@ -83,8 +83,6 @@ services:
       - "4080:80"
     depends_on:
       - server
-    env_file:
-      - ./.env
     develop:
       watch:
         - action: rebuild

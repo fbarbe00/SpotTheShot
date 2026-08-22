@@ -11,6 +11,7 @@ import { AchievementNotification } from './components/AchievementNotification'
 import { useToast } from './lib/toast'
 import { ToastProvider, ToastContainer } from './lib/toast.tsx'
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { socket, api, clearPlayerSessionToken, connectSocket, getClientSessionId, getPlayerSessionToken, getStoredToken, setPlayerSessionToken } from './lib/socket'
 import type { Lobby, Player } from './lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -789,6 +790,10 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
         </motion.div>
       </AnimatePresence>
 
+      {/* Portaled to document.body: Layout's backdrop-blur card creates a
+          containing block for fixed elements, which anchored this bottom
+          sheet to the card instead of the viewport on mobile. */}
+      {createPortal(
       <AnimatePresence>
         {showVersionLog && (
           <motion.div
@@ -862,6 +867,7 @@ function AppContent({ achievementsApi }: { achievementsApi: AchievementsApi }) {
           </motion.div>
         )}
       </AnimatePresence>
+      , document.body)}
 
       <ToastContainer />
       

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 import type { Photo } from '../lib/types';
 import { buildPhotoUrl } from '../lib/socket';
 import { useI18n } from '../contexts/I18nContext';
@@ -17,7 +17,14 @@ export default function DateSubmodeGuess({ photo, lobbyId, playerId, mode, disab
   const { t } = useI18n();
   const [order, setOrder] = useState(() => existingOrder || photo.timelinePhotos?.map(item => item.id) || []);
   const [submitting, setSubmitting] = useState(false);
-  useEffect(() => setOrder(existingOrder || photo.timelinePhotos?.map(item => item.id) || []), [photo.id, photo.timelinePhotos, existingOrder]);
+  // Re-sync only when the challenge itself changes (different photo or a
+  // different set of card ids). Lobby updates rebuild the photo object with a
+  // fresh array identity but identical ids; resetting on identity would
+  // discard an in-progress arrangement on every unrelated broadcast.
+  const timelineIds = photo.timelinePhotos?.map(item => item.id).join('|') ?? '';
+  useEffect(() => {
+    setOrder(existingOrder || (timelineIds ? timelineIds.split('|') : []));
+  }, [photo.id, timelineIds, existingOrder]);
   useEffect(() => setSubmitting(false), [photo.id]);
 
   const submit = async (guess: { dateChoice: 'before' | 'after' } | { photoOrder: string[] }) => {
@@ -30,19 +37,22 @@ export default function DateSubmodeGuess({ photo, lobbyId, playerId, mode, disab
   if (mode === 'before_after' && photo.dateReference) {
     return <div className="absolute inset-0 z-[1003] flex flex-col bg-surface p-2 pt-16">
       <div className="mb-2 text-center text-sm font-black text-white sm:text-base">{t('game.date.beforeAfterPrompt')}</div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 sm:gap-4">
-        <div className="grid min-w-0 grid-rows-[2.5rem_minmax(0,1fr)] overflow-hidden rounded-xl border border-primary/30 bg-black/30 p-1.5 sm:p-2">
-          <div className="flex items-center justify-center text-center text-xs font-bold text-primary sm:text-sm">{t('game.date.photoToPlace')}</div>
+      <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-2 sm:gap-4">
+        <div className="grid min-w-0 grid-rows-[2.25rem_minmax(0,1fr)] gap-1 overflow-hidden rounded-xl border-2 border-primary/70 bg-black/30 p-1.5 shadow-[0_0_14px_rgba(0,246,255,0.18)] sm:p-2">
+          <div className="flex items-center justify-center gap-1 rounded-lg bg-primary px-1 text-center text-[10px] font-black uppercase tracking-wide text-black sm:text-xs"><HelpCircle size={13} className="shrink-0" />{t('game.date.photoToPlace')}</div>
           <img src={buildPhotoUrl(photo.url, lobbyId, playerId)} alt="" className="h-full min-h-0 w-full rounded-lg bg-black object-contain" />
         </div>
-        <div className="grid min-w-0 grid-rows-[2.5rem_minmax(0,1fr)] overflow-hidden rounded-xl border border-white/15 bg-black/30 p-1.5 sm:p-2">
-          <div className="flex items-center justify-center text-center text-[10px] text-text-darker sm:text-sm">{t('game.date.reference')}</div>
+        <div className="grid min-w-0 grid-rows-[2.25rem_minmax(0,1fr)] gap-1 overflow-hidden rounded-xl border-2 border-dashed border-white/35 bg-black/30 p-1.5 sm:p-2">
+          <div className="flex items-center justify-center gap-1 rounded-lg bg-white/15 px-1 text-center text-[10px] font-black uppercase tracking-wide text-text sm:text-xs"><CalendarDays size={13} className="shrink-0 text-text-darker" />{t('game.date.reference')}</div>
           <img src={buildPhotoUrl(photo.dateReference.url, lobbyId, playerId)} alt="" className="h-full min-h-0 w-full rounded-lg bg-black object-contain" />
+        </div>
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-primary/50 bg-surface text-primary shadow-lg">
+          <ArrowLeftRight size={17} />
         </div>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <button type="button" disabled={disabled || submitting} onClick={() => void submit({ dateChoice: 'before' })} className={`min-h-12 rounded-xl bg-primary p-3 text-sm font-black text-black disabled:opacity-50 ${existingChoice === 'before' ? 'ring-2 ring-white' : ''}`}>{t('game.date.beforeChoice')}</button>
-        <button type="button" disabled={disabled || submitting} onClick={() => void submit({ dateChoice: 'after' })} className={`min-h-12 rounded-xl bg-primary p-3 text-sm font-black text-black disabled:opacity-50 ${existingChoice === 'after' ? 'ring-2 ring-white' : ''}`}>{t('game.date.afterChoice')}</button>
+        <button type="button" disabled={disabled || submitting} onClick={() => void submit({ dateChoice: 'before' })} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary p-3 text-sm font-black text-black transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${existingChoice === 'before' ? 'ring-2 ring-white' : ''}`}><ArrowLeft size={18} className="shrink-0" />{t('game.date.beforeChoice')}</button>
+        <button type="button" disabled={disabled || submitting} onClick={() => void submit({ dateChoice: 'after' })} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary p-3 text-sm font-black text-black transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${existingChoice === 'after' ? 'ring-2 ring-white' : ''}`}><ArrowRight size={18} className="shrink-0" />{t('game.date.afterChoice')}</button>
       </div>
     </div>;
   }

@@ -774,6 +774,114 @@ test('Timeline AI estimates every hidden card instead of using real dates', asyn
   clearInterval(created.lobby.timers.ticker);
 });
 
+test('Before or After AI estimates both photos instead of reading the reference date', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host', socketId: 'host',
+    settings: { enableAIGuessing: false, gameType: 'date', dateSubmode: 'before_after' }, constraints,
+  });
+  created.lobby.photos.push(
+    { id: 'old', url: '/uploads/old.jpg', uploaderId: created.playerId, captureDate: '1990-01-01' },
+    { id: 'new', url: '/uploads/new.jpg', uploaderId: created.playerId, captureDate: '2020-01-01' },
+  );
+  gm.startGame(created.lobby.id);
+  created.lobby.settings.enableAIGuessing = true;
+  gm.addAIPlayer(created.lobby.id);
+  // The estimates deliberately contradict the real dates so the assertion
+  // fails if any ground-truth capture date participates in the choice.
+  const estimated = { old: '2010-01-01', new: '2005-01-01' };
+  const requested = [];
+  gm.ensureDatePrediction = async photo => {
+    requested.push(photo.id);
+    return { date: estimated[photo.id] };
+  };
+
+  await gm.queryDateVision(created.lobby.id, gm.currentPhoto(created.lobby), created.lobby.roundToken);
+
+  const current = gm.currentPhoto(created.lobby);
+  const reference = created.lobby.currentDateChallenge.reference;
+  assert.deepEqual(new Set(requested), new Set([current.id, reference.id]));
+  const estimateChoice = estimated[current.id] < estimated[reference.id] ? 'before' : 'after';
+  const realChoice = current.captureDate < reference.captureDate ? 'before' : 'after';
+  assert.notEqual(estimateChoice, realChoice);
+  assert.equal(created.lobby.guesses.get(`ai-${created.lobby.id}`).dateChoice, estimateChoice);
+  clearTimeout(created.lobby.timers.roundEnd);
+  clearInterval(created.lobby.timers.ticker);
+});
+
+test('departing uploader does not corrupt the round that endRound is closing', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host', socketId: 'host',
+    settings: { enableAIGuessing: false, gameType: 'spot' }, constraints,
+  });
+  const guest = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: 'guest' });
+  created.lobby.photos.push(
+    { id: 'host-photo', url: '/uploads/host.jpg', uploaderId: created.playerId, lat: 1, lon: 2 },
+    { id: 'guest-photo', url: '/uploads/guest.jpg', uploaderId: guest.playerId, lat: 3, lon: 4 },
+  );
+  gm.startGame(created.lobby.id);
+  const lobby = created.lobby;
+  const current = gm.currentPhoto(lobby);
+  const departingId = current.uploaderId;
+  const remainingPhotoId = current.id === 'host-photo' ? 'guest-photo' : 'host-photo';
+
+  // Suspend endRound on a pending AI guess that resolves only on demand.
+  lobby.settings.enableAIGuessing = true;
+  lobby.roundDurationMs = 60_000;
+  let releaseAI;
+  lobby.aiGuessTask = { roundToken: lobby.roundToken, promise: new Promise(resolve => { releaseAI = resolve; }) };
+  const ending = gm.endRound(lobby.id);
+  // The replacement round must not spawn real AI work in the test process.
+  lobby.settings.enableAIGuessing = false;
+
+  await gm.leaveLobby(lobby.id, departingId);
+  releaseAI();
+  await ending;
+
+  assert.equal(lobby.state, 'in_round');
+  assert.equal(lobby.roundIndex, 0);
+  assert.equal(gm.currentPhoto(lobby)?.id, remainingPhotoId);
+  assert.equal(lobby.roundHistory.length, 0);
+  assert.equal(lobby.lastRoundResults, null);
+  assert.equal([...lobby.players.values()][0].score, 0);
+  clearTimeout(lobby.timers.roundEnd);
+  clearInterval(lobby.timers.ticker);
+});
+
+test('leaving a finished game preserves the recorded round plan and history', async () => {
+  const gm = createManager();
+  const created = await gm.createLobby({
+    nickname: 'Host', socketId: 'host',
+    settings: { enableAIGuessing: false, gameType: 'date', dateSubmode: 'exact' }, constraints,
+  });
+  const guest = gm.joinLobby({ lobbyId: created.lobby.id, nickname: 'Guest', socketId: 'guest' });
+  created.lobby.photos.push(
+    { id: 'host-photo', url: '/uploads/host.jpg', uploaderId: created.playerId, captureDate: '2000-01-01' },
+    { id: 'guest-photo', url: '/uploads/guest.jpg', uploaderId: guest.playerId, captureDate: '2010-01-01' },
+  );
+  gm.startGame(created.lobby.id);
+  const lobby = created.lobby;
+
+  for (let round = 0; round < 2; round++) {
+    assert.equal(gm.submitGuess(lobby.id, created.playerId, { date: '2005-06-01' }).accepted, true);
+    assert.equal(gm.submitGuess(lobby.id, guest.playerId, { date: '2005-06-01' }).accepted, true);
+    await gm.endRound(lobby.id);
+    assert.equal(await gm.nextRound(lobby.id), true);
+  }
+  assert.equal(lobby.state, 'finished');
+  const roundIndexBefore = lobby.roundIndex;
+  const roundOrderBefore = [...lobby.roundOrder];
+
+  await gm.leaveLobby(lobby.id, guest.playerId);
+
+  assert.equal(lobby.state, 'finished');
+  assert.deepEqual(lobby.roundOrder, roundOrderBefore);
+  assert.equal(lobby.roundIndex, roundIndexBefore);
+  assert.equal(lobby.roundHistory.length, 2);
+  assert.deepEqual(lobby.photos.map(photo => photo.id), ['host-photo']);
+});
+
 test('socket guess payload keeps fields required by every game submode', () => {
   assert.deepEqual(guessPayloadForMode('spot', undefined, { lat: 1, lon: 2 }), { lat: 1, lon: 2 });
   assert.deepEqual(guessPayloadForMode('uploader', undefined, { uploaderId: 'player-2' }), { uploaderId: 'player-2' });
