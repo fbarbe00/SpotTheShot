@@ -21,7 +21,7 @@ RUN test -f /build/llama.cpp/tools/mtmd/models/models.h
 
 WORKDIR /build/llama.cpp
 
-ARG BUILD_JOBS=3
+ARG BUILD_JOBS=4
 RUN mkdir -p /build/out \
  && rm -rf build \
  && cmake -B build \
@@ -43,6 +43,7 @@ RUN mkdir -p /build/out \
       -DLLAMA_BUILD_EXAMPLES=OFF \
       -DLLAMA_BUILD_TOOLS=ON \
       -DLLAMA_BUILD_SERVER=ON \
+      -DMTMD_VIDEO=OFF \
       -DLLAMA_BUILD_UI=OFF \
       -DLLAMA_USE_PREBUILT_UI=OFF \
       -DCMAKE_C_COMPILER=clang \

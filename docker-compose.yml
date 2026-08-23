@@ -6,7 +6,7 @@ services:
       context: ./vision
       dockerfile: ${DOCKERFILE:-Dockerfile}
       args:
-        BUILD_JOBS: ${BUILD_JOBS:-3}
+        BUILD_JOBS: ${BUILD_JOBS:-4}
     environment:
       - MODEL=${MODEL:-ministral}
       - THINKING=${THINKING:-off}
