@@ -198,7 +198,7 @@ const ru: Record<string, string> = {
   "game.date.referenceTaken": "Образец снят",
   "game.date.photoToPlace": "Фото для сравнения",
   "game.date.reference": "Фото-образец",
-  "game.date.beforeAfterPrompt": "Левое фото снято раньше или позже образца?",
+  "game.date.beforeAfterPrompt": "Поместите загадочное фото до или после образца.",
   "game.date.beforeChoice": "Снято раньше",
   "game.date.afterChoice": "Снято позже",
   "game.date.timelineOldest": "Самое раннее",

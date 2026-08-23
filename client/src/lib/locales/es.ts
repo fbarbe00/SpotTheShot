@@ -189,7 +189,7 @@ const es: Record<string, string> = {
   "game.date.referenceTaken": "Foto de referencia tomada el",
   "game.date.photoToPlace": "Foto que debes situar",
   "game.date.reference": "Foto de referencia",
-  "game.date.beforeAfterPrompt": "¿La foto izquierda se tomó antes o después de la referencia?",
+  "game.date.beforeAfterPrompt": "Coloca la foto misteriosa antes o después de la referencia.",
   "game.date.beforeChoice": "Tomada antes",
   "game.date.afterChoice": "Tomada después",
   "game.date.timelineOldest": "Más antigua",

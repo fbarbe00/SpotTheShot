@@ -189,7 +189,7 @@ const de: Record<string, string> = {
   "game.date.referenceTaken": "Referenzfoto aufgenommen am",
   "game.date.photoToPlace": "Einzuordnendes Foto",
   "game.date.reference": "Referenzfoto",
-  "game.date.beforeAfterPrompt": "Wurde das linke Foto vor oder nach der Referenz aufgenommen?",
+  "game.date.beforeAfterPrompt": "Ordne das unbekannte Foto vor oder nach der Referenz ein.",
   "game.date.beforeChoice": "Früher aufgenommen",
   "game.date.afterChoice": "Später aufgenommen",
   "game.date.timelineOldest": "Ältestes",

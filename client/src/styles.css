@@ -16,14 +16,25 @@
 
   /* Normalize checkbox sizes across browsers */
   input[type="checkbox"] {
-    width: 1.25rem;
-    height: 1.25rem;
-    min-width: 1.25rem;
-    min-height: 1.25rem;
-    max-width: 1.25rem;
-    max-height: 1.25rem;
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    min-height: 1rem;
+    max-width: 1rem;
+    max-height: 1rem;
     margin: 0;
     cursor: pointer;
+  }
+
+  @media (min-width: 640px) {
+    input[type="checkbox"] {
+      width: 1.25rem;
+      height: 1.25rem;
+      min-width: 1.25rem;
+      min-height: 1.25rem;
+      max-width: 1.25rem;
+      max-height: 1.25rem;
+    }
   }
 
   /* Keep long-press image actions from covering the map controls on mobile.

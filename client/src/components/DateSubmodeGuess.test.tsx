@@ -25,7 +25,7 @@ describe('Date submode controls', () => {
     container.remove()
   })
 
-  it('shows equal photo panels and submits a Before or After choice', async () => {
+  it('moves the mystery photo and only submits a Before or After choice when locked', async () => {
     const onConfirm = vi.fn().mockResolvedValue(true)
     await act(async () => root.render(<DateSubmodeGuess
       photo={{ id: 'current', url: '/current.jpg', dateReference: { id: 'reference', url: '/reference.jpg' } }}
@@ -41,10 +41,18 @@ describe('Date submode controls', () => {
     expect(images[0]?.className).toBe(images[1]?.className)
     // The reference date must not be rendered during the round.
     expect(container.textContent).not.toMatch(/2000|referenceTaken/)
-    const beforeButton = [...container.querySelectorAll('button')]
-      .find(button => button.textContent === 'game.date.beforeChoice')
-    await act(async () => beforeButton?.click())
-    expect(onConfirm).toHaveBeenCalledWith({ dateChoice: 'before' })
+    const confirm = [...container.querySelectorAll('button')]
+      .find(button => button.textContent?.includes('game.lockGuess'))
+    expect(confirm?.hasAttribute('disabled')).toBe(true)
+
+    const moveLater = [...container.querySelectorAll('button')]
+      .find(button => button.getAttribute('aria-label') === 'game.date.moveLater')
+    await act(async () => moveLater?.click())
+    expect([...container.querySelectorAll('img')].map(image => image.getAttribute('src'))).toEqual(['/reference.jpg', '/current.jpg'])
+    expect(onConfirm).not.toHaveBeenCalled()
+
+    await act(async () => confirm?.click())
+    expect(onConfirm).toHaveBeenCalledWith({ dateChoice: 'after' })
   })
 
   it('reorders all three timeline cards and submits the visible order', async () => {

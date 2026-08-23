@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, HelpCircle, Lock } from 'lucide-react';
 import type { Photo } from '../lib/types';
 import { buildPhotoUrl } from '../lib/socket';
 import { useI18n } from '../contexts/I18nContext';
@@ -16,6 +16,7 @@ export default function DateSubmodeGuess({ photo, lobbyId, playerId, mode, disab
 }) {
   const { t } = useI18n();
   const [order, setOrder] = useState(() => existingOrder || photo.timelinePhotos?.map(item => item.id) || []);
+  const [dateChoice, setDateChoice] = useState<'before' | 'after' | undefined>(existingChoice);
   const [submitting, setSubmitting] = useState(false);
   // Re-sync only when the challenge itself changes (different photo or a
   // different set of card ids). Lobby updates rebuild the photo object with a
@@ -26,6 +27,7 @@ export default function DateSubmodeGuess({ photo, lobbyId, playerId, mode, disab
     setOrder(existingOrder || (timelineIds ? timelineIds.split('|') : []));
   }, [photo.id, timelineIds, existingOrder]);
   useEffect(() => setSubmitting(false), [photo.id]);
+  useEffect(() => setDateChoice(existingChoice), [photo.id, existingChoice]);
 
   const submit = async (guess: { dateChoice: 'before' | 'after' } | { photoOrder: string[] }) => {
     if (disabled || submitting) return;
@@ -35,25 +37,34 @@ export default function DateSubmodeGuess({ photo, lobbyId, playerId, mode, disab
   };
 
   if (mode === 'before_after' && photo.dateReference) {
+    const mystery = {
+      id: photo.id,
+      url: photo.url,
+      label: t('game.date.photoToPlace'),
+      icon: <HelpCircle size={13} className="shrink-0" />,
+      mystery: true,
+    };
+    const reference = {
+      id: photo.dateReference.id,
+      url: photo.dateReference.url,
+      label: t('game.date.reference'),
+      icon: <CalendarDays size={13} className="shrink-0 text-text-darker" />,
+      mystery: false,
+    };
+    const cards = dateChoice === 'after' ? [reference, mystery] : [mystery, reference];
     return <div className="absolute inset-0 z-[1003] flex flex-col bg-surface p-2 pt-16">
       <div className="mb-2 text-center text-sm font-black text-white sm:text-base">{t('game.date.beforeAfterPrompt')}</div>
       <div className="relative grid min-h-0 flex-1 grid-cols-2 gap-2 sm:gap-4">
-        <div className="grid min-w-0 grid-rows-[2.25rem_minmax(0,1fr)] gap-1 overflow-hidden rounded-xl border-2 border-primary/70 bg-black/30 p-1.5 shadow-[0_0_14px_rgba(0,246,255,0.18)] sm:p-2">
-          <div className="flex items-center justify-center gap-1 rounded-lg bg-primary px-1 text-center text-[10px] font-black uppercase tracking-wide text-black sm:text-xs"><HelpCircle size={13} className="shrink-0" />{t('game.date.photoToPlace')}</div>
-          <img src={buildPhotoUrl(photo.url, lobbyId, playerId)} alt="" className="h-full min-h-0 w-full rounded-lg bg-black object-contain" />
-        </div>
-        <div className="grid min-w-0 grid-rows-[2.25rem_minmax(0,1fr)] gap-1 overflow-hidden rounded-xl border-2 border-dashed border-white/35 bg-black/30 p-1.5 sm:p-2">
-          <div className="flex items-center justify-center gap-1 rounded-lg bg-white/15 px-1 text-center text-[10px] font-black uppercase tracking-wide text-text sm:text-xs"><CalendarDays size={13} className="shrink-0 text-text-darker" />{t('game.date.reference')}</div>
-          <img src={buildPhotoUrl(photo.dateReference.url, lobbyId, playerId)} alt="" className="h-full min-h-0 w-full rounded-lg bg-black object-contain" />
-        </div>
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-primary/50 bg-surface text-primary shadow-lg">
-          <ArrowLeftRight size={17} />
-        </div>
+        {cards.map(card => <div key={card.id} className={`grid min-w-0 grid-rows-[2.25rem_minmax(0,1fr)] gap-1 overflow-hidden rounded-xl border-2 bg-black/30 p-1.5 sm:p-2 ${card.mystery ? 'border-primary/70 shadow-[0_0_14px_rgba(0,246,255,0.18)]' : 'border-dashed border-white/35'}`}>
+          <div className={`flex items-center justify-center gap-1 rounded-lg px-1 text-center text-[10px] font-black uppercase tracking-wide sm:text-xs ${card.mystery ? 'bg-primary text-black' : 'bg-white/15 text-text'}`}>{card.icon}{card.label}</div>
+          <img src={buildPhotoUrl(card.url, lobbyId, playerId)} alt="" className="h-full min-h-0 w-full rounded-lg bg-black object-contain" />
+        </div>)}
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <button type="button" disabled={disabled || submitting} onClick={() => void submit({ dateChoice: 'before' })} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary p-3 text-sm font-black text-black transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${existingChoice === 'before' ? 'ring-2 ring-white' : ''}`}><ArrowLeft size={18} className="shrink-0" />{t('game.date.beforeChoice')}</button>
-        <button type="button" disabled={disabled || submitting} onClick={() => void submit({ dateChoice: 'after' })} className={`flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary p-3 text-sm font-black text-black transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${existingChoice === 'after' ? 'ring-2 ring-white' : ''}`}><ArrowRight size={18} className="shrink-0" />{t('game.date.afterChoice')}</button>
+        <button type="button" aria-label={t('game.date.moveEarlier')} disabled={disabled || submitting} onClick={() => setDateChoice('before')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border p-2 text-sm font-black transition-transform active:scale-[0.98] disabled:opacity-50 ${dateChoice === 'before' ? 'border-primary bg-primary text-black' : 'border-primary/40 bg-primary/10 text-primary'}`}><ArrowLeft size={18} className="shrink-0" />{t('game.date.before')}</button>
+        <button type="button" aria-label={t('game.date.moveLater')} disabled={disabled || submitting} onClick={() => setDateChoice('after')} className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border p-2 text-sm font-black transition-transform active:scale-[0.98] disabled:opacity-50 ${dateChoice === 'after' ? 'border-primary bg-primary text-black' : 'border-primary/40 bg-primary/10 text-primary'}`}>{t('game.date.after')}<ArrowRight size={18} className="shrink-0" /></button>
       </div>
+      <button type="button" disabled={disabled || submitting || !dateChoice} onClick={() => dateChoice && void submit({ dateChoice })} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary p-3 font-black text-black disabled:opacity-40"><Lock size={18} />{t('game.lockGuess')}</button>
     </div>;
   }
 
