@@ -25,6 +25,47 @@ interface LocationPickerDialogProps {
 const SEARCH_ZOOM = 12
 const COUNTRY_LEVEL_ZOOM = 6
 
+interface PhotonFeature {
+  geometry: { coordinates: [number, number] }
+  properties: {
+    name?: string
+    street?: string
+    district?: string
+    city?: string
+    state?: string
+    country?: string
+  }
+}
+
+interface SearchResult {
+  lat: number
+  lon: number
+  display_name: string
+  name: string
+  context: string
+}
+
+function photonToResult(f: PhotonFeature): SearchResult {
+  const properties = f.properties
+  const name = properties.name || properties.street || properties.district || properties.city || properties.state || properties.country || 'Unknown'
+  const unique = (parts: Array<string | undefined>) =>
+    parts.filter((part): part is string => !!part && part !== name)
+      .filter((part, index, all) => all.indexOf(part) === index)
+  const city = unique([properties.city, properties.district])[0]
+  const region = unique([properties.state])[0]
+  const country = unique([properties.country])[0]
+  // Short disambiguation label: city (or region) + country, e.g. "Paris, France"
+  const context = [city || region, country].filter(Boolean).join(', ')
+    || unique([properties.street, properties.district, properties.city, properties.state, properties.country]).join(', ')
+  return {
+    lat: f.geometry.coordinates[1],
+    lon: f.geometry.coordinates[0],
+    display_name: context ? `${name}, ${context}` : name,
+    name,
+    context,
+  }
+}
+
 function LocationMarker({
   position,
   setPosition,
@@ -80,7 +121,7 @@ export default function LocationPickerDialog({
   const effectiveMapLanguage = mapLanguage ?? (['en', 'fr', 'de'].includes(language) ? language as MapLanguage : 'local')
   const [position, setPosition] = useState<[number, number] | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Array<{ lat: string; lon: string; display_name: string }>>([])
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -161,14 +202,7 @@ export default function LocationPickerDialog({
       if (!response.ok) throw new Error(`Search returned ${response.status}`)
       const data = await response.json()
       // Photon returns features array with geometry.coordinates [lon, lat]
-      const results = (data.features || []).map((f: {
-        geometry: { coordinates: [number, number] };
-        properties: { name?: string; street?: string; district?: string; city?: string; state?: string; country?: string };
-      }) => ({
-        lat: f.geometry.coordinates[1],
-        lon: f.geometry.coordinates[0],
-        display_name: f.properties.name || f.properties.street || f.properties.district || f.properties.city || f.properties.state || f.properties.country || 'Unknown',
-      }))
+      const results = (data.features || []).map(photonToResult)
       setSearchResults(results)
     } catch (error) {
       if (controller.signal.aborted) return
@@ -199,11 +233,10 @@ export default function LocationPickerDialog({
   }, [searchQuery])
   /* eslint-enable react-hooks/exhaustive-deps */
 
-  const handleSearchSelect = (result: { lat: string; lon: string; display_name: string } | undefined) => {
+  const handleSearchSelect = (result: SearchResult | undefined) => {
     if (!result) return
-    const lat = parseFloat(result.lat)
-    const lon = parseFloat(result.lon)
-    if (!isNaN(lat) && !isNaN(lon)) {
+    const { lat, lon } = result
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
       setHasUserInteracted(true)
       setPosition([lat, lon])
       setMapCenterOverride([lat, lon])
@@ -346,8 +379,10 @@ export default function LocationPickerDialog({
                   }}
                   className="w-full text-left p-2 hover:bg-primary/10 flex flex-col border-b border-primary/10 last:border-b-0"
                 >
-                  <span className="font-medium text-text truncate">{result.display_name.split(',')[0]}</span>
-                  <span className="text-xs text-text-darker truncate">{result.display_name}</span>
+                  <span className="font-medium text-text truncate">{result.name}</span>
+                  {result.context && (
+                    <span className="text-xs text-text-darker truncate">{result.context}</span>
+                  )}
                 </button>
               ))}
             </div>
